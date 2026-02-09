@@ -107,6 +107,9 @@ class CassandraGUIApp:
                             st.session_state.current_table_name = selected_table
                             st.session_state.paging_state = None
                             st.session_state.page_history = []
+                            # Reset collection inputs
+                            if 'collection_inputs' in st.session_state:
+                                del st.session_state.collection_inputs
 
                         st.session_state.current_table_schema = st.session_state.schema_inspector.get_table_schema(selected_ks, selected_table)
 
@@ -503,19 +506,53 @@ class CassandraGUIApp:
 
     def _render_insert_form(self, schema: TableSchema):
         """Render form for inserting new records."""
-        with st.form("insert_form"):
-            st.subheader("New Record")
-            cols = st.columns(2)
-            form_data = schema.render_form(cols)
-            if st.form_submit_button("Insert"):
-                form_valid=True
-                for k, v in form_data.items():
-                    if 'validator' in v and not v['validator'](v['value']):
-                        form_valid=False
-                        st.error(f"{k}: {v['value']}")
-                data = {k: v['value'] for k, v in form_data.items() if v}
-                if data and form_valid:
-                    self._insert_record(schema, data)
+
+        # Initialize collection inputs state if needed
+        if 'collection_inputs' not in st.session_state:
+            st.session_state.collection_inputs = {}
+
+        # Helper to add item
+        def add_collection_item(col_name):
+            if col_name not in st.session_state.collection_inputs:
+                st.session_state.collection_inputs[col_name] = []
+            st.session_state.collection_inputs[col_name].append("")
+
+        # Helper to remove item
+        def remove_collection_item(col_name, idx):
+            if col_name in st.session_state.collection_inputs:
+                st.session_state.collection_inputs[col_name].pop(idx)
+
+        # We need to use a container for the form content but buttons for adding items
+        # must be outside the form because they trigger reruns.
+        # So we'll collect data in a dictionary and have the submit button separately?
+        # Streamlit forms don't allow buttons inside that trigger callbacks.
+        # Strategy: Render inputs. If it's a collection, render dynamic inputs outside a strict st.form
+        # or manage the whole thing without st.form for the collection parts.
+        # To keep it simple and consistent, let's use a standard container and a final button.
+
+        st.subheader("New Record")
+        cols = st.columns(2)
+        form_data = schema.render_form(cols,
+                                       add_collection_item=add_collection_item,
+                                       remove_collection_item=remove_collection_item)
+        for i, col in enumerate(schema.columns):
+            col_container = cols[i % 2]
+
+        st.markdown("---")
+        if st.button("Insert Record", type="primary"):
+            # Filter out empty strings for standard inputs
+            data = {k: v for k, v in form_data.items() if v}
+
+            # Merge collection data (already filtered)
+            # Note: form_data already contains collection data from above loop
+
+            if data:
+                self._insert_record(schema, data)
+                # Clear collection inputs on success
+                st.session_state.collection_inputs = {}
+                st.rerun()
+            else:
+                st.warning("Please fill in at least one field.")
 
     def _render_table_info(self, schema: TableSchema):
         """Render table schema information."""

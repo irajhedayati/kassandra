@@ -8,6 +8,7 @@ partition keys, clustering keys, and column types.
 import uuid
 from dataclasses import dataclass, field
 
+import streamlit as st
 from cassandra.cluster import Session
 from streamlit.delta_generator import DeltaGenerator
 
@@ -20,6 +21,7 @@ date_types = ['date', 'time', 'timestamp', 'duration']
 uuid_types = ['uuid', 'timeuuid']
 collection_types = ['map', 'set', 'list']
 other_types = ['boolean', 'blob', 'inet']
+
 
 @dataclass
 class ColumnInfo:
@@ -74,6 +76,7 @@ class ColumnInfo:
     def is_map(self):
         return self.cql_type.lower().startswith('map')
 
+
 @dataclass
 class TableSchema:
     """Complete schema information for a table."""
@@ -118,22 +121,22 @@ class TableSchema:
         """Get all columns with primary keys first."""
         return self.primary_key_columns + self.regular_columns
 
-    def render_form(self, cols: list[DeltaGenerator]) -> dict:
+    def render_form(self, cols: list[DeltaGenerator], **kwargs) -> dict:
         """Creates a form to show and/or edit data returning a dictionary for column values"""
         col_size = len(cols)
         form_data = {}
         for i, col in enumerate(self.partition_keys):
-            form_data[col.name] = self.cql_col_input(cols[i % col_size], col)
+            form_data[col.name] = self.cql_col_input(cols[i % col_size], col, **kwargs)
         offset = len(self.primary_key_columns) - 1
         for i, col in enumerate(self.clustering_keys):
-            form_data[col.name] = self.cql_col_input(cols[i % col_size], col)
+            form_data[col.name] = self.cql_col_input(cols[i % col_size], col, **kwargs)
         offset += len(self.clustering_keys) - 1
         for i, col in enumerate(self.regular_columns):
-            form_data[col.name] = self.cql_col_input(cols[i % col_size], col)
+            form_data[col.name] = self.cql_col_input(cols[i % col_size], col, **kwargs)
         return form_data
 
     @staticmethod
-    def cql_col_input(generator: DeltaGenerator, col: ColumnInfo):
+    def cql_col_input(generator: DeltaGenerator, col: ColumnInfo, **kwargs):
         out = {}
         if col.is_numeric:
             out['value'] = generator.number_input(col.label)
@@ -145,17 +148,47 @@ class TableSchema:
             out['validator'] = uuid_validator
         elif col.is_text or col.cql_type == 'duration' or col.cql_type in uuid_types or col.cql_type == 'inet' \
                 or col.cql_type in collection_types:
-            out['value'] =  generator.text_input(col.label, help=col.hint)
+            out['value'] = generator.text_input(col.label, help=col.hint)
         elif col.cql_type == 'date':
-            out['value'] =  generator.date_input(col.label, help=col.hint)
+            out['value'] = generator.date_input(col.label, help=col.hint)
         elif col.cql_type == 'time':
-            out['value'] =  generator.time_input(col.label, help=col.hint)
+            out['value'] = generator.time_input(col.label, help=col.hint)
         elif col.cql_type == 'timestamp':
-            out['value'] =  generator.datetime_input(col.label, help=col.hint)
+            out['value'] = generator.datetime_input(col.label, help=col.hint)
         elif col.cql_type == 'boolean':
-            out['value'] =  generator.checkbox(col.label, help=col.hint)
+            out['value'] = generator.checkbox(col.label, help=col.hint)
+        elif col.cql_type.startswith('list<') or col.cql_type.startswith('set<'):
+            generator.markdown(f"**{col.name} ({col.cql_type})**")
+
+            # Initialize if empty
+            if col.name not in st.session_state.collection_inputs:
+                st.session_state.collection_inputs[col.name] = []
+
+            items = st.session_state.collection_inputs[col.name]
+
+            # Render existing items
+            for idx, item in enumerate(items):
+                c1, c2 = generator.columns([4, 1])
+                # Update item in state on change
+                new_val = c1.text_input(f"Item {idx + 1}", value=item, key=f"insert_{col.name}_{idx}",
+                                        label_visibility="collapsed")
+                st.session_state.collection_inputs[col.name][idx] = new_val
+
+                if c2.button("🗑️", key=f"remove_{col.name}_{idx}"):
+                    kwargs['remove_collection_item'](col.name, idx)
+                    st.rerun()
+
+            if generator.button("➕ Add Item", key=f"add_{col.name}"):
+                kwargs['add_collection_item'](col.name)
+                st.rerun()
+
+            # Store the list/set for submission
+            # Filter out empty strings
+            valid_items = [x for x in items if x]
+            if valid_items:
+                form_data[col.name] = set(valid_items) if col.cql_type.startswith('set') else valid_items
         else:
-            out['value'] =  generator.text_area(col.label, help=col.hint)
+            out['value'] = generator.text_area(col.label, help=col.hint)
         return out
 
 
@@ -186,9 +219,9 @@ class SchemaInspector:
             List of keyspace names, excluding system keyspaces.
         """
         query = """
-            SELECT keyspace_name 
-            FROM system_schema.keyspaces
-        """
+                SELECT keyspace_name
+                FROM system_schema.keyspaces \
+                """
         rows = self._session.execute(query)
 
         # Filter out system keyspaces
@@ -215,10 +248,10 @@ class SchemaInspector:
             List of table names.
         """
         query = """
-            SELECT table_name 
-            FROM system_schema.tables 
-            WHERE keyspace_name = %s
-        """
+                SELECT table_name
+                FROM system_schema.tables
+                WHERE keyspace_name = %s \
+                """
         rows = self._session.execute(query, (keyspace,))
         return sorted([row['table_name'] for row in rows])
 
@@ -239,10 +272,11 @@ class SchemaInspector:
         """
         # Query column information from system schema
         query = """
-            SELECT column_name, type, kind, position, clustering_order
-            FROM system_schema.columns
-            WHERE keyspace_name = %s AND table_name = %s
-        """
+                SELECT column_name, type, kind, position, clustering_order
+                FROM system_schema.columns
+                WHERE keyspace_name = %s
+                  AND table_name = %s \
+                """
         rows = self._session.execute(query, (keyspace, table))
 
         columns = []
