@@ -97,14 +97,17 @@ class CassandraGUIApp:
                 if selected_ks:
                     tables = st.session_state.schema_inspector.get_tables(selected_ks)
                     selected_table = st.selectbox("Table", tables, key="selected_table")
-                    
+
+                    if st.button("Refresh", help="Refresh the list of tables", use_container_width=True):
+                        st.rerun()
+
                     if selected_table:
                         # Reset pagination when table changes
                         if 'current_table_name' not in st.session_state or st.session_state.current_table_name != selected_table:
                             st.session_state.current_table_name = selected_table
                             st.session_state.paging_state = None
                             st.session_state.page_history = []
-                        
+
                         st.session_state.current_table_schema = st.session_state.schema_inspector.get_table_schema(selected_ks, selected_table)
 
     def _render_main_content(self):
@@ -281,7 +284,11 @@ class CassandraGUIApp:
             # Streamlit doesn't support exact pixel widths in st.columns easily, 
             # but we can use a small ratio for the first column.
             # Assuming a wide layout, 0.15 vs 1 is roughly 1:7 ratio.
-            col_spec = [0.4] + [1] * len(visible_columns)
+            num_cols = len(visible_columns)
+            if num_cols > 0:
+                col_spec = [0.15] + [0.85 / num_cols] * num_cols
+            else:
+                col_spec = [1]
             cols = st.columns(col_spec)
             
             # Header
@@ -299,11 +306,11 @@ class CassandraGUIApp:
                 ac1, ac2 = action_col.columns(2)
                 
                 # View Details Action
-                if ac1.button("View", key=f"view_{i}", help="View Details"):
+                if ac1.button("View", key=f"view_{i}", help="View Details", use_container_width=True):
                     self._show_row_details(row)
 
                 # Delete Action
-                if ac2.button("Delete", key=f"del_{i}", help="Delete Row"):
+                if ac2.button("Delete", key=f"del_{i}", help="Delete Row", use_container_width=True):
                     self._confirm_delete(schema, row)
                 
                 # Data
@@ -311,8 +318,13 @@ class CassandraGUIApp:
                     if j + 1 < len(cols):
                         # row is a dict because of dict_factory in connection.py
                         val = row.get(col.name)
-                        cols[j+1].write(str(val))
-                        
+                        if not val:
+                            cols[j+1].write("null")
+                        elif col.cql_type.startswith("set"):
+                            cols[j+1].write(str(set(val)))
+                        else:
+                            cols[j+1].write(str(val))
+
         else:
             st.info("No data found.")
 
@@ -493,17 +505,16 @@ class CassandraGUIApp:
         """Render form for inserting new records."""
         with st.form("insert_form"):
             st.subheader("New Record")
-            form_data = {}
-            
             cols = st.columns(2)
-            for i, col in enumerate(schema.columns):
-                # Basic input field generation based on type could be improved
-                form_data[col.name] = cols[i % 2].text_input(f"{col.name} ({col.cql_type})")
-            
+            form_data = schema.render_form(cols)
             if st.form_submit_button("Insert"):
-                # Filter out empty strings
-                data = {k: v for k, v in form_data.items() if v}
-                if data:
+                form_valid=True
+                for k, v in form_data.items():
+                    if 'validator' in v and not v['validator'](v['value']):
+                        form_valid=False
+                        st.error(f"{k}: {v['value']}")
+                data = {k: v['value'] for k, v in form_data.items() if v}
+                if data and form_valid:
                     self._insert_record(schema, data)
 
     def _render_table_info(self, schema: TableSchema):
@@ -647,16 +658,29 @@ class CassandraGUIApp:
         """Execute insert query."""
         keyspace = schema.keyspace
         table = schema.table_name
-        
-        columns = list(data.keys())
-        placeholders = ', '.join(['%s' for _ in columns])
-        col_names = ', '.join(columns)
-        
-        query = f"INSERT INTO {keyspace}.{table} ({col_names}) VALUES ({placeholders})"
-        
+
+        columns = []
+        placeholders = []
+        for k, v in data.items():
+            if v and v != '':
+                columns.append(k)
+                if schema.column(k).is_text:
+                    placeholders.append(f"'{v}'")
+                elif schema.column(k).cql_type == 'date':
+                    placeholders.append(f"'{v.strftime('%Y-%m-%d')}'")
+                elif schema.column(k).cql_type == 'datetime' or schema.column(k).cql_type == 'timestamp':
+                    placeholders.append(f"'{v.strftime('%Y-%m-%d %H:%M:%S.%f')}'")
+                elif schema.column(k).cql_type.startswith("list<"):
+                    placeholders.append(f"{str(v.split(','))}")
+                elif schema.column(k).cql_type.startswith("set<"):
+                    placeholders.append(str(set(v.split(","))))
+                else:
+                    placeholders.append(str(v))
+
+        query = f"INSERT INTO {keyspace}.{table} ({', '.join(columns)}) VALUES ({', '.join(placeholders)})"
         try:
             # Note: Type conversion should be handled here
-            self._connection.execute(query, tuple(data.values()))
+            self._connection.execute(query, data)
             st.success("Record inserted successfully")
             st.rerun()
         except Exception as e:

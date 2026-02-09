@@ -5,10 +5,21 @@ Discovers keyspaces, tables, and column metadata from Cassandra.
 Provides structured information about table schemas including
 partition keys, clustering keys, and column types.
 """
-
+import uuid
 from dataclasses import dataclass, field
-from cassandra.cluster import Session
 
+from cassandra.cluster import Session
+from streamlit.delta_generator import DeltaGenerator
+
+from src.utils.utils import uuid_validator
+
+number_types = ['int', 'bigint', 'varint', 'smallint', 'tinyint', 'counter']
+float_types = ['float', 'double', 'decimal']
+text_types = ['ascii', 'text', 'varchar']
+date_types = ['date', 'time', 'timestamp', 'duration']
+uuid_types = ['uuid', 'timeuuid']
+collection_types = ['map', 'set', 'list']
+other_types = ['boolean', 'blob', 'inet']
 
 @dataclass
 class ColumnInfo:
@@ -25,6 +36,43 @@ class ColumnInfo:
         """Check if column is part of primary key."""
         return self.is_partition_key or self.is_clustering_key
 
+    @property
+    def label(self) -> str:
+        if self.is_partition_key:
+            return f"**{self.name} ({self.cql_type})**"
+        elif self.is_clustering_key:
+            return f"*{self.name} ({self.cql_type})*"
+        else:
+            return f"{self.name} ({self.cql_type})"
+
+    @property
+    def hint(self):
+        if self.is_partition_key:
+            return "Partition Key (Primary Key)"
+        elif self.is_clustering_key:
+            return "Clustering Key (Primary Key)"
+        else:
+            return ""
+
+    @property
+    def is_numeric(self):
+        return self.cql_type in number_types or self.cql_type in float_types
+
+    @property
+    def is_text(self):
+        return self.cql_type in text_types
+
+    @property
+    def is_uuid(self):
+        return self.cql_type in uuid_types
+
+    @property
+    def is_set_or_list(self):
+        return self.cql_type.lower().startswith('set') or self.cql_type.lower().startswith('list')
+
+    @property
+    def is_map(self):
+        return self.cql_type.lower().startswith('map')
 
 @dataclass
 class TableSchema:
@@ -69,6 +117,46 @@ class TableSchema:
     def all_columns_sorted(self) -> list[ColumnInfo]:
         """Get all columns with primary keys first."""
         return self.primary_key_columns + self.regular_columns
+
+    def render_form(self, cols: list[DeltaGenerator]) -> dict:
+        """Creates a form to show and/or edit data returning a dictionary for column values"""
+        col_size = len(cols)
+        form_data = {}
+        for i, col in enumerate(self.partition_keys):
+            form_data[col.name] = self.cql_col_input(cols[i % col_size], col)
+        offset = len(self.primary_key_columns) - 1
+        for i, col in enumerate(self.clustering_keys):
+            form_data[col.name] = self.cql_col_input(cols[i % col_size], col)
+        offset += len(self.clustering_keys) - 1
+        for i, col in enumerate(self.regular_columns):
+            form_data[col.name] = self.cql_col_input(cols[i % col_size], col)
+        return form_data
+
+    @staticmethod
+    def cql_col_input(generator: DeltaGenerator, col: ColumnInfo):
+        out = {}
+        if col.is_numeric:
+            out['value'] = generator.number_input(col.label)
+        elif col.cql_type == 'uuid':
+            out['value'] = generator.text_input(col.label, help=col.hint, max_chars=36, value=str(uuid.uuid4()))
+            out['validator'] = uuid_validator
+        elif col.cql_type == 'timeuuid':
+            out['value'] = generator.text_input(col.label, help=col.hint, max_chars=36, value=str(uuid.uuid1()))
+            out['validator'] = uuid_validator
+        elif col.is_text or col.cql_type == 'duration' or col.cql_type in uuid_types or col.cql_type == 'inet' \
+                or col.cql_type in collection_types:
+            out['value'] =  generator.text_input(col.label, help=col.hint)
+        elif col.cql_type == 'date':
+            out['value'] =  generator.date_input(col.label, help=col.hint)
+        elif col.cql_type == 'time':
+            out['value'] =  generator.time_input(col.label, help=col.hint)
+        elif col.cql_type == 'timestamp':
+            out['value'] =  generator.datetime_input(col.label, help=col.hint)
+        elif col.cql_type == 'boolean':
+            out['value'] =  generator.checkbox(col.label, help=col.hint)
+        else:
+            out['value'] =  generator.text_area(col.label, help=col.hint)
+        return out
 
 
 # noinspection SqlNoDataSourceInspection
