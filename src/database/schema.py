@@ -186,7 +186,7 @@ class TableSchema:
             # Filter out empty strings
             valid_items = [x for x in items if x]
             if valid_items:
-                form_data[col.name] = set(valid_items) if col.cql_type.startswith('set') else valid_items
+                out['value'] = set(valid_items) if col.cql_type.startswith('set') else valid_items
         else:
             out['value'] = generator.text_area(col.label, help=col.hint)
         return out

@@ -699,27 +699,27 @@ class CassandraGUIApp:
         columns = []
         placeholders = []
         for k, v in data.items():
-            if v and v != '':
+            value = v['value']
+            if value and value != '':
                 columns.append(k)
                 if schema.column(k).is_text:
-                    placeholders.append(f"'{v}'")
+                    placeholders.append(f"'{value}'")
                 elif schema.column(k).cql_type == 'date':
-                    placeholders.append(f"'{v.strftime('%Y-%m-%d')}'")
+                    placeholders.append(f"'{value.strftime('%Y-%m-%d')}'")
                 elif schema.column(k).cql_type == 'datetime' or schema.column(k).cql_type == 'timestamp':
-                    placeholders.append(f"'{v.strftime('%Y-%m-%d %H:%M:%S.%f')}'")
+                    placeholders.append(f"'{value.strftime('%Y-%m-%d %H:%M:%S.%f')}'")
                 elif schema.column(k).cql_type.startswith("list<"):
-                    placeholders.append(f"{str(v.split(','))}")
+                    placeholders.append(f"{str(value)}")
                 elif schema.column(k).cql_type.startswith("set<"):
-                    placeholders.append(str(set(v.split(","))))
+                    placeholders.append(str(set(value)))
                 else:
-                    placeholders.append(str(v))
+                    placeholders.append(str(value))
 
         query = f"INSERT INTO {keyspace}.{table} ({', '.join(columns)}) VALUES ({', '.join(placeholders)})"
         try:
             # Note: Type conversion should be handled here
             self._connection.execute(query, data)
             st.success("Record inserted successfully")
-            st.rerun()
         except Exception as e:
             st.error(f"Insert failed: {str(e)}")
 
