@@ -14,7 +14,7 @@ from typing import Dict, Any
 import pandas as pd
 import streamlit as st
 
-from database.record import Record
+from src.database.schema import Record, render_form
 from src.config.settings import ConfigManager, ConnectionProfile
 from src.database.connection import CassandraConnectionManager
 from src.database.schema import SchemaInspector, TableSchema
@@ -233,6 +233,18 @@ class CassandraGUIApp:
 
     def _render_data_grid(self):
         """Render the data grid and filters."""
+
+        # Helper to add item
+        def add_collection_item(col_name):
+            if col_name not in st.session_state.collection_inputs:
+                st.session_state.collection_inputs[col_name] = []
+            st.session_state.collection_inputs[col_name].append("")
+
+        # Helper to remove item
+        def remove_collection_item(col_name, idx):
+            if col_name in st.session_state.collection_inputs:
+                st.session_state.collection_inputs[col_name].pop(idx)
+
         schema: TableSchema = st.session_state.current_table_schema
         # Determine visible columns
         visible_columns = []
@@ -283,6 +295,7 @@ class CassandraGUIApp:
         if data:
             # Custom grid rendering to support row actions
             st.write("### Data")
+            st.write(pd.DataFrame(data).info())
             df = pd.DataFrame(data)[[c.name for c in visible_columns]]
             for col in visible_columns:
                 if col.is_set_or_list:
@@ -290,9 +303,11 @@ class CassandraGUIApp:
             event = st.dataframe(data=df, on_select="rerun", selection_mode="single-row")
             if len(event.selection['rows']):
                 selected_row = event.selection['rows'][0]
-                schema.render_form(list(st), data[selected_row],
-                                       add_collection_item=add_collection_item,
-                                       remove_collection_item=remove_collection_item)
+                render_form(list(st),
+                            data[selected_row],
+                            schema,
+                            add_collection_item=add_collection_item,
+                            remove_collection_item=remove_collection_item)
                 self._render_row_details(data[selected_row])
         else:
             st.info("No data found.")
@@ -490,10 +505,12 @@ class CassandraGUIApp:
 
         st.subheader("New Record")
         cols = st.columns(2)
-        form_data = schema.render_form(cols,
-                                       None,
-                                       add_collection_item=add_collection_item,
-                                       remove_collection_item=remove_collection_item)
+        form_data = render_form(cols,
+                                None,
+                                schema,
+                                add_collection_item=add_collection_item,
+                                remove_collection_item=remove_collection_item)
+
         for i, col in enumerate(schema.columns):
             col_container = cols[i % 2]
 

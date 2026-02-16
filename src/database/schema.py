@@ -8,12 +8,12 @@ partition keys, clustering keys, and column types.
 import uuid
 from dataclasses import dataclass, field
 from typing import Any
+from typing import Dict
 
 import streamlit as st
-from cassandra.cluster import Session, ResultSet
+from cassandra.cluster import Session
 from streamlit.delta_generator import DeltaGenerator
 
-from database.record import Record
 from src.utils.utils import uuid_validator
 
 number_types = ['int', 'bigint', 'varint', 'smallint', 'tinyint', 'counter']
@@ -123,20 +123,6 @@ class TableSchema:
         """Get all columns with primary keys first."""
         return self.primary_key_columns + self.regular_columns
 
-    def render_form(self, cols: list[DeltaGenerator], row: Record | None, **kwargs) -> dict:
-        """Creates a form to show and/or edit data returning a dictionary for column values"""
-        col_size = len(cols)
-        form_data = {}
-        for i, col in enumerate(self.partition_keys):
-            form_data[col.name] = self.cql_col_input(row.get(col.name), cols[i % col_size], col, **kwargs)
-        offset = len(self.primary_key_columns) - 1
-        for i, col in enumerate(self.clustering_keys):
-            form_data[col.name] = self.cql_col_input(row.get(col.name), cols[i % col_size], col, **kwargs)
-        offset += len(self.clustering_keys) - 1
-        for i, col in enumerate(self.regular_columns):
-            form_data[col.name] = self.cql_col_input(row.get(col.name), cols[i % col_size], col, **kwargs)
-        return form_data
-
     @staticmethod
     def cql_col_input(value: Any, generator: DeltaGenerator, col: ColumnInfo, **kwargs):
         out = {}
@@ -198,6 +184,47 @@ class TableSchema:
         else:
             out['value'] = generator.text_area(col.label, help=col.hint)
         return out
+
+
+@dataclass
+class Record:
+    """
+    Represents a single Cassandra record/row with its associated schema.
+    """
+
+    def __init__(self, schema: TableSchema, row: Any):
+        """
+        Initialize a record.
+
+        Args:
+            schema: The TableSchema associated with this record.
+            row: A row from a Cassandra ResultSet (dict-like or named-tuple).
+        """
+        self.schema = schema
+        self._data: Dict[str, Any] = {}
+
+        # Construct the internal record based on the schema columns
+        for col in self.schema.columns:
+            # Handle row as dict or object (ResultSet rows can vary depending on row_factory)
+            if hasattr(row, col.name):
+                self._data[col.name] = getattr(row, col.name)
+            elif isinstance(row, dict) and col.name in row:
+                self._data[col.name] = row[col.name]
+            else:
+                self._data[col.name] = None
+
+    @property
+    def data(self) -> Dict[str, Any]:
+        """Returns the internal dictionary representing the record."""
+        return self._data
+
+    def get(self, column_name: str) -> Any:
+        """Get value for a specific column."""
+        return self._data.get(column_name)
+
+    def set(self, column_name: str, value: Any) -> None:
+        """Get value for a specific column."""
+        self._data[column_name] = value
 
 
 # noinspection SqlNoDataSourceInspection
@@ -331,3 +358,20 @@ class SchemaInspector:
             return row['count'] if row else 0
         except Exception:
             return -1  # Unknown
+
+
+
+
+def render_form(cols: list[DeltaGenerator], row: Record | None, schema: TableSchema, **kwargs) -> dict:
+    """Creates a form to show and/or edit data returning a dictionary for column values"""
+    col_size = len(cols)
+    form_data = {}
+    for i, col in enumerate(schema.partition_keys):
+        form_data[col.name] = schema.cql_col_input(row.get(col.name), cols[i % col_size], col, **kwargs)
+    offset = len(schema.primary_key_columns) - 1
+    for i, col in enumerate(schema.clustering_keys):
+        form_data[col.name] = schema.cql_col_input(row.get(col.name), cols[i % col_size], col, **kwargs)
+    offset += len(schema.clustering_keys) - 1
+    for i, col in enumerate(schema.regular_columns):
+        form_data[col.name] = schema.cql_col_input(row.get(col.name), cols[i % col_size], col, **kwargs)
+    return form_data
