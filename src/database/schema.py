@@ -7,11 +7,13 @@ partition keys, clustering keys, and column types.
 """
 import uuid
 from dataclasses import dataclass, field
+from typing import Any
 
 import streamlit as st
-from cassandra.cluster import Session
+from cassandra.cluster import Session, ResultSet
 from streamlit.delta_generator import DeltaGenerator
 
+from database.record import Record
 from src.utils.utils import uuid_validator
 
 number_types = ['int', 'bigint', 'varint', 'smallint', 'tinyint', 'counter']
@@ -121,42 +123,48 @@ class TableSchema:
         """Get all columns with primary keys first."""
         return self.primary_key_columns + self.regular_columns
 
-    def render_form(self, cols: list[DeltaGenerator], **kwargs) -> dict:
+    def render_form(self, cols: list[DeltaGenerator], row: Record | None, **kwargs) -> dict:
         """Creates a form to show and/or edit data returning a dictionary for column values"""
         col_size = len(cols)
         form_data = {}
         for i, col in enumerate(self.partition_keys):
-            form_data[col.name] = self.cql_col_input(cols[i % col_size], col, **kwargs)
+            form_data[col.name] = self.cql_col_input(row.get(col.name), cols[i % col_size], col, **kwargs)
         offset = len(self.primary_key_columns) - 1
         for i, col in enumerate(self.clustering_keys):
-            form_data[col.name] = self.cql_col_input(cols[i % col_size], col, **kwargs)
+            form_data[col.name] = self.cql_col_input(row.get(col.name), cols[i % col_size], col, **kwargs)
         offset += len(self.clustering_keys) - 1
         for i, col in enumerate(self.regular_columns):
-            form_data[col.name] = self.cql_col_input(cols[i % col_size], col, **kwargs)
+            form_data[col.name] = self.cql_col_input(row.get(col.name), cols[i % col_size], col, **kwargs)
         return form_data
 
     @staticmethod
-    def cql_col_input(generator: DeltaGenerator, col: ColumnInfo, **kwargs):
+    def cql_col_input(value: Any, generator: DeltaGenerator, col: ColumnInfo, **kwargs):
         out = {}
         if col.is_numeric:
-            out['value'] = generator.number_input(col.label)
+            out['value'] = generator.number_input(col.label, value=value)
         elif col.cql_type == 'uuid':
-            out['value'] = generator.text_input(col.label, help=col.hint, max_chars=36, value=str(uuid.uuid4()))
+            out['value'] = generator.text_input(col.label,
+                                                help=col.hint,
+                                                max_chars=36,
+                                                value=str(value if value else uuid.uuid4()))
             out['validator'] = uuid_validator
         elif col.cql_type == 'timeuuid':
-            out['value'] = generator.text_input(col.label, help=col.hint, max_chars=36, value=str(uuid.uuid1()))
+            out['value'] = generator.text_input(col.label,
+                                                help=col.hint,
+                                                max_chars=36,
+                                                value=str(value if value else (uuid.uuid1())))
             out['validator'] = uuid_validator
         elif col.is_text or col.cql_type == 'duration' or col.cql_type in uuid_types or col.cql_type == 'inet' \
                 or col.cql_type in collection_types:
-            out['value'] = generator.text_input(col.label, help=col.hint)
+            out['value'] = generator.text_input(col.label, help=col.hint, value=value)
         elif col.cql_type == 'date':
-            out['value'] = generator.date_input(col.label, help=col.hint)
+            out['value'] = generator.date_input(col.label, help=col.hint, value=value)
         elif col.cql_type == 'time':
-            out['value'] = generator.time_input(col.label, help=col.hint)
+            out['value'] = generator.time_input(col.label, help=col.hint, value=value)
         elif col.cql_type == 'timestamp':
-            out['value'] = generator.datetime_input(col.label, help=col.hint)
+            out['value'] = generator.datetime_input(col.label, help=col.hint, value=value)
         elif col.cql_type == 'boolean':
-            out['value'] = generator.checkbox(col.label, help=col.hint)
+            out['value'] = generator.checkbox(col.label, help=col.hint, value=value)
         elif col.cql_type.startswith('list<') or col.cql_type.startswith('set<'):
             generator.markdown(f"**{col.name} ({col.cql_type})**")
 

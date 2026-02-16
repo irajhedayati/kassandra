@@ -14,6 +14,7 @@ from typing import Dict, Any
 import pandas as pd
 import streamlit as st
 
+from database.record import Record
 from src.config.settings import ConfigManager, ConnectionProfile
 from src.database.connection import CassandraConnectionManager
 from src.database.schema import SchemaInspector, TableSchema
@@ -47,7 +48,6 @@ class CassandraGUIApp:
         self._render_sidebar()
         self._render_main_content()
         self._render_delete_confirmation()
-        self._render_row_details()
         self._render_map_schema_editor()
 
     def _render_sidebar(self):
@@ -126,13 +126,13 @@ class CassandraGUIApp:
             tab1, tab2, tab3, tab4 = st.tabs(["Data Browser", "Insert Record", "Table Info", "CQL Editor"])
             
             with tab1:
-                self._render_data_grid(schema)
+                self._render_data_grid()
             
             with tab2:
-                self._render_insert_form(schema)
+                self._render_insert_form()
                 
             with tab3:
-                self._render_table_info(schema)
+                self._render_table_info()
                 
             with tab4:
                 self._render_cql_editor()
@@ -231,8 +231,9 @@ class CassandraGUIApp:
             del st.session_state.current_table_schema
         st.rerun()
 
-    def _render_data_grid(self, schema: TableSchema):
+    def _render_data_grid(self):
         """Render the data grid and filters."""
+        schema: TableSchema = st.session_state.current_table_schema
         # Determine visible columns
         visible_columns = []
         for col in schema.columns:
@@ -277,57 +278,22 @@ class CassandraGUIApp:
             rows = self._connection.execute(query + " LIMIT " + str(page_size))
 
         # Display Data
-        data = list(rows)
+        data = [Record(schema, crow) for crow in rows]
         
         if data:
             # Custom grid rendering to support row actions
             st.write("### Data")
-            
-            # Calculate column widths: 150px for actions, rest flexible
-            # Streamlit doesn't support exact pixel widths in st.columns easily, 
-            # but we can use a small ratio for the first column.
-            # Assuming a wide layout, 0.15 vs 1 is roughly 1:7 ratio.
-            num_cols = len(visible_columns)
-            if num_cols > 0:
-                col_spec = [0.15] + [0.85 / num_cols] * num_cols
-            else:
-                col_spec = [1]
-            cols = st.columns(col_spec)
-            
-            # Header
-            cols[0].markdown("**Actions**")
-            for i, col in enumerate(visible_columns):
-                if i + 1 < len(cols):
-                    cols[i+1].markdown(f"**{col.name}**")
-            
-            # Rows
-            for i, row in enumerate(data):
-                cols = st.columns(col_spec)
-                
-                # Actions Column
-                action_col = cols[0]
-                ac1, ac2 = action_col.columns(2)
-                
-                # View Details Action
-                if ac1.button("View", key=f"view_{i}", help="View Details", use_container_width=True):
-                    self._show_row_details(row)
-
-                # Delete Action
-                if ac2.button("Delete", key=f"del_{i}", help="Delete Row", use_container_width=True):
-                    self._confirm_delete(schema, row)
-                
-                # Data
-                for j, col in enumerate(visible_columns):
-                    if j + 1 < len(cols):
-                        # row is a dict because of dict_factory in connection.py
-                        val = row.get(col.name)
-                        if not val:
-                            cols[j+1].write("null")
-                        elif col.cql_type.startswith("set"):
-                            cols[j+1].write(str(set(val)))
-                        else:
-                            cols[j+1].write(str(val))
-
+            df = pd.DataFrame(data)[[c.name for c in visible_columns]]
+            for col in visible_columns:
+                if col.is_set_or_list:
+                    df[col.name] = df[col.name].apply(lambda x: list([str(u) for u in x]) if x else None)
+            event = st.dataframe(data=df, on_select="rerun", selection_mode="single-row")
+            if len(event.selection['rows']):
+                selected_row = event.selection['rows'][0]
+                schema.render_form(list(st), data[selected_row],
+                                       add_collection_item=add_collection_item,
+                                       remove_collection_item=remove_collection_item)
+                self._render_row_details(data[selected_row])
         else:
             st.info("No data found.")
 
@@ -362,81 +328,73 @@ class CassandraGUIApp:
                     del st.session_state.delete_target
                     st.rerun()
 
-    @staticmethod
-    def _show_row_details(row: Any):
-        """Set state to show row details dialog."""
-        st.session_state.view_details_target = row
-        st.rerun()
-
-    def _render_row_details(self):
+    def _render_row_details(self, row):
         """Render row details dialog if needed."""
-        if 'view_details_target' in st.session_state:
-            row = st.session_state.view_details_target
-            schema = st.session_state.current_table_schema
-            
-            with st.container():
-                st.markdown("---")
-                st.subheader("Edit Row Details")
-                
-                with st.form("edit_row_form"):
-                    updated_data = {}
-                    
-                    for col in schema.all_columns_sorted:
-                        val = row.get(col.name)
-                        
-                        # Determine input type based on CQL type
-                        if col.cql_type in ('int', 'bigint', 'varint', 'smallint', 'tinyint', 'counter'):
-                            updated_data[col.name] = st.number_input(f"{col.name} ({col.cql_type})", value=int(val) if val is not None else 0, disabled=col.is_primary_key)
-                        elif col.cql_type in ('float', 'double', 'decimal'):
-                            updated_data[col.name] = st.number_input(f"{col.name} ({col.cql_type})", value=float(val) if val is not None else 0.0, disabled=col.is_primary_key)
-                        elif col.cql_type == 'boolean':
-                            updated_data[col.name] = st.checkbox(f"{col.name} ({col.cql_type})", value=bool(val) if val is not None else False, disabled=col.is_primary_key)
-                        elif col.cql_type.startswith('map<'):
-                            with st.expander(f"{col.name} ({col.cql_type})"):
-                                # Handle Map types
-                                updated_data[col.name] = {}
-                                meta = self._config.get_column_metadata(schema.keyspace, schema.table_name, col.name)
-                                map_schema = dict([(item['key'],item['type']) for item in meta.get("map_schema", [])])
-                                if map_schema:
-                                    for map_k, map_v in val.items():
-                                        if map_k in map_schema:
-                                            map_v_type = map_schema[map_k]
-                                            if map_v_type in ('int', 'bigint', 'varint', 'smallint', 'tinyint',
-                                                                     'counter'):
-                                                updated_data[col.name][map_k] = st.number_input(f"{map_k} ({map_v_type})",
-                                                                                         value=int(map_v) if map_v is not None else 0)
-                                            elif map_v_type in ('float', 'double', 'decimal'):
-                                                updated_data[col.name][map_k] = st.number_input(f"{map_k} ({map_v_type})",
-                                                                                                value=float(map_v) if map_v is not None else 0.0)
-                                            elif map_v_type == 'boolean':
-                                                updated_data[col.name][map_k] = st.checkbox(f"{map_k} ({map_v_type})",
-                                                                                            value=bool(map_v) if map_v is not None else False)
-                                            else:
-                                                updated_data[col.name][map_k] = st.text_input(f"{map_k} ({map_v_type})",
-                                                                                              value=str(map_v) if map_v is not None else "")
+        schema = st.session_state.current_table_schema
+
+        with st.container():
+            st.markdown("---")
+            st.subheader("Edit Row Details")
+
+            with st.form("edit_row_form"):
+                updated_data = {}
+
+                for col in schema.all_columns_sorted:
+                    val = row.get(col.name)
+
+                    # Determine input type based on CQL type
+                    if col.cql_type in ('int', 'bigint', 'varint', 'smallint', 'tinyint', 'counter'):
+                        updated_data[col.name] = st.number_input(f"{col.name} ({col.cql_type})", value=int(val) if val is not None else 0, disabled=col.is_primary_key)
+                    elif col.cql_type in ('float', 'double', 'decimal'):
+                        updated_data[col.name] = st.number_input(f"{col.name} ({col.cql_type})", value=float(val) if val is not None else 0.0, disabled=col.is_primary_key)
+                    elif col.cql_type == 'boolean':
+                        updated_data[col.name] = st.checkbox(f"{col.name} ({col.cql_type})", value=bool(val) if val is not None else False, disabled=col.is_primary_key)
+                    elif col.cql_type.startswith('map<'):
+                        with st.expander(f"{col.name} ({col.cql_type})"):
+                            # Handle Map types
+                            updated_data[col.name] = {}
+                            meta = self._config.get_column_metadata(schema.keyspace, schema.table_name, col.name)
+                            map_schema = dict([(item['key'],item['type']) for item in meta.get("map_schema", [])])
+                            if map_schema:
+                                for map_k, map_v in val.items():
+                                    if map_k in map_schema:
+                                        map_v_type = map_schema[map_k]
+                                        if map_v_type in ('int', 'bigint', 'varint', 'smallint', 'tinyint',
+                                                                 'counter'):
+                                            updated_data[col.name][map_k] = st.number_input(f"{map_k} ({map_v_type})",
+                                                                                     value=int(map_v) if map_v is not None else 0)
+                                        elif map_v_type in ('float', 'double', 'decimal'):
+                                            updated_data[col.name][map_k] = st.number_input(f"{map_k} ({map_v_type})",
+                                                                                            value=float(map_v) if map_v is not None else 0.0)
+                                        elif map_v_type == 'boolean':
+                                            updated_data[col.name][map_k] = st.checkbox(f"{map_k} ({map_v_type})",
+                                                                                        value=bool(map_v) if map_v is not None else False)
                                         else:
-                                            updated_data[col.name][map_k] = st.text_input(f"{map_k} (text)",
+                                            updated_data[col.name][map_k] = st.text_input(f"{map_k} ({map_v_type})",
                                                                                           value=str(map_v) if map_v is not None else "")
-                                else:
-                                    display_value = json.dumps(val, indent=2)
-                                    updated_data[col.name] = st.text_area(f"{col.name} ({col.cql_type})",
-                                                                          value=display_value,
-                                                                          height=150)
+                                    else:
+                                        updated_data[col.name][map_k] = st.text_input(f"{map_k} (text)",
+                                                                                      value=str(map_v) if map_v is not None else "")
+                            else:
+                                display_value = json.dumps(val, indent=2)
+                                updated_data[col.name] = st.text_area(f"{col.name} ({col.cql_type})",
+                                                                      value=display_value,
+                                                                      height=150)
 
-                        else:
-                            # Default to text input
-                            updated_data[col.name] = st.text_input(f"{col.name} ({col.cql_type})", value=str(val) if val is not None else "", disabled=col.is_primary_key)
+                    else:
+                        # Default to text input
+                        updated_data[col.name] = st.text_input(f"{col.name} ({col.cql_type})", value=str(val) if val is not None else "", disabled=col.is_primary_key)
 
-                    col1, col2 = st.columns([1, 5])
-                    if col1.form_submit_button("Save Changes", type="primary"):
-                        self._update_record(schema, row, updated_data)
-                        del st.session_state.view_details_target
-                        st.rerun()
-                    
-                    if col2.form_submit_button("Cancel"):
-                        del st.session_state.view_details_target
-                        st.rerun()
-                st.markdown("---")
+                col1, col2 = st.columns([1, 5])
+                if col1.form_submit_button("Save Changes", type="primary"):
+                    self._update_record(schema, row, updated_data)
+                    del st.session_state.view_details_target
+                    st.rerun()
+
+                if col2.form_submit_button("Cancel"):
+                    del st.session_state.view_details_target
+                    st.rerun()
+            st.markdown("---")
 
     def _update_record(self, schema: TableSchema, original_row: Any, updated_data: Dict[str, Any]):
         """Update a record."""
@@ -504,9 +462,9 @@ class CassandraGUIApp:
         except Exception as e:
             st.error(f"Delete failed: {str(e)}")
 
-    def _render_insert_form(self, schema: TableSchema):
+    def _render_insert_form(self):
         """Render form for inserting new records."""
-
+        schema: TableSchema = st.session_state.current_table_schema
         # Initialize collection inputs state if needed
         if 'collection_inputs' not in st.session_state:
             st.session_state.collection_inputs = {}
@@ -533,6 +491,7 @@ class CassandraGUIApp:
         st.subheader("New Record")
         cols = st.columns(2)
         form_data = schema.render_form(cols,
+                                       None,
                                        add_collection_item=add_collection_item,
                                        remove_collection_item=remove_collection_item)
         for i, col in enumerate(schema.columns):
@@ -554,8 +513,9 @@ class CassandraGUIApp:
             else:
                 st.warning("Please fill in at least one field.")
 
-    def _render_table_info(self, schema: TableSchema):
+    def _render_table_info(self):
         """Render table schema information."""
+        schema: TableSchema = st.session_state.current_table_schema
         st.subheader("Table Schema")
         
         # Header
