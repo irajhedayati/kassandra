@@ -290,25 +290,24 @@ class CassandraGUIApp:
             rows = self._connection.execute(query + " LIMIT " + str(page_size))
 
         # Display Data
-        data = [Record(schema, crow) for crow in rows]
+        records = [Record(schema, crow) for crow in rows]
         
-        if data:
+        if records:
             # Custom grid rendering to support row actions
             st.write("### Data")
-            st.write(pd.DataFrame(data).info())
-            df = pd.DataFrame(data)[[c.name for c in visible_columns]]
+            df = pd.DataFrame([r.data for r in records])[[c.name for c in visible_columns]]
             for col in visible_columns:
                 if col.is_set_or_list:
                     df[col.name] = df[col.name].apply(lambda x: list([str(u) for u in x]) if x else None)
             event = st.dataframe(data=df, on_select="rerun", selection_mode="single-row")
             if len(event.selection['rows']):
                 selected_row = event.selection['rows'][0]
-                render_form(list(st),
-                            data[selected_row],
+                render_form([st],
+                            records[selected_row],
                             schema,
                             add_collection_item=add_collection_item,
                             remove_collection_item=remove_collection_item)
-                self._render_row_details(data[selected_row])
+                self._render_row_details(records[selected_row])
         else:
             st.info("No data found.")
 
@@ -403,11 +402,13 @@ class CassandraGUIApp:
                 col1, col2 = st.columns([1, 5])
                 if col1.form_submit_button("Save Changes", type="primary"):
                     self._update_record(schema, row, updated_data)
-                    del st.session_state.view_details_target
+                    if st.session_state.__contains__("view_details_target"):
+                        del st.session_state.view_details_target
                     st.rerun()
 
                 if col2.form_submit_button("Cancel"):
-                    del st.session_state.view_details_target
+                    if st.session_state.__contains__("view_details_target"):
+                        del st.session_state.view_details_target
                     st.rerun()
             st.markdown("---")
 

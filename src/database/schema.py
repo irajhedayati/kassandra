@@ -182,7 +182,7 @@ class TableSchema:
             if valid_items:
                 out['value'] = set(valid_items) if col.cql_type.startswith('set') else valid_items
         else:
-            out['value'] = generator.text_area(col.label, help=col.hint)
+            out['value'] = generator.text_area(col.label, help=col.hint, key=col.name)
         return out
 
 
@@ -191,6 +191,9 @@ class Record:
     """
     Represents a single Cassandra record/row with its associated schema.
     """
+    _schema: TableSchema = None
+    _data: Dict[str, Any] = field(default_factory=dict)
+    _key: str = None
 
     def __init__(self, schema: TableSchema, row: Any):
         """
@@ -200,11 +203,12 @@ class Record:
             schema: The TableSchema associated with this record.
             row: A row from a Cassandra ResultSet (dict-like or named-tuple).
         """
-        self.schema = schema
-        self._data: Dict[str, Any] = {}
+        self._schema = schema
+        self._key = ":".join([str(row[col.name]) for col in self._schema.primary_key_columns])
+        self._data = {}
 
         # Construct the internal record based on the schema columns
-        for col in self.schema.columns:
+        for col in self._schema.columns:
             # Handle row as dict or object (ResultSet rows can vary depending on row_factory)
             if hasattr(row, col.name):
                 self._data[col.name] = getattr(row, col.name)
@@ -212,6 +216,14 @@ class Record:
                 self._data[col.name] = row[col.name]
             else:
                 self._data[col.name] = None
+
+    @property
+    def key(self):
+        return self._key
+
+    @property
+    def schema(self):
+        return self._schema
 
     @property
     def data(self) -> Dict[str, Any]:
@@ -225,6 +237,9 @@ class Record:
     def set(self, column_name: str, value: Any) -> None:
         """Get value for a specific column."""
         self._data[column_name] = value
+
+    def __str__(self):
+        return self._key
 
 
 # noinspection SqlNoDataSourceInspection
@@ -274,7 +289,7 @@ class SchemaInspector:
 
     def get_tables(self, keyspace: str) -> list[str]:
         """
-        Get list of tables in a keyspace.
+        Get list of tables in a keyspace sorted.
 
         Args:
             keyspace: Name of the keyspace.
@@ -367,11 +382,11 @@ def render_form(cols: list[DeltaGenerator], row: Record | None, schema: TableSch
     col_size = len(cols)
     form_data = {}
     for i, col in enumerate(schema.partition_keys):
-        form_data[col.name] = schema.cql_col_input(row.get(col.name), cols[i % col_size], col, **kwargs)
+        form_data[col.name] = schema.cql_col_input(row.get(col.name) if row else None, cols[i % col_size], col, **kwargs)
     offset = len(schema.primary_key_columns) - 1
     for i, col in enumerate(schema.clustering_keys):
-        form_data[col.name] = schema.cql_col_input(row.get(col.name), cols[i % col_size], col, **kwargs)
+        form_data[col.name] = schema.cql_col_input(row.get(col.name) if row else None, cols[i % col_size], col, **kwargs)
     offset += len(schema.clustering_keys) - 1
     for i, col in enumerate(schema.regular_columns):
-        form_data[col.name] = schema.cql_col_input(row.get(col.name), cols[i % col_size], col, **kwargs)
+        form_data[col.name] = schema.cql_col_input(row.get(col.name) if row else None, cols[i % col_size], col, **kwargs)
     return form_data
