@@ -20,6 +20,7 @@ class CassandraGUIApp:
         # Initialize session state for main components
         if 'config_manager' not in st.session_state:
             st.session_state.config_manager = ConfigManager()
+            st.session_state.config_manager.load()
         if 'connection_manager' not in st.session_state:
             st.session_state.connection_manager = CassandraConnectionManager()
         if 'repository' not in st.session_state:

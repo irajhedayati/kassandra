@@ -76,6 +76,12 @@ class ColumnInfo:
     def is_map(self):
         return self.cql_type.lower().startswith('map')
 
+    @property
+    def collection_subtype(self):
+        if "<" in self.cql_type:
+            return self.cql_type.split("<")[1].replace(">", "")
+        return None
+
 
 @dataclass
 class TableSchema:

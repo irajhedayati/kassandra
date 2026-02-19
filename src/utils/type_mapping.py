@@ -9,20 +9,20 @@ import re
 import uuid
 from datetime import datetime, date, time
 from decimal import Decimal
-from typing import Any, Callable, Optional, Tuple
+from typing import Any, Optional, Tuple
 
 # Mapping of CQL types to Python types and form field types
 CQL_TYPE_MAP = {
     # Numeric types
-    'int': {'python_type': int, 'widget': 'spinbox', 'min': -2147483648, 'max': 2147483647},
-    'bigint': {'python_type': int, 'widget': 'spinbox', 'min': -9223372036854775808, 'max': 9223372036854775807},
-    'smallint': {'python_type': int, 'widget': 'spinbox', 'min': -32768, 'max': 32767},
-    'tinyint': {'python_type': int, 'widget': 'spinbox', 'min': -128, 'max': 127},
+    'int': {'python_type': int, 'widget': 'number_input', 'min': -2147483648, 'max': 2147483647},
+    'bigint': {'python_type': int, 'widget': 'number_input', 'min': -9223372036854775808, 'max': 9223372036854775807},
+    'smallint': {'python_type': int, 'widget': 'number_input', 'min': -32768, 'max': 32767},
+    'tinyint': {'python_type': int, 'widget': 'number_input', 'min': -128, 'max': 127},
     'varint': {'python_type': int, 'widget': 'lineedit'},
-    'float': {'python_type': float, 'widget': 'doublespinbox'},
-    'double': {'python_type': float, 'widget': 'doublespinbox'},
+    'float': {'python_type': float, 'widget': 'double_input'},
+    'double': {'python_type': float, 'widget': 'double_input'},
     'decimal': {'python_type': Decimal, 'widget': 'lineedit'},
-    'counter': {'python_type': int, 'widget': 'spinbox', 'readonly': True},
+    'counter': {'python_type': int, 'widget': 'number_input', 'readonly': True},
 
     # String types
     'text': {'python_type': str, 'widget': 'textedit'},
@@ -51,7 +51,7 @@ CQL_TYPE_MAP = {
     # Collections (handled specially)
     'list': {'python_type': list, 'widget': 'textedit', 'placeholder': 'JSON array: ["item1", "item2"]'},
     'set': {'python_type': set, 'widget': 'textedit', 'placeholder': 'JSON array: ["item1", "item2"]'},
-    'map': {'python_type': dict, 'widget': 'textedit', 'placeholder': 'JSON object: {"key": "value"}'},
+    'map': {'python_type': dict, 'widget': 'map_edit', 'placeholder': 'JSON object: {"key": "value"}'},
 
     # Tuple and frozen types
     'tuple': {'python_type': tuple, 'widget': 'textedit', 'placeholder': 'JSON array'},
@@ -108,6 +108,7 @@ def get_type_info(cql_type: str) -> dict:
         info = CQL_TYPE_MAP[base_type].copy()
         info['cql_type'] = cql_type
         info['base_type'] = base_type
+        # noinspection PyTypeChecker
         info['type_params'] = params
         return info
 
@@ -222,9 +223,13 @@ def format_value_for_display(value: Any, cql_type: str) -> str:
 
     base_type, _ = parse_cql_type(cql_type)
 
-    if base_type in ('list', 'set', 'map'):
-        if isinstance(value, set):
-            value = list(value)
+    if base_type == 'map':
+        return json.dumps(dict(value), default=str, indent=2)
+
+    elif base_type == 'set':
+        return json.dumps(dict(value), default=str)
+
+    elif base_type == 'list':
         return json.dumps(value, default=str)
 
     elif base_type == 'blob':

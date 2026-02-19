@@ -50,7 +50,7 @@ class CassandraRepository:
                         new_val = json.loads(new_val)
                     except json.JSONDecodeError as e:
                         raise ValueError(f"Invalid JSON for column {col.name}") from e
-            set_parts.append(f"{col.name} = %s")
+            set_parts.append(f"{col.name} = ?")
             set_values.append(new_val)
 
         if not set_parts:
@@ -60,10 +60,11 @@ class CassandraRepository:
         where_values = []
         for col in schema.primary_key_columns:
             val = original_row.get(col.name)
-            where_parts.append(f"{col.name} = %s")
+            where_parts.append(f"{col.name} = ?")
             where_values.append(val)
 
         query = f"UPDATE {schema.keyspace}.{schema.table_name} SET {', '.join(set_parts)} WHERE {' AND '.join(where_parts)}"
+        print(query)
         self._connection.execute(query, tuple(set_values + where_values))
 
     def delete_record(self, schema: TableSchema, row: Dict[str, Any]) -> None:
