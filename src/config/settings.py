@@ -67,7 +67,7 @@ class ConfigManager:
     """
     Manages application configuration persistence.
 
-    Configuration is stored in ~/.cassandra_gui/config.json
+    Configuration is stored in ~/.py-sandra/config.json
     Directories are created automatically if they don't exist.
     """
 

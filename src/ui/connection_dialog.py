@@ -166,7 +166,7 @@ class ConnectionDialog(QDialog):
         from PySide6.QtWidgets import QApplication
         QApplication.processEvents()
 
-        result = self._connection_manager.test_connection(profile)
+        result = test_connection(profile)
 
         self.test_button.setText("Test Connection")
         self.test_button.setEnabled(True)

@@ -1,14 +1,12 @@
 """
-Schema Introspection Module
+Data Model for Cassandra
 
-Discovers keyspaces, tables, and column metadata from Cassandra.
-Provides structured information about table schemas including
-partition keys, clustering keys, and column types.
+Defines the structure of database entities, including tables, columns, and records.
+This file replaces the previous schema.py.
 """
 import uuid
 from dataclasses import dataclass, field
-from typing import Any
-from typing import Dict
+from typing import Any, Dict, List, Optional
 
 import streamlit as st
 from cassandra.cluster import Session
@@ -84,16 +82,16 @@ class TableSchema:
     """Complete schema information for a table."""
     keyspace: str
     table_name: str
-    columns: list[ColumnInfo] = field(default_factory=list)
+    columns: List[ColumnInfo] = field(default_factory=list)
 
-    def column(self, name: str) -> ColumnInfo | None:
+    def column(self, name: str) -> Optional[ColumnInfo]:
         for c in self.columns:
             if c.name == name:
                 return c
         return None
 
     @property
-    def partition_keys(self) -> list[ColumnInfo]:
+    def partition_keys(self) -> List[ColumnInfo]:
         """Get partition key columns in order."""
         return sorted(
             [c for c in self.columns if c.is_partition_key],
@@ -101,7 +99,7 @@ class TableSchema:
         )
 
     @property
-    def clustering_keys(self) -> list[ColumnInfo]:
+    def clustering_keys(self) -> List[ColumnInfo]:
         """Get clustering key columns in order."""
         return sorted(
             [c for c in self.columns if c.is_clustering_key],
@@ -109,17 +107,17 @@ class TableSchema:
         )
 
     @property
-    def primary_key_columns(self) -> list[ColumnInfo]:
+    def primary_key_columns(self) -> List[ColumnInfo]:
         """Get all primary key columns (partition + clustering)."""
         return self.partition_keys + self.clustering_keys
 
     @property
-    def regular_columns(self) -> list[ColumnInfo]:
+    def regular_columns(self) -> List[ColumnInfo]:
         """Get non-primary-key columns."""
         return [c for c in self.columns if not c.is_primary_key]
 
     @property
-    def all_columns_sorted(self) -> list[ColumnInfo]:
+    def all_columns_sorted(self) -> List[ColumnInfo]:
         """Get all columns with primary keys first."""
         return self.primary_key_columns + self.regular_columns
 
@@ -261,7 +259,7 @@ class SchemaInspector:
         """
         self._session = session
 
-    def get_keyspaces(self) -> list[str]:
+    def get_keyspaces(self) -> List[str]:
         """
         Get list of all keyspaces.
 
@@ -287,7 +285,7 @@ class SchemaInspector:
             if row['keyspace_name'] not in system_keyspaces
         ])
 
-    def get_tables(self, keyspace: str) -> list[str]:
+    def get_tables(self, keyspace: str) -> List[str]:
         """
         Get list of tables in a keyspace sorted.
 
@@ -365,28 +363,8 @@ class SchemaInspector:
         Returns:
             Estimated row count.
         """
-        try:
-            # This query can be slow on large tables
-            query = f"SELECT COUNT(*) as count FROM {keyspace}.{table} LIMIT 10000"
-            result = self._session.execute(query)
-            row = result.one()
-            return row['count'] if row else 0
-        except Exception:
-            return -1  # Unknown
-
-
-
-
-def render_form(cols: list[DeltaGenerator], row: Record | None, schema: TableSchema, **kwargs) -> dict:
-    """Creates a form to show and/or edit data returning a dictionary for column values"""
-    col_size = len(cols)
-    form_data = {}
-    for i, col in enumerate(schema.partition_keys):
-        form_data[col.name] = schema.cql_col_input(row.get(col.name) if row else None, cols[i % col_size], col, **kwargs)
-    offset = len(schema.primary_key_columns) - 1
-    for i, col in enumerate(schema.clustering_keys):
-        form_data[col.name] = schema.cql_col_input(row.get(col.name) if row else None, cols[i % col_size], col, **kwargs)
-    offset += len(schema.clustering_keys) - 1
-    for i, col in enumerate(schema.regular_columns):
-        form_data[col.name] = schema.cql_col_input(row.get(col.name) if row else None, cols[i % col_size], col, **kwargs)
-    return form_data
+        # This query can be slow on large tables
+        query = f"SELECT COUNT(*) as count FROM {keyspace}.{table} LIMIT 10000"
+        result = self._session.execute(query)
+        row = result.one()
+        return row['count'] if row else 0
