@@ -16,6 +16,7 @@ from cassandra.cluster import (
     ExecutionProfile,
     EXEC_PROFILE_DEFAULT
 )
+from cassandra.io.asyncioreactor import AsyncioConnection
 from cassandra.auth import PlainTextAuthProvider
 from cassandra.policies import RoundRobinPolicy
 from cassandra.query import dict_factory, SimpleStatement
@@ -62,7 +63,8 @@ def test_connection(profile: ConnectionProfile) -> ConnectionResult:
             port=profile.port,
             auth_provider=auth_provider,
             ssl_context=ssl_context,
-            protocol_version=4
+            protocol_version=4,
+            connection_class=AsyncioConnection,
         )
 
         session = cluster.connect()
