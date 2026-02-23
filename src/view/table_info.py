@@ -1,6 +1,6 @@
 import streamlit as st
 
-from src.database.model import TableSchema
+from database.model import TableSchema
 
 
 def render_table_info(schema: TableSchema):

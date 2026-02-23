@@ -3,8 +3,8 @@ from typing import Dict
 import pandas as pd
 import streamlit as st
 
-from src.database.model import TableSchema
-from src.view.form import render_row_details
+from database.model import TableSchema
+from view.form import render_row_details
 
 
 def render_data_grid(schema: TableSchema, callbacks: Dict):

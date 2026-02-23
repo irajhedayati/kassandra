@@ -12,7 +12,7 @@ import streamlit as st
 from cassandra.cluster import Session
 from streamlit.delta_generator import DeltaGenerator
 
-from src.utils.utils import uuid_validator
+from utils.utils import uuid_validator
 
 number_types = ['int', 'bigint', 'varint', 'smallint', 'tinyint', 'counter']
 float_types = ['float', 'double', 'decimal']

@@ -5,11 +5,11 @@ Initializes and coordinates all components of the application.
 """
 import streamlit as st
 
-from src.config.settings import ConfigManager
-from src.database.connection import CassandraConnectionManager
-from src.database.model import SchemaInspector
-from src.database.repository import CassandraRepository
-from src.view import main_view, dialogs_view
+from config.settings import ConfigManager
+from database.connection import CassandraConnectionManager
+from database.model import SchemaInspector
+from database.repository import CassandraRepository
+from view import main_view, dialogs_view
 
 class CassandraGUIApp:
     """
@@ -101,7 +101,3 @@ class CassandraGUIApp:
             
             return st.session_state.current_table_schema
         return None
-
-if __name__ == "__main__":
-    app = CassandraGUIApp()
-    app.run()

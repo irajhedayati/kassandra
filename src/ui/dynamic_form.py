@@ -4,14 +4,13 @@ Dynamic Form Generation Module
 Generates form widgets dynamically based on Cassandra table schema.
 Handles type-specific input widgets, validation, and data conversion.
 """
-import json
 from datetime import datetime, date, time
 from typing import Optional, Any, Dict
 
 import streamlit as st
 
-from src.database.model import TableSchema, ColumnInfo
-from src.utils.type_mapping import get_type_info, convert_value, format_value_for_display
+from database.model import TableSchema, ColumnInfo
+from utils.type_mapping import get_type_info, convert_value, format_value_for_display
 
 
 def render_dynamic_form(schema: TableSchema, record: Optional[Dict[str, Any]] = None, mode: str = "insert") -> Optional[
@@ -199,7 +198,8 @@ def _render_field(column: ColumnInfo, value: Any, disabled: bool = False, key_pr
 # ---------------------------
 # Recursive Renderer
 # ---------------------------
-def render_json_editor(data, path="root"):
+def render_json_editor(data, path="root", label=None):
+    label = label if label else path
     if isinstance(data, dict):
 
         keys_to_delete = []
@@ -207,48 +207,10 @@ def render_json_editor(data, path="root"):
 
         for key in list(data.keys()):
             value = data[key]
-            col1, col2 = st.columns([5, 1])
-
-            with col1:
-                st.markdown(f"**{key}**")
-
-            with col2:
-                if st.button("❌", key=f"del_{path}_{key}"):
-                    keys_to_delete.append(key)
 
             # Recursive rendering
-            updated_value = render_json_editor(value, f"{path}_{key}")
+            updated_value = render_json_editor(value, f"{path}_{key}", label=key)
             updated_dict[key] = updated_value
-
-        # Delete keys
-        for key in keys_to_delete:
-            data.pop(key)
-            st.rerun()
-
-        # Add new field
-        with st.expander(f"➕ Add field to {path}", expanded=False):
-            new_key = st.text_input("Field name", key=f"newkey_{path}")
-            new_type = st.selectbox(
-                "Field type",
-                ["string", "int", "float", "bool", "dict", "list"],
-                key=f"newtype_{path}"
-            )
-
-            if st.button("Add field", key=f"addfield_{path}"):
-                if new_key:
-                    if new_type == "string":
-                        data[new_key] = ""
-                    elif new_type == "int":
-                        data[new_key] = 0
-                    elif new_type == "float":
-                        data[new_key] = 0.0
-                    elif new_type == "bool":
-                        data[new_key] = False
-                    elif new_type == "dict":
-                        data[new_key] = {}
-                    elif new_type == "list":
-                        data[new_key] = []
-                    st.rerun()
 
         return updated_dict
 
@@ -265,16 +227,16 @@ def render_json_editor(data, path="root"):
             with col1:
                 updated_item = render_json_editor(item, f"{path}_{i}")
 
-            with col2:
-                if st.button("❌", key=f"del_{path}_{i}"):
-                    data.pop(i)
-                    st.rerun()
+            # with col2:
+            #     if st.button("❌", key=f"del_{path}_{i}"):
+            #         data.pop(i)
+            #         st.rerun()
 
             updated_list.append(updated_item)
 
-        if st.button(f"➕ Add item to {path}", key=f"additem_{path}"):
-            data.append("")
-            st.rerun()
+        # if st.button(f"➕ Add item to {path}", key=f"additem_{path}"):
+        #     data.append("")
+        #     st.rerun()
 
         return updated_list
 
@@ -282,109 +244,16 @@ def render_json_editor(data, path="root"):
     # PRIMITIVES
     # ---------------------------
     elif isinstance(data, str):
-        return st.text_input(path, value=data, key=path)
+        return st.text_input(label, value=data, key=path)
 
     elif isinstance(data, int):
-        return st.number_input(path, value=data, step=1, key=path)
+        return st.number_input(label, value=data, step=1, key=path)
 
     elif isinstance(data, float):
-        return st.number_input(path, value=data, key=path)
+        return st.number_input(label, value=data, key=path)
 
     elif isinstance(data, bool):
-        return st.checkbox(path, value=data, key=path)
+        return st.checkbox(label, value=data, key=path)
 
     else:
         return data
-# def render_json_form(data, parent_key=""):
-#     """Recursively render JSON as Streamlit form fields"""
-#     updated_data = {}
-#
-#     for key, value in data.items():
-#         field_key = f"{parent_key}.{key}" if parent_key else key
-#
-#         # Nested dictionary
-#         if isinstance(value, dict):
-#             st.subheader(f"📂 {key}")
-#             updated_data[key] = render_json_form(value, field_key)
-#
-#         # List handling
-#         elif isinstance(value, list):
-#             st.markdown(f"**{key} (List)**")
-#
-#             list_container = []
-#             for i, item in enumerate(value):
-#                 col1, col2 = st.columns([4, 1])
-#
-#                 with col1:
-#                     new_item = st.text_input(
-#                         f"{key}[{i}]",
-#                         value=str(item),
-#                         key=f"{key}_{i}"
-#                     )
-#
-#                 with col2:
-#                     if st.button("❌", key=f"remove_{key}_{i}"):
-#                         st.session_state.json_data[key].pop(i)
-#                         st.rerun()
-#
-#                 list_container.append(new_item)
-#
-#             # Add button
-#             if st.button(f"➕ Add item to {key}"):
-#                 st.session_state.json_data[key].append("")
-#                 st.rerun()
-#
-#             updated_data[key] = list_container
-#             # updated_list = []
-#
-#             # for i, item in enumerate(value):
-#             #     item_key = f"{field_key}[{i}]"
-#             #
-#             #     if isinstance(item, dict):
-#             #         st.markdown(f"Item {i}")
-#             #         updated_list.append(render_json_form(item, item_key))
-#             #     else:
-#             #         updated_list.append(
-#             #             st.text_input(
-#             #                 f"{key}[{i}]",
-#             #                 value=str(item),
-#             #                 key=item_key
-#             #             )
-#             #         )
-#             #
-#             # updated_data[key] = updated_list
-#
-#         # Boolean
-#         elif isinstance(value, bool):
-#             updated_data[key] = st.checkbox(
-#                 key,
-#                 value=value,
-#                 key=field_key
-#             )
-#
-#         # Integer
-#         elif isinstance(value, int):
-#             updated_data[key] = st.number_input(
-#                 key,
-#                 value=value,
-#                 step=1,
-#                 key=field_key
-#             )
-#
-#         # Float
-#         elif isinstance(value, float):
-#             updated_data[key] = st.number_input(
-#                 key,
-#                 value=value,
-#                 key=field_key
-#             )
-#
-#         # String (default)
-#         else:
-#             updated_data[key] = st.text_input(
-#                 key,
-#                 value=str(value),
-#                 key=field_key
-#             )
-#
-#     return updated_data

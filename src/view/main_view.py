@@ -7,13 +7,13 @@ from typing import Dict, List
 
 import streamlit as st
 
-from src.config.settings import ConnectionProfile
-from src.database.model import TableSchema
-from src.view.connection_form import render_connection_form
-from src.view.cql_editor import render_cql_editor
-from src.view.data_grid import render_data_grid
-from src.view.form import render_insert_form
-from src.view.table_info import render_table_info
+from config.settings import ConnectionProfile
+from database.model import TableSchema
+from view.connection_form import render_connection_form
+from view.cql_editor import render_cql_editor
+from view.data_grid import render_data_grid
+from view.form import render_insert_form
+from view.table_info import render_table_info
 
 
 def render_main_content(is_connected: bool, schema: TableSchema, data_callbacks: Dict, cql_callbacks: Dict):

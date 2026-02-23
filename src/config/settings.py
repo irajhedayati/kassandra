@@ -5,10 +5,17 @@ Handles saving and loading application configuration to/from JSON file
 in the user's home directory. Auto-creates directories if missing.
 """
 
+import argparse
+import logging
 import json
+import os
 from pathlib import Path
 from typing import Optional, List, Dict, Any
 from dataclasses import dataclass, asdict, field
+
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -67,15 +74,15 @@ class ConfigManager:
     """
     Manages application configuration persistence.
 
-    Configuration is stored in ~/.py-sandra/config.json
-    Directories are created automatically if they don't exist.
+    Configuration is stored in ~/.py-sandra/config.json by default.
+    Can be overridden with --home command line argument or PY_SANDRA_HOME env var.
     """
 
-    CONFIG_DIR_NAME = ".py-sandra"
+    DEFAULT_CONFIG_DIR_NAME = ".py-sandra"
     CONFIG_FILE_NAME = "config.json"
 
     def __init__(self):
-        self._config_dir = Path.home() / self.CONFIG_DIR_NAME
+        self._config_dir = self._get_config_dir()
         self._config_file = self._config_dir / self.CONFIG_FILE_NAME
         self._settings: Optional[AppSettings] = None
 
@@ -86,6 +93,28 @@ class ConfigManager:
     @property
     def config_file(self) -> Path:
         return self._config_file
+
+    def _get_config_dir(self) -> Path:
+        """
+        Determine configuration directory from command line args, env var, or default.
+        """
+        parser = argparse.ArgumentParser(add_help=False)
+        parser.add_argument("--home", type=str, help="Path to configuration directory")
+
+        # Parse known args to avoid conflict with streamlit args
+        args, _ = parser.parse_known_args()
+
+        if args.home:
+            logger.info("Home directory (arg): " + args.home)
+            return Path(args.home)
+
+        env_home = os.environ.get("PY_SANDRA_HOME", None)
+        if env_home:
+            logger.info("Home directory (env): " + env_home)
+            return Path(env_home)
+
+        logger.info("Home directory (default): " + str(Path.home() / self.DEFAULT_CONFIG_DIR_NAME))
+        return Path.home() / self.DEFAULT_CONFIG_DIR_NAME
 
     def _ensure_config_dir(self) -> None:
         """Create configuration directory if it doesn't exist."""

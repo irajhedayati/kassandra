@@ -2,8 +2,8 @@ from typing import List
 
 import streamlit as st
 
-from src.config.settings import ConnectionProfile
-from src.utils.ssl import supported_ssl_protocols
+from config.settings import ConnectionProfile
+from utils.ssl import supported_ssl_protocols
 
 
 def render_connection_form(connections: List[ConnectionProfile]):

@@ -22,8 +22,8 @@ from cassandra.policies import RoundRobinPolicy
 from cassandra.query import dict_factory, SimpleStatement
 import ssl
 
-from src.config.settings import ConnectionProfile
-from src.utils.ssl import ssl_protocol
+from config.settings import ConnectionProfile
+from utils.ssl import ssl_protocol
 
 
 @dataclass

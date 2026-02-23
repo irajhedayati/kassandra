@@ -1,9 +1,9 @@
-from typing import Any, Dict
+from typing import Dict
 
 import streamlit as st
 
-from src.database.model import Record, TableSchema
-from src.ui.dynamic_form import render_dynamic_form
+from database.model import Record, TableSchema
+from ui.dynamic_form import render_dynamic_form
 
 
 def render_insert_form(schema: TableSchema, insert_callback):

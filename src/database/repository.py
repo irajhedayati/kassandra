@@ -7,8 +7,8 @@ This abstracts the CQL queries from the main application logic.
 import json
 from typing import Any, Dict, List
 
-from src.database.connection import CassandraConnectionManager
-from src.database.model import TableSchema, Record
+from database.connection import CassandraConnectionManager
+from database.model import TableSchema, Record
 
 
 class CassandraRepository:
