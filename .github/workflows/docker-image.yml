@@ -24,12 +24,16 @@ jobs:
       with:
         username: hedayati
         password: ${{ secrets.DOCKER_HUB_PAT }}
+    
+    - name: Get UV version
+      id: get_uv_version
+      run: echo "version=$(uv version --short)" >> $GITHUB_OUTPUT
 
     - name: Build and push Docker image
       uses: docker/build-push-action@v6
       with:
         context: .
         push: true
-        tags: hedayati/py-sandra:$(uv version --short)-beta.${GITHUB_RUN_ID},hedayati/py-sandra:latest
+        tags: hedayati/py-sandra:${{ steps.get_uv_version.outputs.version }}-beta.${{ github.run_id }},hedayati/py-sandra:latest
         cache-from: type=local,src=/tmp/.buildx-cache
         cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
