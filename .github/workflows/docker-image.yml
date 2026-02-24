@@ -8,14 +8,21 @@ on:
 
 jobs:
 
-  build:
+  docker:
 
     runs-on: ubuntu-latest
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+      
+    - name: Install the latest version of uv and set the python version
+      uses: astral-sh/setup-uv@v7
 
+    - name: Get UV version
+      id: get_uv_version
+      run: echo "version=$(uv version --short)" >> $GITHUB_OUTPUT
+      
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
@@ -24,10 +31,6 @@ jobs:
       with:
         username: hedayati
         password: ${{ secrets.DOCKER_HUB_PAT }}
-    
-    - name: Get UV version
-      id: get_uv_version
-      run: echo "version=$(uv version --short)" >> $GITHUB_OUTPUT
 
     - name: Build and push Docker image
       uses: docker/build-push-action@v6
