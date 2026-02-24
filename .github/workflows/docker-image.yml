@@ -37,6 +37,6 @@ jobs:
       with:
         context: .
         push: true
-        tags: hedayati/py-sandra:${{ steps.get_uv_version.outputs.version }}-beta.${{ github.run_id }},hedayati/py-sandra:latest
+        tags: hedayati/py-sandra:${{ steps.get_uv_version.outputs.version }}-beta.${GITHUB_RUN_NUMBER},hedayati/py-sandra:latest
         cache-from: type=local,src=/tmp/.buildx-cache
         cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
