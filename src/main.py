@@ -5,7 +5,7 @@ A web-based graphical client for Apache Cassandra with full schema-driven CRUD s
 """
 
 import streamlit as st
-from src.app import CassandraGUIApp
+from app import CassandraGUIApp
 
 def main():
     """Initialize and run the Streamlit application."""

@@ -1,18 +1,18 @@
 """
-Schema Introspection Module
+Data Model for Cassandra
 
-Discovers keyspaces, tables, and column metadata from Cassandra.
-Provides structured information about table schemas including
-partition keys, clustering keys, and column types.
+Defines the structure of database entities, including tables, columns, and records.
+This file replaces the previous schema.py.
 """
 import uuid
 from dataclasses import dataclass, field
+from typing import Any, Dict, List, Optional
 
 import streamlit as st
 from cassandra.cluster import Session
 from streamlit.delta_generator import DeltaGenerator
 
-from src.utils.utils import uuid_validator
+from utils.utils import uuid_validator
 
 number_types = ['int', 'bigint', 'varint', 'smallint', 'tinyint', 'counter']
 float_types = ['float', 'double', 'decimal']
@@ -76,22 +76,28 @@ class ColumnInfo:
     def is_map(self):
         return self.cql_type.lower().startswith('map')
 
+    @property
+    def collection_subtype(self):
+        if "<" in self.cql_type:
+            return self.cql_type.split("<")[1].replace(">", "")
+        return None
+
 
 @dataclass
 class TableSchema:
     """Complete schema information for a table."""
     keyspace: str
     table_name: str
-    columns: list[ColumnInfo] = field(default_factory=list)
+    columns: List[ColumnInfo] = field(default_factory=list)
 
-    def column(self, name: str) -> ColumnInfo | None:
+    def column(self, name: str) -> Optional[ColumnInfo]:
         for c in self.columns:
             if c.name == name:
                 return c
         return None
 
     @property
-    def partition_keys(self) -> list[ColumnInfo]:
+    def partition_keys(self) -> List[ColumnInfo]:
         """Get partition key columns in order."""
         return sorted(
             [c for c in self.columns if c.is_partition_key],
@@ -99,7 +105,7 @@ class TableSchema:
         )
 
     @property
-    def clustering_keys(self) -> list[ColumnInfo]:
+    def clustering_keys(self) -> List[ColumnInfo]:
         """Get clustering key columns in order."""
         return sorted(
             [c for c in self.columns if c.is_clustering_key],
@@ -107,56 +113,48 @@ class TableSchema:
         )
 
     @property
-    def primary_key_columns(self) -> list[ColumnInfo]:
+    def primary_key_columns(self) -> List[ColumnInfo]:
         """Get all primary key columns (partition + clustering)."""
         return self.partition_keys + self.clustering_keys
 
     @property
-    def regular_columns(self) -> list[ColumnInfo]:
+    def regular_columns(self) -> List[ColumnInfo]:
         """Get non-primary-key columns."""
         return [c for c in self.columns if not c.is_primary_key]
 
     @property
-    def all_columns_sorted(self) -> list[ColumnInfo]:
+    def all_columns_sorted(self) -> List[ColumnInfo]:
         """Get all columns with primary keys first."""
         return self.primary_key_columns + self.regular_columns
 
-    def render_form(self, cols: list[DeltaGenerator], **kwargs) -> dict:
-        """Creates a form to show and/or edit data returning a dictionary for column values"""
-        col_size = len(cols)
-        form_data = {}
-        for i, col in enumerate(self.partition_keys):
-            form_data[col.name] = self.cql_col_input(cols[i % col_size], col, **kwargs)
-        offset = len(self.primary_key_columns) - 1
-        for i, col in enumerate(self.clustering_keys):
-            form_data[col.name] = self.cql_col_input(cols[i % col_size], col, **kwargs)
-        offset += len(self.clustering_keys) - 1
-        for i, col in enumerate(self.regular_columns):
-            form_data[col.name] = self.cql_col_input(cols[i % col_size], col, **kwargs)
-        return form_data
-
     @staticmethod
-    def cql_col_input(generator: DeltaGenerator, col: ColumnInfo, **kwargs):
+    def cql_col_input(value: Any, generator: DeltaGenerator, col: ColumnInfo, **kwargs):
         out = {}
         if col.is_numeric:
-            out['value'] = generator.number_input(col.label)
+            out['value'] = generator.number_input(col.label, value=value)
         elif col.cql_type == 'uuid':
-            out['value'] = generator.text_input(col.label, help=col.hint, max_chars=36, value=str(uuid.uuid4()))
+            out['value'] = generator.text_input(col.label,
+                                                help=col.hint,
+                                                max_chars=36,
+                                                value=str(value if value else uuid.uuid4()))
             out['validator'] = uuid_validator
         elif col.cql_type == 'timeuuid':
-            out['value'] = generator.text_input(col.label, help=col.hint, max_chars=36, value=str(uuid.uuid1()))
+            out['value'] = generator.text_input(col.label,
+                                                help=col.hint,
+                                                max_chars=36,
+                                                value=str(value if value else (uuid.uuid1())))
             out['validator'] = uuid_validator
         elif col.is_text or col.cql_type == 'duration' or col.cql_type in uuid_types or col.cql_type == 'inet' \
                 or col.cql_type in collection_types:
-            out['value'] = generator.text_input(col.label, help=col.hint)
+            out['value'] = generator.text_input(col.label, help=col.hint, value=value)
         elif col.cql_type == 'date':
-            out['value'] = generator.date_input(col.label, help=col.hint)
+            out['value'] = generator.date_input(col.label, help=col.hint, value=value)
         elif col.cql_type == 'time':
-            out['value'] = generator.time_input(col.label, help=col.hint)
+            out['value'] = generator.time_input(col.label, help=col.hint, value=value)
         elif col.cql_type == 'timestamp':
-            out['value'] = generator.datetime_input(col.label, help=col.hint)
+            out['value'] = generator.datetime_input(col.label, help=col.hint, value=value)
         elif col.cql_type == 'boolean':
-            out['value'] = generator.checkbox(col.label, help=col.hint)
+            out['value'] = generator.checkbox(col.label, help=col.hint, value=value)
         elif col.cql_type.startswith('list<') or col.cql_type.startswith('set<'):
             generator.markdown(f"**{col.name} ({col.cql_type})**")
 
@@ -188,8 +186,64 @@ class TableSchema:
             if valid_items:
                 out['value'] = set(valid_items) if col.cql_type.startswith('set') else valid_items
         else:
-            out['value'] = generator.text_area(col.label, help=col.hint)
+            out['value'] = generator.text_area(col.label, help=col.hint, key=col.name)
         return out
+
+
+@dataclass
+class Record:
+    """
+    Represents a single Cassandra record/row with its associated schema.
+    """
+    _schema: TableSchema = None
+    _data: Dict[str, Any] = field(default_factory=dict)
+    _key: str = None
+
+    def __init__(self, schema: TableSchema, row: Any):
+        """
+        Initialize a record.
+
+        Args:
+            schema: The TableSchema associated with this record.
+            row: A row from a Cassandra ResultSet (dict-like or named-tuple).
+        """
+        self._schema = schema
+        self._key = ":".join([str(row[col.name]) for col in self._schema.primary_key_columns])
+        self._data = {}
+
+        # Construct the internal record based on the schema columns
+        for col in self._schema.columns:
+            # Handle row as dict or object (ResultSet rows can vary depending on row_factory)
+            if hasattr(row, col.name):
+                self._data[col.name] = getattr(row, col.name)
+            elif isinstance(row, dict) and col.name in row:
+                self._data[col.name] = row[col.name]
+            else:
+                self._data[col.name] = None
+
+    @property
+    def key(self):
+        return self._key
+
+    @property
+    def schema(self):
+        return self._schema
+
+    @property
+    def data(self) -> Dict[str, Any]:
+        """Returns the internal dictionary representing the record."""
+        return self._data
+
+    def get(self, column_name: str) -> Any:
+        """Get value for a specific column."""
+        return self._data.get(column_name)
+
+    def set(self, column_name: str, value: Any) -> None:
+        """Get value for a specific column."""
+        self._data[column_name] = value
+
+    def __str__(self):
+        return self._key
 
 
 # noinspection SqlNoDataSourceInspection
@@ -211,7 +265,7 @@ class SchemaInspector:
         """
         self._session = session
 
-    def get_keyspaces(self) -> list[str]:
+    def get_keyspaces(self) -> List[str]:
         """
         Get list of all keyspaces.
 
@@ -237,9 +291,9 @@ class SchemaInspector:
             if row['keyspace_name'] not in system_keyspaces
         ])
 
-    def get_tables(self, keyspace: str) -> list[str]:
+    def get_tables(self, keyspace: str) -> List[str]:
         """
-        Get list of tables in a keyspace.
+        Get list of tables in a keyspace sorted.
 
         Args:
             keyspace: Name of the keyspace.
@@ -315,11 +369,8 @@ class SchemaInspector:
         Returns:
             Estimated row count.
         """
-        try:
-            # This query can be slow on large tables
-            query = f"SELECT COUNT(*) as count FROM {keyspace}.{table} LIMIT 10000"
-            result = self._session.execute(query)
-            row = result.one()
-            return row['count'] if row else 0
-        except Exception:
-            return -1  # Unknown
+        # This query can be slow on large tables
+        query = f"SELECT COUNT(*) as count FROM {keyspace}.{table} LIMIT 10000"
+        result = self._session.execute(query)
+        row = result.one()
+        return row['count'] if row else 0

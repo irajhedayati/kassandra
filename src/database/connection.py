@@ -16,13 +16,14 @@ from cassandra.cluster import (
     ExecutionProfile,
     EXEC_PROFILE_DEFAULT
 )
+from cassandra.io.asyncioreactor import AsyncioConnection
 from cassandra.auth import PlainTextAuthProvider
 from cassandra.policies import RoundRobinPolicy
 from cassandra.query import dict_factory, SimpleStatement
 import ssl
 
-from src.config.settings import ConnectionProfile
-from src.utils.ssl import ssl_protocol
+from config.settings import ConnectionProfile
+from utils.ssl import ssl_protocol
 
 
 @dataclass
@@ -31,6 +32,59 @@ class ConnectionResult:
     success: bool
     message: str
     session: Optional[Session] = None
+
+
+def test_connection(profile: ConnectionProfile) -> ConnectionResult:
+    """
+    Test a connection without persisting it.
+
+    Args:
+        profile: Connection profile to test.
+
+    Returns:
+        ConnectionResult indicating success or failure.
+    """
+    try:
+        auth_provider = None
+        if profile.username and profile.password:
+            auth_provider = PlainTextAuthProvider(
+                username=profile.username,
+                password=profile.password
+            )
+
+        ssl_context = None
+        if profile.ssl_enabled:
+            ssl_context = ssl.create_default_context()
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+
+        cluster = Cluster(
+            contact_points=profile.hosts,
+            port=profile.port,
+            auth_provider=auth_provider,
+            ssl_context=ssl_context,
+            protocol_version=4,
+            connection_class=AsyncioConnection,
+        )
+
+        session = cluster.connect()
+
+        # Run a simple query to verify connection
+        session.execute("SELECT release_version FROM system.local")
+
+        session.shutdown()
+        cluster.shutdown()
+
+        return ConnectionResult(
+            success=True,
+            message="Connection test successful!"
+        )
+
+    except Exception as e:
+        return ConnectionResult(
+            success=False,
+            message=f"Connection test failed: {str(e)}"
+        )
 
 
 class CassandraConnectionManager:
@@ -165,57 +219,6 @@ class CassandraConnectionManager:
         # Notify listeners
         for callback in self._on_disconnect_callbacks:
             callback()
-
-    def test_connection(self, profile: ConnectionProfile) -> ConnectionResult:
-        """
-        Test a connection without persisting it.
-
-        Args:
-            profile: Connection profile to test.
-
-        Returns:
-            ConnectionResult indicating success or failure.
-        """
-        try:
-            auth_provider = None
-            if profile.username and profile.password:
-                auth_provider = PlainTextAuthProvider(
-                    username=profile.username,
-                    password=profile.password
-                )
-
-            ssl_context = None
-            if profile.ssl_enabled:
-                ssl_context = ssl.create_default_context()
-                ssl_context.check_hostname = False
-                ssl_context.verify_mode = ssl.CERT_NONE
-
-            cluster = Cluster(
-                contact_points=profile.hosts,
-                port=profile.port,
-                auth_provider=auth_provider,
-                ssl_context=ssl_context,
-                protocol_version=4
-            )
-
-            session = cluster.connect()
-
-            # Run a simple query to verify connection
-            session.execute("SELECT release_version FROM system.local")
-
-            session.shutdown()
-            cluster.shutdown()
-
-            return ConnectionResult(
-                success=True,
-                message="Connection test successful!"
-            )
-
-        except Exception as e:
-            return ConnectionResult(
-                success=False,
-                message=f"Connection test failed: {str(e)}"
-            )
 
     def set_keyspace(self, keyspace: str) -> None:
         """

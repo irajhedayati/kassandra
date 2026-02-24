@@ -4,416 +4,256 @@ Dynamic Form Generation Module
 Generates form widgets dynamically based on Cassandra table schema.
 Handles type-specific input widgets, validation, and data conversion.
 """
-
-from typing import Optional, Any
-from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QScrollArea,
-    QLineEdit, QSpinBox, QDoubleSpinBox, QCheckBox, QTextEdit,
-    QDateEdit, QTimeEdit, QDateTimeEdit, QPushButton, QLabel,
-    QGroupBox, QMessageBox, QFrame
-)
-from PySide6.QtCore import Qt, QDate, QTime, QDateTime, Signal
 from datetime import datetime, date, time
+from typing import Optional, Any, Dict
 
-from src.database.schema import TableSchema, ColumnInfo
-from src.utils.type_mapping import get_type_info, convert_value, format_value_for_display
+import streamlit as st
+
+from database.model import TableSchema, ColumnInfo
+from utils.type_mapping import get_type_info, convert_value, format_value_for_display
 
 
-class DynamicFormField(QWidget):
+def render_dynamic_form(schema: TableSchema, record: Optional[Dict[str, Any]] = None, mode: str = "insert") -> Optional[
+    Dict[str, Any]]:
     """
-    A single form field that adapts to Cassandra column type.
+    Renders a dynamic form for a Cassandra table schema.
 
-    Automatically creates the appropriate input widget based on the
-    column's CQL type and provides value getting/setting methods.
+    Args:
+        schema: The table schema.
+        record: Optional dictionary of existing data (for updates).
+        mode: "insert" or "update".
+
+    Returns:
+        A dictionary of the form data if submitted, None otherwise.
     """
+    form_data = {}
 
-    value_changed = Signal()
+    # Use a form to group inputs and avoid premature reruns
+    with st.form(key=f"dynamic_form_{schema.keyspace}_{schema.table_name}_{mode}"):
+        st.subheader(f"{mode.capitalize()} Record: {schema.table_name}")
 
-    def __init__(self, column: ColumnInfo, parent=None):
-        """
-        Initialize form field for a column.
+        # Primary Key Section
+        st.markdown("### Primary Key (Required)")
+        for col in schema.primary_key_columns:
+            value = record.get(col.name) if record else None
+            # Primary keys are read-only in update mode
+            disabled = (mode == "update")
+            form_data[col.name] = _render_field(col, value, disabled=disabled, key_prefix=f"{mode}_pk")
 
-        Args:
-            column: Column information from schema.
-            parent: Parent widget.
-        """
-        super().__init__(parent)
-        self._column = column
-        self._type_info = get_type_info(column.cql_type)
-        self._widget = None
+        # Regular Columns Section
+        if schema.regular_columns:
+            st.markdown("### Columns")
+            for col in schema.regular_columns:
+                value = record.get(col.name) if record else None
+                form_data[col.name] = _render_field(col, value, key_prefix=f"{mode}_reg")
 
-        self._setup_ui()
+        # Submit Button
+        submit_label = "Insert Record" if mode == "insert" else "Update Record"
+        submitted = st.form_submit_button(submit_label, type="primary")
 
-    def _setup_ui(self):
-        """Create the appropriate widget for the column type."""
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-
-        widget_type = self._type_info.get('widget', 'lineedit')
-
-        if widget_type == 'spinbox':
-            self._widget = QSpinBox()
-            self._widget.setRange(
-                self._type_info.get('min', -2147483648),
-                self._type_info.get('max', 2147483647)
-            )
-            self._widget.valueChanged.connect(self.value_changed.emit)
-
-        elif widget_type == 'doublespinbox':
-            self._widget = QDoubleSpinBox()
-            self._widget.setRange(-1e15, 1e15)
-            self._widget.setDecimals(6)
-            self._widget.valueChanged.connect(self.value_changed.emit)
-
-        elif widget_type == 'checkbox':
-            self._widget = QCheckBox()
-            self._widget.stateChanged.connect(self.value_changed.emit)
-
-        elif widget_type == 'textedit':
-            self._widget = QTextEdit()
-            self._widget.setMaximumHeight(100)
-            placeholder = self._type_info.get('placeholder', '')
-            if placeholder:
-                self._widget.setPlaceholderText(placeholder)
-            self._widget.textChanged.connect(self.value_changed.emit)
-
-        elif widget_type == 'datetime':
-            self._widget = QDateTimeEdit()
-            self._widget.setCalendarPopup(True)
-            self._widget.setDateTime(QDateTime.currentDateTime())
-            self._widget.dateTimeChanged.connect(self.value_changed.emit)
-
-        elif widget_type == 'date':
-            self._widget = QDateEdit()
-            self._widget.setCalendarPopup(True)
-            self._widget.setDate(QDate.currentDate())
-            self._widget.dateChanged.connect(self.value_changed.emit)
-
-        elif widget_type == 'time':
-            self._widget = QTimeEdit()
-            self._widget.setTime(QTime.currentTime())
-            self._widget.timeChanged.connect(self.value_changed.emit)
-
-        else:  # Default: lineedit
-            self._widget = QLineEdit()
-            placeholder = self._type_info.get('placeholder', '')
-            if placeholder:
-                self._widget.setPlaceholderText(placeholder)
-            self._widget.textChanged.connect(self.value_changed.emit)
-
-        # Mark required fields
-        if self._column.is_primary_key:
-            self._widget.setProperty("required", True)
-
-        # Set readonly if needed
-        if self._type_info.get('readonly'):
-            self._widget.setEnabled(False)
-
-        layout.addWidget(self._widget)
-
-    @property
-    def column(self) -> ColumnInfo:
-        """Get the column info."""
-        return self._column
-
-    def get_value(self) -> Any:
-        """
-        Get the current value from the widget.
-
-        Returns:
-            Value converted to appropriate Python type.
-        """
-        widget_type = self._type_info.get('widget', 'lineedit')
-
-        if widget_type == 'spinbox':
-            return self._widget.value()
-        elif widget_type == 'doublespinbox':
-            return self._widget.value()
-        elif widget_type == 'checkbox':
-            return self._widget.isChecked()
-        elif widget_type == 'textedit':
-            return self._widget.toPlainText()
-        elif widget_type == 'datetime':
-            return self._widget.dateTime().toPython()
-        elif widget_type == 'date':
-            return self._widget.date().toPython()
-        elif widget_type == 'time':
-            return self._widget.time().toPython()
-        else:
-            return self._widget.text()
-
-    def set_value(self, value: Any) -> None:
-        """
-        Set the widget value.
-
-        Args:
-            value: Value to set (will be formatted appropriately).
-        """
-        if value is None:
-            self.clear()
-            return
-
-        widget_type = self._type_info.get('widget', 'lineedit')
-
+    if submitted:
+        # Validate and Convert
         try:
-            if widget_type == 'spinbox':
-                self._widget.setValue(int(value))
-            elif widget_type == 'doublespinbox':
-                self._widget.setValue(float(value))
-            elif widget_type == 'checkbox':
-                self._widget.setChecked(bool(value))
-            elif widget_type == 'textedit':
-                formatted = format_value_for_display(value, self._column.cql_type)
-                self._widget.setPlainText(formatted)
-            elif widget_type == 'datetime':
-                if isinstance(value, datetime):
-                    self._widget.setDateTime(QDateTime(value))
-                else:
-                    self._widget.setDateTime(QDateTime.fromString(str(value), Qt.ISODate))
-            elif widget_type == 'date':
-                if isinstance(value, date):
-                    self._widget.setDate(QDate(value.year, value.month, value.day))
-                else:
-                    self._widget.setDate(QDate.fromString(str(value), Qt.ISODate))
-            elif widget_type == 'time':
-                if isinstance(value, time):
-                    self._widget.setTime(QTime(value.hour, value.minute, value.second))
-                else:
-                    self._widget.setTime(QTime.fromString(str(value)))
-            else:
-                formatted = format_value_for_display(value, self._column.cql_type)
-                self._widget.setText(formatted)
+            processed_data = {}
+            for col_name, raw_value in form_data.items():
+                # Skip empty values for non-PKs if you want, or handle defaults.
+                # For now, we pass everything to convert_value which handles None/empty.
+
+                # Basic validation for PKs
+                is_pk = any(c.name == col_name for c in schema.primary_key_columns)
+                if is_pk and (raw_value is None or raw_value == ''):
+                    # UUIDs might be auto-generated later in convert_value if empty,
+                    # but typically we want to ensure they are present or generated.
+                    # The convert_value logic for UUID generates one if empty.
+                    pass
+
+                # Convert
+                col_type = schema.column(col_name).cql_type
+                if raw_value is not None:
+                    processed_data[col_name] = convert_value(raw_value, col_type)
+
+            return processed_data
+
         except Exception as e:
-            print(f"Warning: Could not set value for {self._column.name}: {e}")
+            st.error(f"Error processing form: {e}")
+            return None
 
-    def clear(self) -> None:
-        """Clear the widget value."""
-        widget_type = self._type_info.get('widget', 'lineedit')
-
-        if widget_type == 'spinbox':
-            self._widget.setValue(0)
-        elif widget_type == 'doublespinbox':
-            self._widget.setValue(0.0)
-        elif widget_type == 'checkbox':
-            self._widget.setChecked(False)
-        elif widget_type == 'textedit':
-            self._widget.clear()
-        elif widget_type == 'datetime':
-            self._widget.setDateTime(QDateTime.currentDateTime())
-        elif widget_type == 'date':
-            self._widget.setDate(QDate.currentDate())
-        elif widget_type == 'time':
-            self._widget.setTime(QTime.currentTime())
-        else:
-            self._widget.clear()
-
-    def set_readonly(self, readonly: bool) -> None:
-        """Set field as readonly."""
-        if hasattr(self._widget, 'setReadOnly'):
-            self._widget.setReadOnly(readonly)
-        else:
-            self._widget.setEnabled(not readonly)
+    return None
 
 
-class DynamicRecordForm(QWidget):
+def _render_field(column: ColumnInfo, value: Any, disabled: bool = False, key_prefix: str = "") -> Any:
     """
-    Complete form for editing/inserting a Cassandra record.
+    Renders a single form field based on column type.
 
-    Dynamically generates form fields based on table schema,
-    groups primary key fields separately, and handles validation.
+    Args:
+        column: The column info.
+        value: The initial value.
+        disabled: Whether the field is disabled.
+        key_prefix: Prefix for the widget key to ensure uniqueness.
+
+    Returns:
+        The current value of the widget.
     """
+    type_info = get_type_info(column.cql_type)
+    widget_type = type_info.get('widget', 'lineedit')
 
-    submitted = Signal(dict)  # Emits the record data
-    cancelled = Signal()
+    # Unique key for the widget
+    key = f"{key_prefix}_{column.name}"
+    label = f"{column.name} ({column.cql_type})"
 
-    def __init__(self, schema: TableSchema, parent=None):
-        """
-        Initialize the record form.
+    if widget_type == 'number_input':
+        # Streamlit number_input defaults to float, need to enforce int step
+        min_val = type_info.get('min', -2147483648)
+        max_val = type_info.get('max', 2147483647)
+        # Ensure value is within range and int
+        val = int(value) if value is not None else 0
+        return st.number_input(label, min_value=min_val, max_value=max_val, value=val, step=1, disabled=disabled,
+                               key=key)
 
-        Args:
-            schema: Table schema for form generation.
-            parent: Parent widget.
-        """
-        super().__init__(parent)
-        self._schema = schema
-        self._fields: dict[str, DynamicFormField] = {}
-        self._mode = "insert"  # "insert" or "update"
-        self._original_record = None
+    elif widget_type == 'double_input':
+        val = float(value) if value is not None else 0.0
+        return st.number_input(label, value=val, format="%.6f", disabled=disabled, key=key)
 
-        self._setup_ui()
+    elif widget_type == 'checkbox':
+        val = bool(value) if value is not None else False
+        return st.checkbox(label, value=val, disabled=disabled, key=key)
+    elif widget_type == 'map_edit':
+        with st.expander(label):
+            return render_json_editor(dict(value) if value else dict(), path=key)
+        # val = json.dumps(dict(value), indent=2) if value else "{}"
+        # placeholder = type_info.get('placeholder', '')
+        # return st.text_area(label, value=val, placeholder=placeholder, disabled=disabled,
+        #                     key=f"should_be_deleted_{key}")
+    elif widget_type == 'textedit':
+        # For text, json, blobs, etc.
+        val = format_value_for_display(value, column.cql_type)
+        placeholder = type_info.get('placeholder', '')
+        return st.text_area(label, value=val, placeholder=placeholder, disabled=disabled, key=key)
 
-    def _setup_ui(self):
-        """Set up the form UI with all fields."""
-        layout = QVBoxLayout(self)
-        layout.setSpacing(16)
+    elif widget_type == 'datetime':
+        # Streamlit splits date and time. 
+        # We'll use a text input for simplicity to handle full ISO strings or custom formats,
+        # OR we could use date_input + time_input. 
+        # Given Cassandra timestamps can be complex, text input with validation is often safer,
+        # but let's try to be user-friendly.
 
-        # Title
-        title_label = QLabel(f"Record: {self._schema.table_name}")
-        title_label.setProperty("type", "heading")
-        layout.addWidget(title_label)
+        val = value
+        if isinstance(val, str):
+            # noinspection PyBroadException
+            try:
+                val = datetime.fromisoformat(val)
+            except:
+                pass
 
-        # Scroll area for fields
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setFrameShape(QFrame.NoFrame)
-
-        scroll_content = QWidget()
-        scroll_layout = QVBoxLayout(scroll_content)
-        scroll_layout.setSpacing(16)
-
-        # Primary key fields group
-        pk_group = QGroupBox("Primary Key (Required)")
-        pk_layout = QFormLayout(pk_group)
-        pk_layout.setSpacing(8)
-
-        for col in self._schema.primary_key_columns:
-            field = DynamicFormField(col)
-            self._fields[col.name] = field
-
-            label_text = f"{col.name}"
-            if col.is_partition_key:
-                label_text += " (partition)"
-            else:
-                label_text += " (clustering)"
-
-            pk_layout.addRow(f"{label_text}:", field)
-
-        scroll_layout.addWidget(pk_group)
-
-        # Regular columns group
-        if self._schema.regular_columns:
-            reg_group = QGroupBox("Columns")
-            reg_layout = QFormLayout(reg_group)
-            reg_layout.setSpacing(8)
-
-            for col in self._schema.regular_columns:
-                field = DynamicFormField(col)
-                self._fields[col.name] = field
-
-                label = QLabel(f"{col.name} ({col.cql_type}):")
-                reg_layout.addRow(label, field)
-
-            scroll_layout.addWidget(reg_group)
-
-        scroll_layout.addStretch()
-        scroll.setWidget(scroll_content)
-        layout.addWidget(scroll)
-
-        # Buttons
-        button_layout = QHBoxLayout()
-        button_layout.addStretch()
-
-        self.cancel_button = QPushButton("Cancel")
-        self.cancel_button.setProperty("type", "secondary")
-        self.cancel_button.clicked.connect(self.cancelled.emit)
-        button_layout.addWidget(self.cancel_button)
-
-        self.submit_button = QPushButton("Insert Record")
-        self.submit_button.clicked.connect(self._on_submit)
-        button_layout.addWidget(self.submit_button)
-
-        layout.addLayout(button_layout)
-
-    def set_mode(self, mode: str) -> None:
-        """
-        Set form mode (insert or update).
-
-        Args:
-            mode: "insert" or "update"
-        """
-        self._mode = mode
-
-        if mode == "update":
-            self.submit_button.setText("Update Record")
-            # Make primary keys readonly in update mode
-            for col in self._schema.primary_key_columns:
-                if col.name in self._fields:
-                    self._fields[col.name].set_readonly(True)
+        # If we have a datetime object
+        if isinstance(val, datetime):
+            d_val = val.date()
+            t_val = val.time()
         else:
-            self.submit_button.setText("Insert Record")
-            for field in self._fields.values():
-                field.set_readonly(False)
+            d_val = datetime.now().date()
+            t_val = datetime.now().time()
 
-    def load_record(self, record: dict) -> None:
-        """
-        Load a record into the form for editing.
+        c1, c2 = st.columns(2)
+        with c1:
+            d_input = st.date_input(f"{label} (Date)", value=d_val, disabled=disabled, key=f"{key}_date")
+        with c2:
+            t_input = st.time_input(f"{label} (Time)", value=t_val, disabled=disabled, key=f"{key}_time")
 
-        Args:
-            record: Record data dictionary.
-        """
-        self._original_record = record
+        # Combine back to datetime
+        return datetime.combine(d_input, t_input)
 
-        for col_name, field in self._fields.items():
-            if col_name in record:
-                field.set_value(record[col_name])
-            else:
-                field.clear()
+    elif widget_type == 'date':
+        val = value
+        if isinstance(val, str):
+            # noinspection PyBroadException
+            try:
+                val = date.fromisoformat(val)
+            except:
+                pass
 
-    def clear(self) -> None:
-        """Clear all form fields."""
-        self._original_record = None
-        for field in self._fields.values():
-            field.clear()
+        if not isinstance(val, date):
+            val = datetime.now().date()
 
-    def _validate(self) -> tuple[bool, str]:
-        """
-        Validate form data.
+        return st.date_input(label, value=val, disabled=disabled, key=key)
 
-        Returns:
-            Tuple of (is_valid, error_message).
-        """
-        # Check primary key fields are filled
-        for col in self._schema.primary_key_columns:
-            field = self._fields.get(col.name)
-            if field:
-                value = field.get_value()
-                if value is None or value == '':
-                    # UUID fields can be auto-generated
-                    if col.cql_type != 'uuid':
-                        return False, f"Primary key field '{col.name}' is required."
+    elif widget_type == 'time':
+        val = value
+        if isinstance(val, str):
+            # noinspection PyBroadException
+            try:
+                val = time.fromisoformat(val)
+            except:
+                pass
 
-        return True, ""
+        if not isinstance(val, time):
+            val = datetime.now().time()
 
-    def _on_submit(self) -> None:
-        """Handle form submission."""
-        is_valid, error = self._validate()
+        return st.time_input(label, value=val, disabled=disabled, key=key)
 
-        if not is_valid:
-            QMessageBox.warning(self, "Validation Error", error)
-            return
+    else:  # Default: lineedit (text_input)
+        val = format_value_for_display(value, column.cql_type)
+        placeholder = type_info.get('placeholder', '')
+        return st.text_input(label, value=val, placeholder=placeholder, disabled=disabled, key=key)
 
-        # Collect and convert values
-        record = {}
-        for col_name, field in self._fields.items():
-            raw_value = field.get_value()
-            if raw_value is not None and raw_value != '':
-                try:
-                    converted = convert_value(raw_value, field.column.cql_type)
-                    record[col_name] = converted
-                except Exception as e:
-                    QMessageBox.warning(
-                        self,
-                        "Conversion Error",
-                        f"Invalid value for '{col_name}': {e}"
-                    )
-                    return
+# ---------------------------
+# Recursive Renderer
+# ---------------------------
+def render_json_editor(data, path="root", label=None):
+    label = label if label else path
+    if isinstance(data, dict):
 
-        self.submitted.emit(record)
+        keys_to_delete = []
+        updated_dict = {}
 
-    def get_data(self) -> dict:
-        """
-        Get current form data.
+        for key in list(data.keys()):
+            value = data[key]
 
-        Returns:
-            Dictionary of column names to values.
-        """
-        record = {}
-        for col_name, field in self._fields.items():
-            raw_value = field.get_value()
-            if raw_value is not None and raw_value != '':
-                try:
-                    converted = convert_value(raw_value, field.column.cql_type)
-                    record[col_name] = converted
-                except:
-                    record[col_name] = raw_value
-        return record
+            # Recursive rendering
+            updated_value = render_json_editor(value, f"{path}_{key}", label=key)
+            updated_dict[key] = updated_value
+
+        return updated_dict
+
+    # ---------------------------
+    # LIST
+    # ---------------------------
+    elif isinstance(data, list):
+
+        updated_list = []
+
+        for i, item in enumerate(data):
+            col1, col2 = st.columns([5, 1])
+
+            with col1:
+                updated_item = render_json_editor(item, f"{path}_{i}")
+
+            # with col2:
+            #     if st.button("❌", key=f"del_{path}_{i}"):
+            #         data.pop(i)
+            #         st.rerun()
+
+            updated_list.append(updated_item)
+
+        # if st.button(f"➕ Add item to {path}", key=f"additem_{path}"):
+        #     data.append("")
+        #     st.rerun()
+
+        return updated_list
+
+    # ---------------------------
+    # PRIMITIVES
+    # ---------------------------
+    elif isinstance(data, str):
+        return st.text_input(label, value=data, key=path)
+
+    elif isinstance(data, int):
+        return st.number_input(label, value=data, step=1, key=path)
+
+    elif isinstance(data, float):
+        return st.number_input(label, value=data, key=path)
+
+    elif isinstance(data, bool):
+        return st.checkbox(label, value=data, key=path)
+
+    else:
+        return data

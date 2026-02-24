@@ -50,7 +50,7 @@ A modern, web-based graphical client for Apache Cassandra built with Python and 
 
 3.  **Run the application:**
     ```bash
-    streamlit run main.py
+    streamlit run main_view.py
     ```
 
     The application will open in your default web browser at `http://localhost:8501`.
