@@ -6,7 +6,7 @@ A modern, web-based graphical client for Apache Cassandra built with Python and 
 ![Python](https://img.shields.io/badge/python-3.12%2B-blue)
 ![Streamlit](https://img.shields.io/badge/streamlit-1.30%2B-red)
 
-Check out [py-sandra documentation](https://irajhedayati.github.io/py-sandra/) for more information how to use the application.
+Check out [USER_GUIDE.md](docs/index.md) for more information how to use the application.
 
 ## Contributing
 

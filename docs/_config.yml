@@ -1,0 +1,5 @@
+remote_theme: pages-themes/slate@v0.2.0
+plugins:
+- jekyll-remote-theme
+show_downloads: false
+google_analytics: G-8K5Y0NEGFC
