@@ -3,6 +3,14 @@
 ## Overview
 The Cassandra GUI Client is a lightweight, web-based graphical interface for Apache Cassandra clusters. Built with Python and Streamlit, it allows developers and administrators to browse data, manage schemas, and perform CRUD operations without writing raw CQL queries.
 
+<p align="center">
+  <a href="https://youtu.be/qWy39n3UmBo">
+    <img src="https://img.youtube.com/vi/qWy39n3UmBo/maxresdefault.jpg" alt="py-sandra Tutorial" style="width:100%; max-width:600px;">
+  </a>
+  <br>
+  <b>Click to watch: py-sandra GUI Tutorial</b>
+</p>
+
 ## Features
 - **Connection Management**: Save and manage multiple connection profiles (Local, Remote, SSL).
 - **Schema Explorer**: Browse Keyspaces and Tables dynamically.
