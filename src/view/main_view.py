@@ -16,7 +16,7 @@ from view.form import render_insert_form
 from view.table_info import render_table_info
 
 
-def render_main_content(is_connected: bool, schema: TableSchema, data_callbacks: Dict, cql_callbacks: Dict):
+def render_main_content(is_connected: bool, schema: TableSchema, data_callbacks: Dict):
     """Render the main content area."""
     if not is_connected:
         st.info("Please select a connection and click 'Connect' to start.")
@@ -24,7 +24,7 @@ def render_main_content(is_connected: bool, schema: TableSchema, data_callbacks:
 
     if schema:
         st.header(f"Table: {schema.keyspace}.{schema.table_name}")
-        tab1, tab2, tab3, tab4 = st.tabs(["Data Browser", "Insert Record", "Table Info", "CQL Editor"])
+        tab1, tab2, tab3 = st.tabs(["Data Browser", "Insert Record", "Table Info"])
 
         with tab1:
             render_data_grid(schema, data_callbacks)
@@ -32,10 +32,8 @@ def render_main_content(is_connected: bool, schema: TableSchema, data_callbacks:
             render_insert_form(schema, data_callbacks['insert'])
         with tab3:
             render_table_info(schema)
-        with tab4:
-            render_cql_editor(cql_callbacks['execute'])
     else:
-        st.info('Select a keyspace and table from the sidebar to view data.')
+        st.info('From the side bar, select a keyspace and table from the sidebar to view data.')
 
 
 def render_sidebar(connections: List[ConnectionProfile],
@@ -80,5 +78,5 @@ def render_sidebar(connections: List[ConnectionProfile],
                 tables = schema_inspector.get_tables(selected_ks)
                 st.selectbox("Table", tables, key="selected_table")
 
-                if st.button("Refresh", help="Refresh the list of tables", use_container_width=True):
-                    st.rerun()
+            if st.button("Refresh", help="Refresh the list of keyspace/tables", use_container_width=True):
+                st.rerun()
