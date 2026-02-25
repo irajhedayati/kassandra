@@ -5,9 +5,10 @@ Provides a repository pattern for interacting with the database.
 This abstracts the CQL queries from the main application logic.
 """
 import json
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from database.connection import CassandraConnectionManager
+from database.connection import QueryResult
 from database.model import TableSchema, Record
 
 
@@ -103,7 +104,6 @@ class CassandraRepository:
         query = f"INSERT INTO {schema.keyspace}.{schema.table_name} ({', '.join(columns)}) VALUES ({', '.join(placeholders)})"
         self._connection.execute(query, tuple(values))
 
-    def execute_cql(self, query: str) -> List[Dict[str, Any]]:
+    def execute_cql(self, query: str) -> QueryResult:
         """Execute an arbitrary CQL query."""
-        rows = self._connection.execute(query)
-        return list(rows)
+        return self._connection.execute_cql(query)

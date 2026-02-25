@@ -5,10 +5,8 @@ Handles creating, testing, and managing connections to Cassandra clusters.
 Supports authentication, SSL, and multiple hosts.
 """
 
-from typing import Optional, Callable
+from typing import Optional, Callable, List, Dict, Any
 from dataclasses import dataclass
-
-from cassandra import ConsistencyLevel
 from cassandra.cluster import (
     Cluster,
     Session,
@@ -16,14 +14,22 @@ from cassandra.cluster import (
     ExecutionProfile,
     EXEC_PROFILE_DEFAULT
 )
-from cassandra.io.asyncioreactor import AsyncioConnection
 from cassandra.auth import PlainTextAuthProvider
 from cassandra.policies import RoundRobinPolicy
 from cassandra.query import dict_factory, SimpleStatement
 import ssl
 
 from config.settings import ConnectionProfile
-from utils.ssl import ssl_protocol
+
+
+@dataclass
+class QueryResult:
+    """Result of a CQL query execution."""
+    success: bool
+    data: Optional[List[Dict[str, Any]]] = None
+    message: Optional[str] = None
+    paging_state: Optional[bytes] = None
+    has_more_pages: bool = False
 
 
 @dataclass
@@ -32,59 +38,6 @@ class ConnectionResult:
     success: bool
     message: str
     session: Optional[Session] = None
-
-
-def test_connection(profile: ConnectionProfile) -> ConnectionResult:
-    """
-    Test a connection without persisting it.
-
-    Args:
-        profile: Connection profile to test.
-
-    Returns:
-        ConnectionResult indicating success or failure.
-    """
-    try:
-        auth_provider = None
-        if profile.username and profile.password:
-            auth_provider = PlainTextAuthProvider(
-                username=profile.username,
-                password=profile.password
-            )
-
-        ssl_context = None
-        if profile.ssl_enabled:
-            ssl_context = ssl.create_default_context()
-            ssl_context.check_hostname = False
-            ssl_context.verify_mode = ssl.CERT_NONE
-
-        cluster = Cluster(
-            contact_points=profile.hosts,
-            port=profile.port,
-            auth_provider=auth_provider,
-            ssl_context=ssl_context,
-            protocol_version=4,
-            connection_class=AsyncioConnection,
-        )
-
-        session = cluster.connect()
-
-        # Run a simple query to verify connection
-        session.execute("SELECT release_version FROM system.local")
-
-        session.shutdown()
-        cluster.shutdown()
-
-        return ConnectionResult(
-            success=True,
-            message="Connection test successful!"
-        )
-
-    except Exception as e:
-        return ConnectionResult(
-            success=False,
-            message=f"Connection test failed: {str(e)}"
-        )
 
 
 class CassandraConnectionManager:
@@ -151,15 +104,11 @@ class CassandraConnectionManager:
             # Build SSL options if enabled
             ssl_context = None
             if profile.ssl_enabled:
-                ssl_context = ssl.SSLContext(ssl_protocol(profile.ssl_protocol))
+                ssl_context = ssl.create_default_context()
                 ssl_context.check_hostname = False
-                if profile.ssl_cert_path:
-                    ssl_context.verify_mode = ssl.CERT_REQUIRED
-                    ssl_context.load_verify_locations(profile.ssl_cert_path)
-                else:
-                    ssl_context.verify_mode = ssl.CERT_NONE
+                ssl_context.verify_mode = ssl.CERT_NONE
 
-                    # Create execution profile with dict factory for easier data handling
+            # Create execution profile with dict factory for easier data handling
             exec_profile = ExecutionProfile(
                 load_balancing_policy=RoundRobinPolicy(),
                 row_factory=dict_factory
@@ -176,10 +125,7 @@ class CassandraConnectionManager:
             )
 
             # Connect to cluster
-            if profile.default_keyspace:
-                self._session = self._cluster.connect(profile.default_keyspace)
-            else:
-                self._session = self._cluster.connect()
+            self._session = self._cluster.connect()
             self._current_profile = profile
 
             # Set default keyspace if specified
@@ -220,6 +166,57 @@ class CassandraConnectionManager:
         for callback in self._on_disconnect_callbacks:
             callback()
 
+    def test_connection(self, profile: ConnectionProfile) -> ConnectionResult:
+        """
+        Test a connection without persisting it.
+
+        Args:
+            profile: Connection profile to test.
+
+        Returns:
+            ConnectionResult indicating success or failure.
+        """
+        try:
+            auth_provider = None
+            if profile.username and profile.password:
+                auth_provider = PlainTextAuthProvider(
+                    username=profile.username,
+                    password=profile.password
+                )
+
+            ssl_context = None
+            if profile.ssl_enabled:
+                ssl_context = ssl.create_default_context()
+                ssl_context.check_hostname = False
+                ssl_context.verify_mode = ssl.CERT_NONE
+
+            cluster = Cluster(
+                contact_points=profile.hosts,
+                port=profile.port,
+                auth_provider=auth_provider,
+                ssl_context=ssl_context,
+                protocol_version=4
+            )
+
+            session = cluster.connect()
+
+            # Run a simple query to verify connection
+            session.execute("SELECT release_version FROM system.local")
+
+            session.shutdown()
+            cluster.shutdown()
+
+            return ConnectionResult(
+                success=True,
+                message="Connection test successful!"
+            )
+
+        except Exception as e:
+            return ConnectionResult(
+                success=False,
+                message=f"Connection test failed: {str(e)}"
+            )
+
     def set_keyspace(self, keyspace: str) -> None:
         """
         Switch to a different keyspace.
@@ -250,12 +247,42 @@ class CassandraConnectionManager:
         if parameters:
             prepared = self._session.prepare(query)
             bound = prepared.bind(parameters)
-            bound.consistency_level = ConsistencyLevel.ONE
             if page_size:
                 bound.fetch_size = page_size
             return self._session.execute(bound, paging_state=paging_state)
         else:
-            statement = SimpleStatement(query, consistency_level=ConsistencyLevel.ONE)
+            statement = SimpleStatement(query)
             if page_size:
                 statement.fetch_size = page_size
             return self._session.execute(statement, paging_state=paging_state)
+
+    def execute_cql(self, query: str, parameters: tuple = None, page_size: int = None, paging_state: bytes = None) -> QueryResult:
+        """
+        Execute a CQL query and return a structured result.
+
+        Args:
+            query: CQL query string.
+            parameters: Optional tuple of parameters.
+            page_size: Number of rows to fetch.
+            paging_state: State string to resume pagination.
+
+        Returns:
+            QueryResult object containing success status, data, or error.
+        """
+        if not self._session:
+            raise RuntimeError("No active connection")
+        if not query or not query.strip():
+            return QueryResult(success=True, message="Empty query", data=[])
+
+        try:
+            rs = self.execute(query, parameters, page_size, paging_state)
+            # Convert ResultSet to list to consume it and get data
+            data = list(rs)
+            return QueryResult(
+                success=True,
+                data=data,
+                paging_state=rs.paging_state,
+                has_more_pages=rs.has_more_pages
+            )
+        except Exception as e:
+            return QueryResult(success=False, message=str(e))
