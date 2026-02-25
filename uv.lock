@@ -714,6 +714,7 @@ dependencies = [
     { name = "streamlit" },
     { name = "streamlit-code-editor" },
     { name = "streamlit-extras" },
+    { name = "streamlit-monaco" },
 ]
 
 [package.metadata]
@@ -725,6 +726,7 @@ requires-dist = [
     { name = "streamlit", specifier = ">=1.30.0" },
     { name = "streamlit-code-editor", specifier = ">=0.1.22" },
     { name = "streamlit-extras", specifier = ">=0.7.8" },
+    { name = "streamlit-monaco", specifier = ">=0.1.3" },
 ]
 
 [[package]]
@@ -1204,6 +1206,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/88/25/d153babd6d8dff72ee2e56976862ec7fdd7856ec7da2cb6ffd4b3b12f336/streamlit_keyup-0.3.0.tar.gz", hash = "sha256:8595a14892423243669e5d50e982853ffb7eb201b65952a48676133ab9bbc937", size = 7387, upload-time = "2025-01-02T14:48:40.245Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/14/ed/facce225c0d360b9bfa053c827029312e1b255e84d79320bda3539417b50/streamlit_keyup-0.3.0-py3-none-any.whl", hash = "sha256:ec7221617b1c832526db52859196c417578d6b4285942fbd10a0b2ff313899b3", size = 7493, upload-time = "2025-01-02T14:48:35.414Z" },
+]
+
+[[package]]
+name = "streamlit-monaco"
+version = "0.1.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "streamlit" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/dc/88/66d784c30a6c5a43a295ad855f3e5a70bab0c392c04a4ade2365aff7a25e/streamlit-monaco-0.1.3.tar.gz", hash = "sha256:cb0ea842f26a89c5987d7e962712603d3594082613387a91403520c79288c519", size = 164437, upload-time = "2023-09-26T07:36:09.997Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1a/e6/12e26a6e63a1d60c5e0d9a81e9521d10d58d97ad05afcd3b4cba33d8a7cb/streamlit_monaco-0.1.3-py3-none-any.whl", hash = "sha256:3e60cb853b0b15c59b372fbc10c0df7d5f2852d4ef259d8489a98341804b7eb0", size = 175338, upload-time = "2023-09-26T07:36:05.382Z" },
 ]
 
 [[package]]

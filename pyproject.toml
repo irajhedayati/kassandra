@@ -12,4 +12,5 @@ dependencies = [
     "streamlit-extras>=0.7.8",
     "streamlit-code-editor>=0.1.22",
     "setuptools<82",
+    "streamlit-monaco>=0.1.3",
 ]
