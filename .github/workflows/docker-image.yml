@@ -34,6 +34,7 @@ jobs:
       uses: docker/build-push-action@v6
       with:
         context: .
+        platforms: linux/amd64,linux/arm64
         push: true
         tags: hedayati/py-sandra:${{ steps.get_uv_version.outputs.version }}.${{ github.run_number }},hedayati/py-sandra:latest
         cache-from: type=local,src=/tmp/.buildx-cache
