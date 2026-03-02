@@ -10,7 +10,6 @@ import streamlit as st
 from config.settings import ConnectionProfile
 from database.model import TableSchema
 from view.connection_form import render_connection_form
-from view.cql_editor import render_cql_editor
 from view.data_grid import render_data_grid
 from view.form import render_insert_form
 from view.table_info import render_table_info
@@ -76,7 +75,19 @@ def render_sidebar(connections: List[ConnectionProfile],
 
             if selected_ks:
                 tables = schema_inspector.get_tables(selected_ks)
-                st.selectbox("Table", tables, key="selected_table")
+                selected_table = st.selectbox("Table", tables, key="selected_table")
+
+                if selected_table:
+                    # Reset pagination when table changes
+                    if 'current_table_name' not in st.session_state or st.session_state.current_table_name != selected_table:
+                        st.session_state.current_table_name = selected_table
+                        st.session_state.paging_state = None
+                        st.session_state.page_history = []
+                        # Reset collection inputs
+                        if 'collection_inputs' in st.session_state:
+                            del st.session_state.collection_inputs
+
+                    st.session_state.current_table_schema = st.session_state.schema_inspector.get_table_schema(selected_ks, selected_table)
 
             if st.button("Refresh", help="Refresh the list of keyspace/tables", use_container_width=True):
                 st.rerun()

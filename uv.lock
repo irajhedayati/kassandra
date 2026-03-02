@@ -704,7 +704,7 @@ wheels = [
 
 [[package]]
 name = "py-sandra"
-version = "0.2.0b2"
+version = "0.2.0b3"
 source = { virtual = "." }
 dependencies = [
     { name = "cassandra-driver" },

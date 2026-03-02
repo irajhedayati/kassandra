@@ -7,6 +7,8 @@ Supports authentication, SSL, and multiple hosts.
 
 from typing import Optional, Callable, List, Dict, Any
 from dataclasses import dataclass
+
+from cassandra import ConsistencyLevel
 from cassandra.cluster import (
     Cluster,
     Session,
@@ -20,6 +22,26 @@ from cassandra.query import dict_factory, SimpleStatement
 import ssl
 
 from config.settings import ConnectionProfile
+
+from enum import Enum
+
+class Color(Enum):
+    RED = 1
+    GREEN = 2
+    BLUE = 'blue'
+
+class CassandraConsistencyLevel(Enum):
+    ANY = ConsistencyLevel.ANY
+    ONE = ConsistencyLevel.ONE
+    TWO = ConsistencyLevel.TWO
+    THREE = ConsistencyLevel.THREE
+    QUORUM = ConsistencyLevel.QUORUM
+    ALL = ConsistencyLevel.ALL
+    LOCAL_QUORUM = ConsistencyLevel.LOCAL_QUORUM
+    EACH_QUORUM = ConsistencyLevel.EACH_QUORUM
+    SERIAL = ConsistencyLevel.SERIAL
+    LOCAL_SERIAL = ConsistencyLevel.LOCAL_SERIAL
+    LOCAL_ONE = ConsistencyLevel.LOCAL_ONE
 
 
 @dataclass
@@ -247,6 +269,7 @@ class CassandraConnectionManager:
         if parameters:
             prepared = self._session.prepare(query)
             bound = prepared.bind(parameters)
+            bound.consistency_level = self._current_profile.consistency_level
             if page_size:
                 bound.fetch_size = page_size
             return self._session.execute(bound, paging_state=paging_state)

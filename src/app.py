@@ -1,7 +1,10 @@
 """
 Main Application Controller for Cassandra GUI
 
-Initializes and coordinates all components of the application.
+Coordinates all components of the Cassandra GUI client:
+- Connection management
+- Schema navigation
+- Data browsing and CRUD operations
 """
 import streamlit as st
 
@@ -9,7 +12,8 @@ from config.settings import ConfigManager
 from database.connection import CassandraConnectionManager
 from database.model import SchemaInspector
 from database.repository import CassandraRepository
-from view import main_view, dialogs_view, cql_view
+from view import main_view, cql_view, dialogs_view
+
 
 class CassandraGUIApp:
     """
@@ -41,13 +45,13 @@ class CassandraGUIApp:
             disconnect_callback=self._disconnect,
             schema_inspector=st.session_state.schema_inspector
         )
-        
+
         # Render CQL Editor if connected (regardless of schema selection)
         if self._connection.is_connected:
             cql_view.render(self._repository.execute_cql)
 
         current_table_schema = self._get_current_table_schema()
-        
+
         data_callbacks = {
             'get_records': self._repository.get_records,
             'update': self._repository.update_record,
@@ -60,7 +64,7 @@ class CassandraGUIApp:
             schema=current_table_schema,
             data_callbacks=data_callbacks
         )
-        
+
         dialogs_view.render_delete_confirmation(self._repository.delete_record)
 
     def _connect_to_profile(self, name: str):
@@ -99,6 +103,6 @@ class CassandraGUIApp:
                st.session_state.current_table_schema.table_name != table or \
                st.session_state.current_table_schema.keyspace != keyspace:
                 st.session_state.current_table_schema = st.session_state.schema_inspector.get_table_schema(keyspace, table)
-            
+
             return st.session_state.current_table_schema
         return None

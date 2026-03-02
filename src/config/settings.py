@@ -30,6 +30,7 @@ class ConnectionProfile:
     ssl_protocol: str = "PROTOCOL_TLS"
     ssl_cert_path: str = ""
     default_keyspace: str = ""
+    consistency_level: str = "LOCAL_ONE"
 
     def to_dict(self) -> dict:
         return asdict(self)
