@@ -20,7 +20,8 @@ def render_connection_form(connections: List[ConnectionProfile]):
         "ssl_enabled": False,
         "ssl_protocol": supported_ssl_protocols[0] if supported_ssl_protocols else "PROTOCOL_TLS",
         "ssl_cert_path": "",
-        "consistency_level": CassandraConsistencyLevel.LOCAL_ONE.name
+        "consistency_level": CassandraConsistencyLevel.LOCAL_ONE.name,
+        "connection_timeout": 5
     }
 
     selected_conn_name = st.session_state.get("selected_connection")
@@ -62,6 +63,14 @@ def render_connection_form(connections: List[ConnectionProfile]):
         ssl_cert_path = st.text_input("SSL certificate file if required", value=defaults["ssl_cert_path"],
                                       key=f"conn_cert_{key_suffix}")
 
+        # Connection Timeout
+        connection_timeout = st.number_input("Connection Timeout (seconds)",
+                                            value=int(defaults["connection_timeout"]),
+                                            min_value=1,
+                                            max_value=300,
+                                            step=1,
+                                            key=f"conn_timeout_{key_suffix}")
+
         if st.form_submit_button("Save Connection"):
             new_profile = ConnectionProfile(
                 name=name,
@@ -73,7 +82,8 @@ def render_connection_form(connections: List[ConnectionProfile]):
                 ssl_protocol=ssl_protocol or None,
                 ssl_cert_path=ssl_cert_path or None,
                 default_keyspace=default_keyspace,
-                consistency_level=consistency_level
+                consistency_level=consistency_level,
+                connection_timeout=connection_timeout
             )
             config_manager.add_connection(new_profile)
             st.success(f"Saved connection '{name}'")

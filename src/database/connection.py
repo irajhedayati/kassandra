@@ -143,7 +143,8 @@ class CassandraConnectionManager:
                 auth_provider=auth_provider,
                 ssl_context=ssl_context,
                 execution_profiles={EXEC_PROFILE_DEFAULT: exec_profile},
-                protocol_version=4
+                protocol_version=4,
+                connect_timeout=profile.connection_timeout
             )
 
             # Connect to cluster
@@ -188,36 +189,34 @@ class CassandraConnectionManager:
         for callback in self._on_disconnect_callbacks:
             callback()
 
-    def test_connection(self, profile: ConnectionProfile) -> ConnectionResult:
+    def test_connection(self) -> ConnectionResult:
         """
         Test a connection without persisting it.
-
-        Args:
-            profile: Connection profile to test.
 
         Returns:
             ConnectionResult indicating success or failure.
         """
         try:
             auth_provider = None
-            if profile.username and profile.password:
+            if self.current_profile.username and self.current_profile.password:
                 auth_provider = PlainTextAuthProvider(
-                    username=profile.username,
-                    password=profile.password
+                    username=self.current_profile.username,
+                    password=self.current_profile.password
                 )
 
             ssl_context = None
-            if profile.ssl_enabled:
+            if self.current_profile.ssl_enabled:
                 ssl_context = ssl.create_default_context()
                 ssl_context.check_hostname = False
                 ssl_context.verify_mode = ssl.CERT_NONE
 
             cluster = Cluster(
-                contact_points=profile.hosts,
-                port=profile.port,
+                contact_points=self.current_profile.hosts,
+                port=self.current_profile.port,
                 auth_provider=auth_provider,
                 ssl_context=ssl_context,
-                protocol_version=4
+                protocol_version=4,
+                connect_timeout=self.current_profile.connection_timeout
             )
 
             session = cluster.connect()
