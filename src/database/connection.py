@@ -274,6 +274,7 @@ class CassandraConnectionManager:
             return self._session.execute(bound, paging_state=paging_state)
         else:
             statement = SimpleStatement(query)
+            statement.consistency_level = self._current_profile.consistency_level
             if page_size:
                 statement.fetch_size = page_size
             return self._session.execute(statement, paging_state=paging_state)
