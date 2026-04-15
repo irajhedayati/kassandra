@@ -432,7 +432,7 @@ requires-dist = [
     { name = "setuptools", specifier = "<83" },
     { name = "streamlit", specifier = ">=1.30.0" },
     { name = "streamlit-code-editor", specifier = ">=0.1.22" },
-    { name = "streamlit-extras", specifier = ">=0.7.8" },
+    { name = "streamlit-extras", specifier = ">=1.4.1" },
     { name = "streamlit-monaco", specifier = ">=0.1.3" },
 ]
 
@@ -607,15 +607,15 @@ wheels = [
 
 [[package]]
 name = "streamlit-extras"
-version = "1.3.0"
+version = "1.4.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "plotly" },
     { name = "streamlit" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/5b/70/0bf3fb54419aa82879d8767288283daee7ba8acca546434869f60d8db13d/streamlit_extras-1.3.0.tar.gz", hash = "sha256:437be7422230a13b9606f9f6ec22e5f2595bde4b8352ce01ab43c6552bf0aeab", size = 345397, upload-time = "2026-03-31T16:07:25.487Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/a9/b1/3d848b1229d1c5a69b15b076563d22b149d30875ff68025f2379ca55a84a/streamlit_extras-1.4.1.tar.gz", hash = "sha256:d180fa900dd2e55b68a000e9c032b09102e70531dbf19952b10427a11e359a4e", size = 373690, upload-time = "2026-04-10T12:37:12.084Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/93/5c/35330b8b756ea9e2bcb3aa0f94ed949c5bb29ce1e4bf2f1aa89ea2497b07/streamlit_extras-1.3.0-py3-none-any.whl", hash = "sha256:3cdf9deede3f5560ee179158fcb9c8232fa1da54fca8439ed8bab9d3185d35f9", size = 602725, upload-time = "2026-03-31T16:07:26.75Z" },
+    { url = "https://files.pythonhosted.org/packages/ae/8d/918b0968fc572fc1f6a35f5431d36211adc3d3aa5ce24800ed3d0c74bccd/streamlit_extras-1.4.1-py3-none-any.whl", hash = "sha256:6ccdfaacf118a97afe35505d1bcf1b04b1a93253b628e5a82ec02fe58b0f3433", size = 780306, upload-time = "2026-04-10T12:37:10.531Z" },
 ]
 
 [[package]]
