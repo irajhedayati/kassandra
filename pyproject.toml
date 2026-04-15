@@ -17,5 +17,5 @@ dependencies = [
     "pillow>=12.1.1",
     # 'cryptography' 44.0.1 is used by streamlit. There is a security risk addressed in 46.0.5.
     # Once https://github.com/snowflakedb/snowflake-connector-python/issues/2776 is merged, this can be removed
-    "cryptography>=46.0.5",
+    "cryptography>=46.0.7",
 ]
