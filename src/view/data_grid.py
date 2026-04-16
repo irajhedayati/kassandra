@@ -13,7 +13,7 @@ def render_data_grid(schema: TableSchema, callbacks: Dict):
     with st.expander("Filters"):
         cols = st.columns(3)
         filter_params = {}
-        for i, col in enumerate(schema.columns):
+        for i, col in enumerate(schema.all_columns_sorted):
             val = cols[i % 3].text_input(f"Filter {col.name}")
             if val:
                 filter_params[col.name] = val
