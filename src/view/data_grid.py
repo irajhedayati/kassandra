@@ -32,6 +32,8 @@ def render_data_grid(schema: TableSchema, callbacks: Dict):
         for col in visible_columns:
             if col.is_set_or_list:
                 df[col.name] = df[col.name].apply(lambda x: list([str(u) for u in x]) if x else None)
+            elif col.is_uuid:
+                df[col.name] = df[col.name].apply(lambda x: str(x) if x is not None else None)
 
         event = st.dataframe(data=df, on_select="rerun", selection_mode="single-row")
         if len(event.selection['rows']):

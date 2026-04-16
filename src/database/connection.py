@@ -5,10 +5,13 @@ Handles creating, testing, and managing connections to Cassandra clusters.
 Supports authentication, SSL, and multiple hosts.
 """
 
-from typing import Optional, Callable, List, Dict, Any
+import ssl
 from dataclasses import dataclass
+from enum import Enum
+from typing import Optional, Callable, List, Dict, Any
 
 from cassandra import ConsistencyLevel
+from cassandra.auth import PlainTextAuthProvider
 from cassandra.cluster import (
     Cluster,
     Session,
@@ -16,14 +19,11 @@ from cassandra.cluster import (
     ExecutionProfile,
     EXEC_PROFILE_DEFAULT
 )
-from cassandra.auth import PlainTextAuthProvider
-from cassandra.policies import RoundRobinPolicy
+from cassandra.policies import WhiteListRoundRobinPolicy
 from cassandra.query import dict_factory, SimpleStatement
-import ssl
 
 from config.settings import ConnectionProfile
 
-from enum import Enum
 
 class Color(Enum):
     RED = 1
@@ -126,13 +126,17 @@ class CassandraConnectionManager:
             # Build SSL options if enabled
             ssl_context = None
             if profile.ssl_enabled:
-                ssl_context = ssl.create_default_context()
+                ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
                 ssl_context.check_hostname = False
-                ssl_context.verify_mode = ssl.CERT_NONE
+                if profile.ssl_cert_path:
+                    ssl_context.load_verify_locations(profile.ssl_cert_path)
+                    ssl_context.verify_mode = ssl.CERT_REQUIRED
+                else:
+                    ssl_context.verify_mode = ssl.CERT_NONE
 
             # Create execution profile with dict factory for easier data handling
             exec_profile = ExecutionProfile(
-                load_balancing_policy=RoundRobinPolicy(),
+                load_balancing_policy=WhiteListRoundRobinPolicy(profile.hosts),
                 row_factory=dict_factory
             )
 
@@ -143,7 +147,7 @@ class CassandraConnectionManager:
                 auth_provider=auth_provider,
                 ssl_context=ssl_context,
                 execution_profiles={EXEC_PROFILE_DEFAULT: exec_profile},
-                protocol_version=4
+                connect_timeout=profile.connection_timeout
             )
 
             # Connect to cluster
@@ -188,36 +192,37 @@ class CassandraConnectionManager:
         for callback in self._on_disconnect_callbacks:
             callback()
 
-    def test_connection(self, profile: ConnectionProfile) -> ConnectionResult:
+    def test_connection(self) -> ConnectionResult:
         """
         Test a connection without persisting it.
-
-        Args:
-            profile: Connection profile to test.
 
         Returns:
             ConnectionResult indicating success or failure.
         """
         try:
             auth_provider = None
-            if profile.username and profile.password:
+            if self.current_profile.username and self.current_profile.password:
                 auth_provider = PlainTextAuthProvider(
-                    username=profile.username,
-                    password=profile.password
+                    username=self.current_profile.username,
+                    password=self.current_profile.password
                 )
 
             ssl_context = None
-            if profile.ssl_enabled:
-                ssl_context = ssl.create_default_context()
+            if self.current_profile.ssl_enabled:
+                ssl_context = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
                 ssl_context.check_hostname = False
-                ssl_context.verify_mode = ssl.CERT_NONE
+                if self.current_profile.ssl_cert_path:
+                    ssl_context.load_verify_locations(self.current_profile.ssl_cert_path)
+                    ssl_context.verify_mode = ssl.CERT_REQUIRED
+                else:
+                    ssl_context.verify_mode = ssl.CERT_NONE
 
             cluster = Cluster(
-                contact_points=profile.hosts,
-                port=profile.port,
+                contact_points=self.current_profile.hosts,
+                port=self.current_profile.port,
                 auth_provider=auth_provider,
                 ssl_context=ssl_context,
-                protocol_version=4
+                connect_timeout=self.current_profile.connection_timeout
             )
 
             session = cluster.connect()
@@ -269,12 +274,13 @@ class CassandraConnectionManager:
         if parameters:
             prepared = self._session.prepare(query)
             bound = prepared.bind(parameters)
-            bound.consistency_level = self._current_profile.consistency_level
+            bound.consistency_level = CassandraConsistencyLevel[self._current_profile.consistency_level].value
             if page_size:
                 bound.fetch_size = page_size
             return self._session.execute(bound, paging_state=paging_state)
         else:
             statement = SimpleStatement(query)
+            statement.consistency_level = CassandraConsistencyLevel[self._current_profile.consistency_level].value
             if page_size:
                 statement.fetch_size = page_size
             return self._session.execute(statement, paging_state=paging_state)

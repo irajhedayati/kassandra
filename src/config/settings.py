@@ -31,6 +31,7 @@ class ConnectionProfile:
     ssl_cert_path: str = ""
     default_keyspace: str = ""
     consistency_level: str = "LOCAL_ONE"
+    connection_timeout: int = 5
 
     def to_dict(self) -> dict:
         return asdict(self)
