@@ -272,12 +272,11 @@ class CassandraConnectionManager:
             raise RuntimeError("No active connection")
 
         if parameters:
-            prepared = self._session.prepare(query)
-            bound = prepared.bind(parameters)
-            bound.consistency_level = CassandraConsistencyLevel[self._current_profile.consistency_level].value
+            statement = SimpleStatement(query)
+            statement.consistency_level = CassandraConsistencyLevel[self._current_profile.consistency_level].value
             if page_size:
-                bound.fetch_size = page_size
-            return self._session.execute(bound, paging_state=paging_state)
+                statement.fetch_size = page_size
+            return self._session.execute(statement, parameters, paging_state=paging_state)
         else:
             statement = SimpleStatement(query)
             statement.consistency_level = CassandraConsistencyLevel[self._current_profile.consistency_level].value
