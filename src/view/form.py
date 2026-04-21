@@ -12,10 +12,10 @@ def render_insert_form(schema: TableSchema, insert_callback):
     if data:
         try:
             insert_callback(schema, data)
-            st.success("Record inserted successfully")
+            st.toast("Record inserted successfully", icon="✅")
             st.rerun()
         except Exception as e:
-            st.error(f"Insert failed: {e}")
+            st.toast(f"Insert failed: {e}", icon="❌")
 
 
 def render_row_details(record: Record, callbacks: Dict):
@@ -28,10 +28,10 @@ def render_row_details(record: Record, callbacks: Dict):
     if data:
         try:
             callbacks['update'](record.schema, record.data, data)
-            st.success("Record updated successfully")
+            st.toast("Record updated successfully", icon="✅")
             st.rerun()
         except Exception as e:
-            st.error(f"Update failed: {e}")
+            st.toast(f"Update failed: {e}", icon="❌")
 
     # Delete Action
     st.markdown("### Actions")

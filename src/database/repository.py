@@ -65,7 +65,6 @@ class CassandraRepository:
             where_values.append(val)
 
         query = f"UPDATE {schema.keyspace}.{schema.table_name} SET {', '.join(set_parts)} WHERE {' AND '.join(where_parts)}"
-        print(query)
         self._connection.execute(query, tuple(set_values + where_values))
 
     def delete_record(self, schema: TableSchema, row: Dict[str, Any]) -> None:
@@ -74,7 +73,7 @@ class CassandraRepository:
         where_values = []
         for col in schema.primary_key_columns:
             val = row.get(col.name)
-            where_parts.append(f"{col.name} = %s")
+            where_parts.append(f"{col.name} = ?")
             where_values.append(val)
 
         query = f"DELETE FROM {schema.keyspace}.{schema.table_name} WHERE {' AND '.join(where_parts)}"
@@ -87,7 +86,7 @@ class CassandraRepository:
         values = []
 
         for k, v in data.items():
-            value = v['value']
+            value = v
             if value is not None and value != '':
                 columns.append(k)
                 placeholders.append('%s')
@@ -101,8 +100,9 @@ class CassandraRepository:
         if not columns:
             raise ValueError("No data to insert.")
 
-        query = f"INSERT INTO {schema.keyspace}.{schema.table_name} ({', '.join(columns)}) VALUES ({', '.join(placeholders)})"
-        self._connection.execute(query, tuple(values))
+        if len(columns) > 0:
+            query = f"INSERT INTO {schema.keyspace}.{schema.table_name} ({', '.join(columns)}) VALUES ({', '.join(placeholders)})"
+            self._connection.execute(query, tuple(values))
 
     def execute_cql(self, query: str) -> QueryResult:
         """Execute an arbitrary CQL query."""
