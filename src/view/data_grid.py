@@ -1,4 +1,5 @@
 from typing import Dict
+import json
 
 import pandas as pd
 import streamlit as st
@@ -34,6 +35,8 @@ def render_data_grid(schema: TableSchema, callbacks: Dict):
                 df[col.name] = df[col.name].apply(lambda x: list([str(u) for u in x]) if x else None)
             elif col.is_uuid:
                 df[col.name] = df[col.name].apply(lambda x: str(x) if x is not None else None)
+            elif col.is_map:
+                df[col.name] = df[col.name].apply(lambda x: json.dumps(dict(x), default=str) if x is not None else None)
 
         event = st.dataframe(data=df, on_select="rerun", selection_mode="single-row")
         if len(event.selection['rows']):
