@@ -147,7 +147,8 @@ class CassandraConnectionManager:
                 auth_provider=auth_provider,
                 ssl_context=ssl_context,
                 execution_profiles={EXEC_PROFILE_DEFAULT: exec_profile},
-                connect_timeout=profile.connection_timeout
+                connect_timeout=profile.connection_timeout,
+                protocol_version=profile.protocol_version,
             )
 
             # Connect to cluster
@@ -222,7 +223,8 @@ class CassandraConnectionManager:
                 port=self.current_profile.port,
                 auth_provider=auth_provider,
                 ssl_context=ssl_context,
-                connect_timeout=self.current_profile.connection_timeout
+                connect_timeout=self.current_profile.connection_timeout,
+                protocol_version=self.current_profile.protocol_version,
             )
 
             session = cluster.connect()

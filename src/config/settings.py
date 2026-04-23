@@ -32,6 +32,7 @@ class ConnectionProfile:
     default_keyspace: str = ""
     consistency_level: str = "LOCAL_ONE"
     connection_timeout: int = 5
+    protocol_version: int = 5
 
     def to_dict(self) -> dict:
         return asdict(self)
