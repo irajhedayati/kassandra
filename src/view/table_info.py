@@ -65,7 +65,7 @@ def render_table_info(schema: TableSchema):
     with cols[4]:
         for col in schema.all_columns_sorted:
             meta = config_manager.get_column_metadata(schema.keyspace, schema.table_name, col.name)
-            if col.cql_type.startswith("map<"):
+            if col.is_map:
                 if st.button("Edit Schema", key=f"edit_map_{col.name}"):
                     st.session_state.map_editor_target = {'keyspace': schema.keyspace, 'table': schema.table_name,
                                                           'column': col.name,

@@ -41,31 +41,33 @@ class CassandraRepository:
     def update_record(self, schema: TableSchema, original_row: Dict[str, Any], updated_data: Dict[str, Any]) -> None:
         """Update a record in the database."""
         set_parts = []
-        set_values = []
 
         for col in schema.regular_columns:
             new_val = updated_data.get(col.name)
-            if col.cql_type.startswith('map<'):
+            if col.is_map:
                 if isinstance(new_val, str):
                     try:
                         new_val = json.loads(new_val)
                     except json.JSONDecodeError as e:
                         raise ValueError(f"Invalid JSON for column {col.name}") from e
-            set_parts.append(f"{col.name} = ?")
-            set_values.append(new_val)
+            if col.is_text:
+                set_parts.append(f"{col.name} = '{new_val}'")
+            else:
+                set_parts.append(f"{col.name} = {new_val}")
 
         if not set_parts:
             raise ValueError("No columns to update.")
 
         where_parts = []
-        where_values = []
         for col in schema.primary_key_columns:
             val = original_row.get(col.name)
-            where_parts.append(f"{col.name} = ?")
-            where_values.append(val)
+            if col.is_text:
+                where_parts.append(f"{col.name} = '{val}'")
+            else:
+                where_parts.append(f"{col.name} = {val}")
 
-        query = f"UPDATE {schema.keyspace}.{schema.table_name} SET {', '.join(set_parts)} WHERE {' AND '.join(where_parts)}"
-        self._connection.execute(query, tuple(set_values + where_values))
+        self._connection.execute(
+            f"UPDATE {schema.keyspace}.{schema.table_name} SET {', '.join(set_parts)} WHERE {' AND '.join(where_parts)}")
 
     def delete_record(self, schema: TableSchema, row: Dict[str, Any]) -> None:
         """Delete a record from the database."""
@@ -73,7 +75,7 @@ class CassandraRepository:
         where_values = []
         for col in schema.primary_key_columns:
             val = row.get(col.name)
-            where_parts.append(f"{col.name} = ?")
+            where_parts.append(f"{col.name} = %s")
             where_values.append(val)
 
         query = f"DELETE FROM {schema.keyspace}.{schema.table_name} WHERE {' AND '.join(where_parts)}"
