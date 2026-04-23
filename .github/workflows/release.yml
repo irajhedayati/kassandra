@@ -48,7 +48,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            hedayati/py-sandra:${{ steps.version.outputs.new }}
+            hedayati/py-sandra:v$(uv version --short)
             hedayati/py-sandra:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
