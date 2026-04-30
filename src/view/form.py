@@ -8,14 +8,20 @@ from ui.dynamic_form import render_dynamic_form
 
 def render_insert_form(schema: TableSchema, insert_callback):
     """Render form for inserting new records."""
+    result_key = f"insert_result_{schema.keyspace}_{schema.table_name}"
+
+    if result_key in st.session_state:
+        st.success("Record inserted successfully")
+        st.dataframe([st.session_state[result_key]], use_container_width=True)
+
     data = render_dynamic_form(schema, mode="insert")
     if data:
         try:
             insert_callback(schema, data)
-            st.toast("Record inserted successfully", icon="✅")
+            st.session_state[result_key] = data
             st.rerun()
         except Exception as e:
-            st.toast(f"Insert failed: {e}", icon="❌")
+            st.error(f"Insert failed: {e}")
 
 
 def render_row_details(record: Record, callbacks: Dict):

@@ -32,20 +32,10 @@ def render_dynamic_form(schema: TableSchema, record: Optional[Dict[str, Any]] = 
     with st.form(key=f"dynamic_form_{schema.keyspace}_{schema.table_name}_{mode}"):
         st.subheader(f"{mode.capitalize()} Record: {schema.table_name}")
 
-        # Primary Key Section
-        st.markdown("### Primary Key (Required)")
-        for col in schema.primary_key_columns:
+        for col in schema.all_columns_sorted:
             value = record.get(col.name) if record else None
-            # Primary keys are read-only in update mode
-            disabled = (mode == "update")
-            form_data[col.name] = _render_field(col, value, disabled=disabled, key_prefix=f"{mode}_pk")
-
-        # Regular Columns Section
-        if schema.regular_columns:
-            st.markdown("### Columns")
-            for col in schema.regular_columns:
-                value = record.get(col.name) if record else None
-                form_data[col.name] = _render_field(col, value, key_prefix=f"{mode}_reg")
+            disabled = (mode == "update" and col.is_primary_key)
+            form_data[col.name] = _render_field(col, value, disabled=disabled, key_prefix=mode)
 
         # Submit Button
         submit_label = "Insert Record" if mode == "insert" else "Update Record"
@@ -99,7 +89,12 @@ def _render_field(column: ColumnInfo, value: Any, disabled: bool = False, key_pr
 
     # Unique key for the widget
     key = f"{key_prefix}_{column.name}"
-    label = f"{column.name} ({column.cql_type})"
+    if column.is_partition_key:
+        label = f"{column.name} ({column.cql_type}) [Partition Key]"
+    elif column.is_clustering_key:
+        label = f"{column.name} ({column.cql_type}) [Clustering Key]"
+    else:
+        label = f"{column.name} ({column.cql_type})"
 
     if widget_type == 'number_input':
         # Streamlit number_input defaults to float, need to enforce int step
