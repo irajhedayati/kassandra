@@ -66,6 +66,7 @@ class CassandraGUIApp:
         )
 
         dialogs_view.render_delete_confirmation(self._repository.delete_record)
+        dialogs_view.render_map_schema_editor(self._config)
 
     def _connect_to_profile(self, name: str):
         """Connect to the selected profile."""
