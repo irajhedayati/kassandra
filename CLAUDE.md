@@ -12,19 +12,19 @@ The previous Python/Streamlit implementation lives under [`legacy/`](legacy/) fo
 
 ```bash
 # Setup
-pnpm install
+npm install
 
 # Dev (server on 8501, Vite on 5173 with /api proxy)
-pnpm dev
+npm run dev
 
 # Build all workspaces
-pnpm build
+npm run build
 
 # Production-style run (Express serves API + client/dist)
-pnpm start
+npm start
 
 # Type-check only
-pnpm typecheck
+npm run typecheck
 
 # Docker
 docker build -t py-sandra .
@@ -35,7 +35,7 @@ There is no test suite or linting configuration in this project.
 
 ## Architecture
 
-pnpm workspace monorepo:
+npm workspaces monorepo:
 
 ```
 shared/   — TypeScript types shared by server and client (connection, schema, query, cql-types)

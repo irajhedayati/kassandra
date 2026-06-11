@@ -18,8 +18,8 @@ The previous Python/Streamlit implementation lives under [`legacy/`](legacy/) fo
 ## Develop
 
 ```bash
-pnpm install
-pnpm dev      # runs the server (8501) and the Vite dev server (5173) in parallel
+npm install
+npm run dev      # runs the server (8501) and the Vite dev server (5173) in parallel
 ```
 
 Open http://localhost:5173 — Vite proxies `/api` to the server on 8501.
@@ -27,8 +27,8 @@ Open http://localhost:5173 — Vite proxies `/api` to the server on 8501.
 ## Build & run
 
 ```bash
-pnpm build
-pnpm start    # serves API + built SPA on http://127.0.0.1:8501
+npm run build
+npm start    # serves API + built SPA on http://127.0.0.1:8501
 ```
 
 ## Docker
