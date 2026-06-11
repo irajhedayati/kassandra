@@ -5,7 +5,7 @@ import {
   type ColumnInfo,
   type Row,
   type TableSchema,
-} from '@py-sandra/shared';
+} from '@kassandra/shared';
 import { formatValueForEdit } from '../../utils/format.js';
 import {
   BlobHexField,

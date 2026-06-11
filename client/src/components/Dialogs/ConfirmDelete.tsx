@@ -2,7 +2,7 @@
  * Confirmation modal for row deletion.
  * Shows the primary key values for the row that will be deleted.
  */
-import type { Row } from '@py-sandra/shared';
+import type { Row } from '@kassandra/shared';
 
 interface Props {
   open: boolean;

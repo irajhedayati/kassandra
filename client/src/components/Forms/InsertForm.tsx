@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getSchema } from '../../api/schema.js';
 import { insertRow } from '../../api/data.js';
-import type { Row } from '@py-sandra/shared';
+import type { Row } from '@kassandra/shared';
 import { DynamicForm } from './DynamicForm.js';
 import { useState } from 'react';
 

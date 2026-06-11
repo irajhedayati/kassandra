@@ -1,6 +1,6 @@
-# Contributing to py-sandra
+# Contributing to kassandra
 
-First off, thank you for considering contributing to py-sandra! It’s people like you that make open-source tools better for everyone.
+First off, thank you for considering contributing to kassandra! It’s people like you that make open-source tools better for everyone.
 
 As a **v0.2.0 Beta** project, we are especially grateful for help with bug fixes, documentation, and new feature implementations.
 
@@ -28,7 +28,7 @@ As a **v0.2.0 Beta** project, we are especially grateful for help with bug fixes
 
 ## 🧪 Development Guidelines
 
-* **UI Consistency:** Since py-sandra is a GUI, please ensure new buttons or forms match the existing layout and color scheme.
+* **UI Consistency:** Since kassandra is a GUI, please ensure new buttons or forms match the existing layout and color scheme.
 * **Driver Safety:** When adding new query logic, always use prepared statements or the driver’s built-in parameterization to prevent injection and handle data types correctly.
 * **Collections:** If you are modifying how Maps, Lists, or Sets are handled, please test with various data nesting levels.
 

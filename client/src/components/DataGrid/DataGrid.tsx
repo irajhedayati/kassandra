@@ -25,8 +25,8 @@ import type {
   CqlValue,
   QueryResult,
   Row,
-} from '@py-sandra/shared';
-import { rootCqlType } from '@py-sandra/shared';
+} from '@kassandra/shared';
+import { rootCqlType } from '@kassandra/shared';
 import { readRows } from '../../api/data.js';
 import { getSchema } from '../../api/schema.js';
 import { getMetadata } from '../../api/metadata.js';

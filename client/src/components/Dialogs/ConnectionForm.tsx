@@ -10,8 +10,8 @@ import type {
   ConnectionProfile,
   ConsistencyLevel,
   SslProtocol,
-} from '@py-sandra/shared';
-import { DEFAULT_PROFILE } from '@py-sandra/shared';
+} from '@kassandra/shared';
+import { DEFAULT_PROFILE } from '@kassandra/shared';
 import {
   createProfile,
   deleteProfile,

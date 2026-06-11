@@ -1,4 +1,4 @@
-import type { KeyspaceList, TableList, TableSchema } from '@py-sandra/shared';
+import type { KeyspaceList, TableList, TableSchema } from '@kassandra/shared';
 import { apiGet } from './client.js';
 
 /**

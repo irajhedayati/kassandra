@@ -2,7 +2,7 @@
  * Persistence for AppSettings (connection profiles + per-column metadata).
  *
  * Stored at:
- *   {PY_SANDRA_HOME ?? ~/.py-sandra}/config.json
+ *   {KASSANDRA_HOME ?? ~/.kassandra}/config.json
  *
  * Mirrors legacy/src/config/settings.py (ConfigManager). Uses synchronous
  * fs because the file is tiny and operations are infrequent (request-scoped).
@@ -15,14 +15,14 @@ import type {
   ColumnMetadata,
   ConnectionProfile,
   TableMetadata,
-} from '@py-sandra/shared';
-import { DEFAULT_PROFILE } from '@py-sandra/shared';
+} from '@kassandra/shared';
+import { DEFAULT_PROFILE } from '@kassandra/shared';
 
-const DEFAULT_DIR_NAME = '.py-sandra';
+const DEFAULT_DIR_NAME = '.kassandra';
 const CONFIG_FILE_NAME = 'config.json';
 
 function getConfigDir(): string {
-  const env = process.env.PY_SANDRA_HOME;
+  const env = process.env.KASSANDRA_HOME;
   if (env && env.trim() !== '') return env;
   return path.join(os.homedir(), DEFAULT_DIR_NAME);
 }
@@ -89,7 +89,7 @@ export function loadSettings(): AppSettings {
     const parsed = JSON.parse(raw) as unknown;
     return normalizeSettings(parsed);
   } catch (err) {
-    console.warn('[py-sandra] could not parse config file:', err);
+    console.warn('[kassandra] could not parse config file:', err);
     return defaultSettings();
   }
 }

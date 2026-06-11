@@ -1,5 +1,5 @@
 {
-  "name": "@py-sandra/server",
+  "name": "@kassandra/server",
   "version": "0.4.0",
   "private": true,
   "type": "module",
@@ -12,7 +12,7 @@
     "clean": "rm -rf dist *.tsbuildinfo"
   },
   "dependencies": {
-    "@py-sandra/shared": "*",
+    "@kassandra/shared": "*",
     "cassandra-driver": "^4.7.2",
     "cors": "^2.8.5",
     "express": "^4.21.1",

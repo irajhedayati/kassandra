@@ -11,8 +11,8 @@ import type {
   ColumnMetadata,
   MapSchemaEntry,
   TableSchema,
-} from '@py-sandra/shared';
-import { rootCqlType } from '@py-sandra/shared';
+} from '@kassandra/shared';
+import { rootCqlType } from '@kassandra/shared';
 import { apiGet } from '../../api/client.js';
 import {
   getMetadata,

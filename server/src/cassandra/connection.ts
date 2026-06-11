@@ -15,7 +15,7 @@ import {
   types as driverTypes,
 } from 'cassandra-driver';
 import type { ClientOptions } from 'cassandra-driver';
-import type { ConnectionProfile, ConnectionStatus } from '@py-sandra/shared';
+import type { ConnectionProfile, ConnectionStatus } from '@kassandra/shared';
 import { clearActive, getActive, setActive } from './state.js';
 
 interface SecureContextOptions {
@@ -165,7 +165,7 @@ export async function disconnect(): Promise<ConnectionStatus> {
   try {
     await active.client.shutdown();
   } catch (err) {
-    console.warn('[py-sandra] error during shutdown:', err);
+    console.warn('[kassandra] error during shutdown:', err);
   }
   clearActive();
   return { connected: false, profileName: null, keyspace: null };

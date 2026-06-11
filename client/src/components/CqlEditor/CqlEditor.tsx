@@ -16,7 +16,7 @@
 import { useCallback, useRef, useState } from 'react';
 import Editor, { type OnMount } from '@monaco-editor/react';
 import { useMutation } from '@tanstack/react-query';
-import type { QueryResponse } from '@py-sandra/shared';
+import type { QueryResponse } from '@kassandra/shared';
 import { execCql } from '../../api/cql.js';
 import { CqlResults } from './CqlResults.js';
 

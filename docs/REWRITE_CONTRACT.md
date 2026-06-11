@@ -33,7 +33,7 @@ by `success`, NOT `ok`).
 
 **Files (server):**
 - `server/src/cassandra/connection.ts` — connect/disconnect, SSL, auth.
-- `server/src/config/store.ts` — `~/.py-sandra/config.json` reader/writer.
+- `server/src/config/store.ts` — `~/.kassandra/config.json` reader/writer.
 - `server/src/routes/connection.ts` — implement all 7 routes.
 
 **Files (client):**
@@ -42,8 +42,8 @@ by `success`, NOT `ok`).
 - `client/src/components/Dialogs/ConnectionForm.tsx` (NEW) — add/edit profile modal.
 
 **Behavior to match:**
-- `~/.py-sandra/config.json` shape from `legacy/src/config/settings.py`.
-  Use `PY_SANDRA_HOME` env override.
+- `~/.kassandra/config.json` shape from `legacy/src/config/settings.py`.
+  Use `KASSANDRA_HOME` env override.
 - SSL options: if `ssl_enabled`, build `tls.SecureContextOptions` with
   `rejectUnauthorized=false` when `ssl_cert_path` is empty, else load CA.
 - Apply consistency level via execution profile (cassandra-driver:
@@ -171,7 +171,7 @@ by `success`, NOT `ok`).
 2. Do not edit `client/src/App.tsx` — its layout is the integration
    contract. Replace stubs in their existing files only.
 3. Do not edit `server/src/app.ts` — its router mount paths are fixed.
-4. Use `@py-sandra/shared` imports, not relative paths into the shared
+4. Use `@kassandra/shared` imports, not relative paths into the shared
    workspace.
 5. Server: every non-connection route starts with `const ctx =
    requireSession()`.
@@ -183,7 +183,7 @@ by `success`, NOT `ok`).
 ## Done criteria
 
 A lane is done when:
-- `pnpm --filter @py-sandra/server build` (or `client build`) succeeds.
+- `pnpm --filter @kassandra/server build` (or `client build`) succeeds.
 - `pnpm typecheck` passes.
 - The corresponding feature works against a real Cassandra cluster
   (manual smoke test is fine — there is no test suite).
@@ -194,4 +194,4 @@ A lane is done when:
 - Test suite, ESLint config, CI changes (other than the Docker rewrite,
   which is already in the skeleton).
 - Migration tooling for users with an existing
-  `~/.py-sandra/config.json` — the schema is compatible.
+  `~/.kassandra/config.json` — the schema is compatible.

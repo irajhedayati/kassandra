@@ -1,14 +1,14 @@
-# py-sandra: Cassandra GUI Client - User Documentation
+# kassandra: Cassandra GUI Client - User Documentation
 
 ## Overview
 The Cassandra GUI Client is a lightweight, web-based graphical interface for Apache Cassandra clusters. Built with Python and Streamlit, it allows developers and administrators to browse data, manage schemas, and perform CRUD operations without writing raw CQL queries.
 
 <p align="center">
   <a href="https://youtu.be/qWy39n3UmBo">
-    <img src="https://img.youtube.com/vi/qWy39n3UmBo/maxresdefault.jpg" alt="py-sandra Tutorial" style="width:100%; max-width:600px;">
+    <img src="https://img.youtube.com/vi/qWy39n3UmBo/maxresdefault.jpg" alt="kassandra Tutorial" style="width:100%; max-width:600px;">
   </a>
   <br>
-  <b>Click to watch: py-sandra GUI Tutorial</b>
+  <b>Click to watch: kassandra GUI Tutorial</b>
 </p>
 
 ## Features
@@ -35,8 +35,8 @@ The Cassandra GUI Client is a lightweight, web-based graphical interface for Apa
 #### Source Code
 1. Clone the repository.
     ```bash
-    git clone https://github.com/yourusername/py-sandra.git
-    cd py-sandra
+    git clone https://github.com/yourusername/kassandra.git
+    cd kassandra
     ```
 2. Install dependencies:
     ```bash
@@ -53,9 +53,9 @@ The application will open in your default web browser (usually at `http://localh
 #### Docker
 
 ```bash
-docker run --name py-sandra --rm \
-  --env PY_SANDRA_HOME=/etc/py-sandra --volume "/path/to/local/.py-sandra:/etc/py-sandra" \
-  -p 8501:8501 py-sandra:latest
+docker run --name kassandra --rm \
+  --env KASSANDRA_HOME=/etc/kassandra --volume "/path/to/local/.kassandra:/etc/kassandra" \
+  -p 8501:8501 kassandra:latest
 ```
 
 ## User Guide
@@ -127,6 +127,6 @@ The **Table Info** tab displays schema metadata:
 
 ## Configuration
 Application settings and connection profiles are stored locally in:
-- `~/.py-sandra/config.json`
+- `~/.kassandra/config.json`
 
-You can override the configuration directory by setting the `PY_SANDRA_HOME` environment variable.
+You can override the configuration directory by setting the `KASSANDRA_HOME` environment variable.

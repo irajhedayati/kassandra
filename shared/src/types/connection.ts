@@ -1,6 +1,6 @@
 /**
- * Connection profiles. Persisted at ~/.py-sandra/config.json
- * (PY_SANDRA_HOME env var overrides the directory).
+ * Connection profiles. Persisted at ~/.kassandra/config.json
+ * (KASSANDRA_HOME env var overrides the directory).
  *
  * Mirrors the legacy Python ConnectionProfile shape — see
  * legacy/src/config/settings.py.

@@ -6,7 +6,7 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { ConnectionProfile, ConnectionStatus } from '@py-sandra/shared';
+import type { ConnectionProfile, ConnectionStatus } from '@kassandra/shared';
 import {
   connect,
   disconnect,

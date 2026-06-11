@@ -12,5 +12,5 @@ const HOST = process.env.HOST ?? '127.0.0.1';
 const app = createApp();
 
 app.listen(PORT, HOST, () => {
-  console.log(`[py-sandra] listening on http://${HOST}:${PORT}`);
+  console.log(`[kassandra] listening on http://${HOST}:${PORT}`);
 });

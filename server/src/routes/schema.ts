@@ -15,7 +15,7 @@ import type {
   KeyspaceList,
   TableList,
   TableSchema,
-} from '@py-sandra/shared';
+} from '@kassandra/shared';
 import { requireSession } from '../cassandra/state.js';
 import {
   getKeyspaces,

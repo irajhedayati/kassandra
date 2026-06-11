@@ -1,7 +1,7 @@
 /**
  * Per-column metadata (display_type, hide, map_schema).
  *
- * Persisted to ~/.py-sandra/config.json under settings.table_metadata.
+ * Persisted to ~/.kassandra/config.json under settings.table_metadata.
  *
  * Routes (mounted at /api/metadata):
  *
@@ -10,7 +10,7 @@
  */
 import { Router } from 'express';
 import { z } from 'zod';
-import type { ApiOk, ColumnMetadata } from '@py-sandra/shared';
+import type { ApiOk, ColumnMetadata } from '@kassandra/shared';
 import { requireSession } from '../cassandra/state.js';
 import { getTableMetadata, setColumnMetadata } from '../config/store.js';
 

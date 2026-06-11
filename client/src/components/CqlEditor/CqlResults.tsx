@@ -7,7 +7,7 @@
  *
  * Owned by the cql lane.
  */
-import type { QueryResponse, Row } from '@py-sandra/shared';
+import type { QueryResponse, Row } from '@kassandra/shared';
 
 interface Props {
   result: QueryResponse | null;

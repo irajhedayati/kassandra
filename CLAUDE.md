@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-py-sandra is a web-based GUI client for Apache Cassandra. It is a Node.js + React/TypeScript app that runs as a single process: an Express server serves both the JSON API and the built React SPA on one port.
+kassandra is a web-based GUI client for Apache Cassandra. It is a Node.js + React/TypeScript app that runs as a single process: an Express server serves both the JSON API and the built React SPA on one port.
 
 The previous Python/Streamlit implementation lives under [`legacy/`](legacy/) for reference during the rewrite. Treat it as read-only — feature behavior should match its semantics.
 
@@ -27,8 +27,8 @@ npm start
 npm run typecheck
 
 # Docker
-docker build -t py-sandra .
-docker run -p 8501:8501 py-sandra
+docker build -t kassandra .
+docker run -p 8501:8501 kassandra
 ```
 
 There is no test suite or linting configuration in this project.
@@ -51,7 +51,7 @@ legacy/   — original Python/Streamlit app (reference only)
 - `cassandra/connection.ts` — connect/disconnect lifecycle, SSL, auth, execution profile.
 - `cassandra/schema.ts` — `system_schema` introspection (keyspaces, tables, columns).
 - `cassandra/repository.ts` — row CRUD using prepared statements; paging-state is base64-encoded for the wire.
-- `config/store.ts` — JSON persistence at `${PY_SANDRA_HOME ?? ~/.py-sandra}/config.json`.
+- `config/store.ts` — JSON persistence at `${KASSANDRA_HOME ?? ~/.kassandra}/config.json`.
 - `routes/*` — one file per feature (`connection`, `schema`, `data`, `cql`, `metadata`).
 
 ### Client (`client/src/`)
@@ -72,4 +72,4 @@ legacy/   — original Python/Streamlit app (reference only)
 - **Prepared statements** — all CRUD uses `cassandra-driver` parameter binding. The legacy Python code had a SQL-injection bug in UPDATE; the rewrite must use binding everywhere.
 - **Paging state** — Cassandra's opaque `pageState` (Buffer) is base64-encoded as `pagingState` in `QueryResult` so the client can pass it back unchanged.
 - **Single process** — in dev, Vite proxies `/api`; in prod, Express serves both. `client/dist` is colocated under `app/client/dist` in the Docker image.
-- **Type contract** — `shared/` is the single source of truth for cross-process shapes. Server and client both import from `@py-sandra/shared`.
+- **Type contract** — `shared/` is the single source of truth for cross-process shapes. Server and client both import from `@kassandra/shared`.

@@ -5,7 +5,7 @@ import {
   textareaClass,
   type FieldProps,
 } from './index.js';
-import { rootCqlType } from '@py-sandra/shared';
+import { rootCqlType } from '@kassandra/shared';
 
 /**
  * Generic text input. Used for ascii / decimal / varchar (single-line) and

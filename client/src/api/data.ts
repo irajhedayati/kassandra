@@ -7,7 +7,7 @@ import type {
   PaginatedReadRequest,
   QueryResponse,
   Row,
-} from '@py-sandra/shared';
+} from '@kassandra/shared';
 import { ApiError, apiSend } from './client.js';
 
 function unwrap(response: QueryResponse): QueryResponse {

@@ -8,7 +8,7 @@
  */
 import { useMemo, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import type { Row, TableSchema } from '@py-sandra/shared';
+import type { Row, TableSchema } from '@kassandra/shared';
 import { deleteRow } from '../../api/data.js';
 import { ApiError } from '../../api/client.js';
 import { ConfirmDelete } from '../Dialogs/ConfirmDelete.js';

@@ -1,4 +1,4 @@
-import type { ApiResponse, QueryResponse } from '@py-sandra/shared';
+import type { ApiResponse, QueryResponse } from '@kassandra/shared';
 
 /**
  * Thin fetch wrapper. All backend routes return either ApiResponse<T>

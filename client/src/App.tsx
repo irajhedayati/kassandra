@@ -19,7 +19,7 @@ export function App() {
   return (
     <div className="flex h-full">
       <aside className="w-72 shrink-0 border-r border-slate-200 bg-white p-4 overflow-y-auto">
-        <h1 className="text-lg font-semibold mb-4">py-sandra</h1>
+        <h1 className="text-lg font-semibold mb-4">kassandra</h1>
         <ConnectionPanel />
         {connected && (
           <>

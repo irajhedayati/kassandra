@@ -1,4 +1,4 @@
-import type { ConnectionProfile, ConnectionStatus } from '@py-sandra/shared';
+import type { ConnectionProfile, ConnectionStatus } from '@kassandra/shared';
 import { apiGet, apiSend } from './client.js';
 
 export function listProfiles(): Promise<ConnectionProfile[]> {

@@ -10,7 +10,7 @@
  */
 import { Router } from 'express';
 import { z } from 'zod';
-import type { QueryResponse, Row } from '@py-sandra/shared';
+import type { QueryResponse, Row } from '@kassandra/shared';
 import { requireSession } from '../cassandra/state.js';
 
 export const cqlRouter = Router();

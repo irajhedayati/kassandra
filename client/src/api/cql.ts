@@ -6,7 +6,7 @@
  * CQL errors come back inside the envelope, so callers can render them
  * inline.
  */
-import type { CqlExecRequest, QueryResponse } from '@py-sandra/shared';
+import type { CqlExecRequest, QueryResponse } from '@kassandra/shared';
 import { apiSend } from './client.js';
 
 export async function execCql(req: CqlExecRequest): Promise<QueryResponse> {

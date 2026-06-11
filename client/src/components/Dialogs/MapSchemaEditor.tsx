@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { MapSchemaEntry } from '@py-sandra/shared';
+import type { MapSchemaEntry } from '@kassandra/shared';
 
 interface Props {
   column: string;

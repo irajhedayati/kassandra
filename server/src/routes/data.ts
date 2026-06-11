@@ -17,7 +17,7 @@
  */
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
-import type { QueryResponse, Row } from '@py-sandra/shared';
+import type { QueryResponse, Row } from '@kassandra/shared';
 import { requireSession } from '../cassandra/state.js';
 import { getTableSchema } from '../cassandra/schema.js';
 import { CassandraRepository } from '../cassandra/repository.js';
@@ -90,7 +90,7 @@ function runQuery(
           ? (err as { status: number }).status
           : 500;
       const message = err instanceof Error ? err.message : String(err);
-      if (status >= 500) console.error('[py-sandra] data route error', err);
+      if (status >= 500) console.error('[kassandra] data route error', err);
       const body: QueryResponse = { success: false, message };
       res.status(status).json(body);
     }

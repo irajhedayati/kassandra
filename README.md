@@ -1,4 +1,4 @@
-# py-sandra: Cassandra GUI Client
+# kassandra: Cassandra GUI Client
 
 A web-based graphical client for Apache Cassandra. Schema-driven CRUD, raw CQL execution, and connection profile management.
 
@@ -34,13 +34,13 @@ npm start    # serves API + built SPA on http://127.0.0.1:8501
 ## Docker
 
 ```bash
-docker build -t py-sandra .
-docker run -p 8501:8501 py-sandra
+docker build -t kassandra .
+docker run -p 8501:8501 kassandra
 ```
 
 ## Configuration
 
-Connection profiles and per-column metadata are persisted to `~/.py-sandra/config.json`. Override the directory with `PY_SANDRA_HOME`.
+Connection profiles and per-column metadata are persisted to `~/.kassandra/config.json`. Override the directory with `KASSANDRA_HOME`.
 
 See [docs/index.md](docs/index.md) for the user guide.
 

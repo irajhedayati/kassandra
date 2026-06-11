@@ -7,7 +7,7 @@
  * 409 if it returns null.
  */
 import type { Client as CassandraClient } from 'cassandra-driver';
-import type { ConnectionProfile } from '@py-sandra/shared';
+import type { ConnectionProfile } from '@kassandra/shared';
 
 interface ActiveConnection {
   client: CassandraClient;

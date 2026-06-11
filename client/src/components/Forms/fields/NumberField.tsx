@@ -4,7 +4,7 @@ import {
   labelClass,
   type FieldProps,
 } from './index.js';
-import { rootCqlType } from '@py-sandra/shared';
+import { rootCqlType } from '@kassandra/shared';
 
 /**
  * Numeric field. Uses step="1" for integer-rooted types and "any" for

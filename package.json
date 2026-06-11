@@ -1,5 +1,5 @@
 {
-  "name": "py-sandra",
+  "name": "kassandra",
   "version": "0.4.0",
   "private": true,
   "description": "Web-based GUI client for Apache Cassandra",
@@ -9,9 +9,9 @@
   },
   "workspaces": ["shared", "server", "client"],
   "scripts": {
-    "dev": "concurrently -n server,client -c blue,green \"npm run dev -w @py-sandra/server\" \"npm run dev -w @py-sandra/client\"",
-    "build": "npm run build -w @py-sandra/shared && npm run build -w @py-sandra/server && npm run build -w @py-sandra/client",
-    "start": "npm run start -w @py-sandra/server",
+    "dev": "concurrently -n server,client -c blue,green \"npm run dev -w @kassandra/server\" \"npm run dev -w @kassandra/client\"",
+    "build": "npm run build -w @kassandra/shared && npm run build -w @kassandra/server && npm run build -w @kassandra/client",
+    "start": "npm run start -w @kassandra/server",
     "typecheck": "npm run typecheck -ws --if-present",
     "clean": "npm run clean -ws --if-present && rm -rf node_modules"
   },

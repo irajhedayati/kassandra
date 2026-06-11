@@ -5,7 +5,7 @@
  * Owned by the schema lane.
  */
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import type { KeyspaceList, TableList } from '@py-sandra/shared';
+import type { KeyspaceList, TableList } from '@kassandra/shared';
 import { listKeyspaces, listTables } from '../../api/schema.js';
 import { useSelection } from '../../state/selection.js';
 

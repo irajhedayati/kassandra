@@ -13,7 +13,7 @@
  */
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import { z } from 'zod';
-import type { ConnectionProfile } from '@py-sandra/shared';
+import type { ConnectionProfile } from '@kassandra/shared';
 import {
   deleteProfile as deleteProfileFromStore,
   getProfile,

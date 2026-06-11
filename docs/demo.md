@@ -1,4 +1,4 @@
-This tutorial provides a walkthrough of **py-sandra**, a streamlined GUI designed to make managing Apache Cassandra clusters 
+This tutorial provides a walkthrough of **kassandra**, a streamlined GUI designed to make managing Apache Cassandra clusters 
 as painless as possible. From configuring SSL connections to handling complex map types, here is how to get the most out 
 of the tool.
 
@@ -11,18 +11,18 @@ of the tool.
 docker run -d --name cassandra --hostname cassandra --network cassandra -p 9042:9042 cassandra
 ```
 
-## 2. Launch py-sandra
+## 2. Launch kassandra
 
 ```bash
-docker run --name py-sandra --rm \
-  --env PY_SANDRA_HOME=/etc/py-sandra --volume "/path/to/local/.py-sandra:/etc/py-sandra" \
-  -p 8501:8501 py-sandra:latest
+docker run --name kassandra --rm \
+  --env KASSANDRA_HOME=/etc/kassandra --volume "/path/to/local/.kassandra:/etc/kassandra" \
+  -p 8501:8501 kassandra:latest
 ```
 ---
 
 ## 3. Setting Up Your Connection
 
-Before you can query data, you need to tell py-sandra where your cluster lives.
+Before you can query data, you need to tell kassandra where your cluster lives.
 
 1. Open the **Manage Connections** section in the sidebar.
 2. Click to edit or create a new connection.
@@ -69,7 +69,7 @@ WITH replication = {
 
 When you select a table from the sidebar, the **Data Browser** tab opens automatically.
 
-* **Filtering:** py-sandra generates dynamic filters based on your table columns (e.g., `price`, `product_id`, `name`). Enter values to narrow down your results.
+* **Filtering:** kassandra generates dynamic filters based on your table columns (e.g., `price`, `product_id`, `name`). Enter values to narrow down your results.
 * **Pagination:** Adjust the **Rows per page** at the bottom to manage large datasets.
 ---
 

@@ -1,4 +1,4 @@
-import type { ColumnMetadata } from '@py-sandra/shared';
+import type { ColumnMetadata } from '@kassandra/shared';
 import { apiGet, apiSend } from './client.js';
 
 /**

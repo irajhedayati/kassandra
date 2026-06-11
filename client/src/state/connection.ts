@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import type { ConnectionStatus } from '@py-sandra/shared';
+import type { ConnectionStatus } from '@kassandra/shared';
 import { apiGet } from '../api/client.js';
 
 export function useConnectionStatus() {

@@ -63,7 +63,7 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            hedayati/py-sandra:${{ steps.version.outputs.version }}
-            hedayati/py-sandra:latest
+            hedayati/kassandra:${{ steps.version.outputs.version }}
+            hedayati/kassandra:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max

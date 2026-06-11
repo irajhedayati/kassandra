@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import type { Row, TableSchema } from '@py-sandra/shared';
+import type { Row, TableSchema } from '@kassandra/shared';
 import { getSchema } from '../../api/schema.js';
 import { updateRow } from '../../api/data.js';
 import { DynamicForm } from './DynamicForm.js';

@@ -6,7 +6,7 @@
  * Key]" / "[Clustering Key]" suffix when applicable).
  */
 
-import type { ColumnInfo } from '@py-sandra/shared';
+import type { ColumnInfo } from '@kassandra/shared';
 
 export interface FieldProps {
   column: ColumnInfo;

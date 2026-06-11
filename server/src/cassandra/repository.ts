@@ -18,8 +18,8 @@ import type {
   QueryResult,
   Row,
   TableSchema,
-} from '@py-sandra/shared';
-import { rootCqlType } from '@py-sandra/shared';
+} from '@kassandra/shared';
+import { rootCqlType } from '@kassandra/shared';
 
 export interface CrudResult {
   rowsAffected?: number;

@@ -12,7 +12,7 @@ import type {
   ColumnKind,
   ClusteringOrder,
   TableSchema,
-} from '@py-sandra/shared';
+} from '@kassandra/shared';
 
 const SYSTEM_KEYSPACES = new Set<string>([
   'system',
