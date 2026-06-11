@@ -4,15 +4,10 @@ Data Model for Cassandra
 Defines the structure of database entities, including tables, columns, and records.
 This file replaces the previous schema.py.
 """
-import uuid
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-import streamlit as st
 from cassandra.cluster import Session
-from streamlit.delta_generator import DeltaGenerator
-
-from utils.utils import uuid_validator
 
 number_types = ['int', 'bigint', 'varint', 'smallint', 'tinyint', 'counter']
 float_types = ['float', 'double', 'decimal']
@@ -126,69 +121,6 @@ class TableSchema:
     def all_columns_sorted(self) -> List[ColumnInfo]:
         """Get all columns with primary keys first."""
         return self.primary_key_columns + self.regular_columns
-
-    @staticmethod
-    def cql_col_input(value: Any, generator: DeltaGenerator, col: ColumnInfo, **kwargs):
-        out = {}
-        if col.is_numeric:
-            out['value'] = generator.number_input(col.label, value=value)
-        elif col.cql_type == 'uuid':
-            out['value'] = generator.text_input(col.label,
-                                                help=col.hint,
-                                                max_chars=36,
-                                                value=str(value if value else uuid.uuid4()))
-            out['validator'] = uuid_validator
-        elif col.cql_type == 'timeuuid':
-            out['value'] = generator.text_input(col.label,
-                                                help=col.hint,
-                                                max_chars=36,
-                                                value=str(value if value else (uuid.uuid1())))
-            out['validator'] = uuid_validator
-        elif col.is_text or col.cql_type == 'duration' or col.cql_type in uuid_types or col.cql_type == 'inet' \
-                or col.cql_type in collection_types:
-            out['value'] = generator.text_input(col.label, help=col.hint, value=value)
-        elif col.cql_type == 'date':
-            out['value'] = generator.date_input(col.label, help=col.hint, value=value)
-        elif col.cql_type == 'time':
-            out['value'] = generator.time_input(col.label, help=col.hint, value=value)
-        elif col.cql_type == 'timestamp':
-            out['value'] = generator.datetime_input(col.label, help=col.hint, value=value)
-        elif col.cql_type == 'boolean':
-            out['value'] = generator.checkbox(col.label, help=col.hint, value=value)
-        elif col.cql_type.startswith('list<') or col.cql_type.startswith('set<'):
-            generator.markdown(f"**{col.name} ({col.cql_type})**")
-
-            # Initialize if empty
-            if col.name not in st.session_state.collection_inputs:
-                st.session_state.collection_inputs[col.name] = []
-
-            items = st.session_state.collection_inputs[col.name]
-
-            # Render existing items
-            for idx, item in enumerate(items):
-                c1, c2 = generator.columns([4, 1])
-                # Update item in state on change
-                new_val = c1.text_input(f"Item {idx + 1}", value=item, key=f"insert_{col.name}_{idx}",
-                                        label_visibility="collapsed")
-                st.session_state.collection_inputs[col.name][idx] = new_val
-
-                if c2.button("🗑️", key=f"remove_{col.name}_{idx}"):
-                    kwargs['remove_collection_item'](col.name, idx)
-                    st.rerun()
-
-            if generator.button("➕ Add Item", key=f"add_{col.name}"):
-                kwargs['add_collection_item'](col.name)
-                st.rerun()
-
-            # Store the list/set for submission
-            # Filter out empty strings
-            valid_items = [x for x in items if x]
-            if valid_items:
-                out['value'] = set(valid_items) if col.cql_type.startswith('set') else valid_items
-        else:
-            out['value'] = generator.text_area(col.label, help=col.hint, key=col.name)
-        return out
-
 
 @dataclass
 class Record:
