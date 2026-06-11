@@ -1,0 +1,9 @@
+node_modules
+**/node_modules
+**/dist
+.git
+.idea
+.venv
+legacy/.venv
+**/__pycache__
+*.log

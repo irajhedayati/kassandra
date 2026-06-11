@@ -1,13 +1,29 @@
-# Python-generated files
-__pycache__/
-*.py[oc]
-build/
+# Build artifacts
+node_modules/
 dist/
-wheels/
-*.egg-info
+build/
+*.tsbuildinfo
 
-# Virtual environments
-.venv
+# IDE
+.idea/
+.vscode/
 
-.idea
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Env / OS
+.env
+.env.local
 .DS_Store
+
+# Local config (matches Python app)
+~/.py-sandra/
+
+# Legacy Python (kept in repo, but cache files ignored)
+legacy/.venv/
+legacy/__pycache__/
+legacy/**/__pycache__/
+legacy/**/*.pyc
+legacy/**/*.egg-info/

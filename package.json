@@ -1,0 +1,22 @@
+{
+  "name": "py-sandra",
+  "version": "0.4.0",
+  "private": true,
+  "description": "Web-based GUI client for Apache Cassandra",
+  "license": "MIT",
+  "packageManager": "pnpm@9.12.0",
+  "engines": {
+    "node": ">=20.10"
+  },
+  "scripts": {
+    "dev": "concurrently -n server,client -c blue,green \"pnpm --filter @py-sandra/server dev\" \"pnpm --filter @py-sandra/client dev\"",
+    "build": "pnpm --filter @py-sandra/shared build && pnpm --filter @py-sandra/server build && pnpm --filter @py-sandra/client build",
+    "start": "pnpm --filter @py-sandra/server start",
+    "typecheck": "pnpm -r typecheck",
+    "clean": "pnpm -r clean && rm -rf node_modules"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0",
+    "typescript": "^5.6.3"
+  }
+}

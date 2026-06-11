@@ -4,19 +4,29 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-py-sandra is a web-based GUI client for Apache Cassandra, built with Python and Streamlit. It provides schema-driven CRUD, CQL execution, and connection profile management.
+py-sandra is a web-based GUI client for Apache Cassandra. It is a Node.js + React/TypeScript app that runs as a single process: an Express server serves both the JSON API and the built React SPA on one port.
+
+The previous Python/Streamlit implementation lives under [`legacy/`](legacy/) for reference during the rewrite. Treat it as read-only — feature behavior should match its semantics.
 
 ## Development Commands
 
 ```bash
 # Setup
-uv venv --python 3.12
-uv sync
+pnpm install
 
-# Run
-streamlit run src/main.py
+# Dev (server on 8501, Vite on 5173 with /api proxy)
+pnpm dev
 
-# Docker build
+# Build all workspaces
+pnpm build
+
+# Production-style run (Express serves API + client/dist)
+pnpm start
+
+# Type-check only
+pnpm typecheck
+
+# Docker
 docker build -t py-sandra .
 docker run -p 8501:8501 py-sandra
 ```
@@ -25,38 +35,41 @@ There is no test suite or linting configuration in this project.
 
 ## Architecture
 
-The app follows an MVC-inspired structure with Streamlit session state for persistence across UI reruns:
+pnpm workspace monorepo:
 
 ```
-src/main.py           → Streamlit entry point
-src/app.py            → CassandraGUIApp: main controller, session state, lifecycle
-src/config/           → ConfigManager (JSON persistence at ~/.py-sandra/config.json)
-src/database/         → connection.py, model.py, repository.py
-src/view/             → Streamlit page/panel components
-src/ui/               → Dynamic form generation
-src/utils/            → Type mapping, SSL helpers, UUID validator
+shared/   — TypeScript types shared by server and client (connection, schema, query, cql-types)
+server/   — Express + cassandra-driver
+client/   — React 18 + Vite + Tailwind + TanStack Query
+legacy/   — original Python/Streamlit app (reference only)
 ```
 
-### Key Layers
+### Server (`server/src/`)
 
-**`src/app.py` (CassandraGUIApp)** — orchestrates everything: initializes components, manages connect/disconnect, routes callbacks from views to services.
+- `index.ts` / `app.ts` — entrypoint and Express app factory; mounts routers under `/api/*` and falls back to serving `client/dist/index.html` for SPA routes.
+- `cassandra/state.ts` — singleton holding the active `Client` and current profile. The connection routes set it; every other route calls `requireSession()`.
+- `cassandra/connection.ts` — connect/disconnect lifecycle, SSL, auth, execution profile.
+- `cassandra/schema.ts` — `system_schema` introspection (keyspaces, tables, columns).
+- `cassandra/repository.ts` — row CRUD using prepared statements; paging-state is base64-encoded for the wire.
+- `config/store.ts` — JSON persistence at `${PY_SANDRA_HOME ?? ~/.py-sandra}/config.json`.
+- `routes/*` — one file per feature (`connection`, `schema`, `data`, `cql`, `metadata`).
 
-**`src/database/connection.py` (CassandraConnectionManager)** — wraps the cassandra-driver: cluster connection, auth, SSL/TLS, prepared statement execution with configurable consistency levels, paging state tracking. Returns `QueryResult` objects.
+### Client (`client/src/`)
 
-**`src/database/model.py`** — domain models: `ColumnInfo`, `TableSchema` (partition/clustering keys), `Record`, and `SchemaInspector` (queries `system_schema` tables at runtime to discover table metadata).
-
-**`src/database/repository.py` (CassandraRepository)** — CRUD operations using prepared statements; builds dynamic WHERE clauses, handles Cassandra collections and JSON.
-
-**`src/config/settings.py`** — `ConnectionProfile` dataclass (hosts, port, auth, SSL, consistency, timeout) persisted as JSON; supports `PY_SANDRA_HOME` env var override.
-
-**`src/view/`** — one file per UI panel: `main_view.py` (sidebar + content routing), `data_grid.py` (paginated table), `form.py` (insert/update), `connection_form.py`, `cql_view.py` (Monaco editor), `table_info.py`, `dialogs_view.py`.
-
-**`src/ui/dynamic_form.py`** — generates type-appropriate Streamlit widgets from `TableSchema` metadata; handles collections (list/set/map) with specialized JSON editors.
+- `App.tsx` — sidebar + tabbed main panel. Reads connection status and selection from global stores.
+- `state/connection.ts` — TanStack Query hook for `/api/profiles/status`.
+- `state/selection.ts` — Zustand store for the active keyspace + table.
+- `api/client.ts` — typed fetch wrapper; throws `ApiError` on non-OK responses.
+- `components/Sidebar/` — `ConnectionPanel`, `SchemaNavigator`.
+- `components/DataGrid/` — paginated table view.
+- `components/Forms/` — schema-driven dynamic form (insert/update).
+- `components/TableInfo/` — column metadata panel.
+- `components/CqlEditor/` — Monaco-based raw CQL editor.
 
 ### Important Patterns
 
-- **Schema-driven UI**: all forms are generated dynamically from Cassandra metadata at runtime — never hardcoded.
-- **Prepared statements**: all queries use parameter binding via `cassandra-driver` prepared statements.
-- **Streamlit session state**: connection, schema selection, and pagination state all live in `st.session_state`; be careful about what triggers reruns.
-- **Consistency levels**: configurable per connection profile; applied to every statement execution in `connection.py`.
-- **Collections**: Cassandra `list`, `set`, `map` types need special handling — see `utils/type_mapping.py` and `ui/dynamic_form.py`.
+- **Schema-driven UI** — all forms/grids are generated from `TableSchema` at runtime; no hardcoded column definitions.
+- **Prepared statements** — all CRUD uses `cassandra-driver` parameter binding. The legacy Python code had a SQL-injection bug in UPDATE; the rewrite must use binding everywhere.
+- **Paging state** — Cassandra's opaque `pageState` (Buffer) is base64-encoded as `pagingState` in `QueryResult` so the client can pass it back unchanged.
+- **Single process** — in dev, Vite proxies `/api`; in prod, Express serves both. `client/dist` is colocated under `app/client/dist` in the Docker image.
+- **Type contract** — `shared/` is the single source of truth for cross-process shapes. Server and client both import from `@py-sandra/shared`.
