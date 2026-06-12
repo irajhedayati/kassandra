@@ -102,11 +102,11 @@ export function ConnectionPanel() {
   return (
     <div className="space-y-3">
       <div>
-        <label className="mb-1 block text-xs font-medium text-slate-600">
+        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-400">
           Connection profile
         </label>
         {profiles.length === 0 ? (
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-400">
             No profiles yet. Create one to get started.
           </p>
         ) : (
@@ -114,10 +114,10 @@ export function ConnectionPanel() {
             value={selectedName}
             onChange={(e) => setSelectedName(e.target.value)}
             disabled={connected || connectMutation.isPending}
-            className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-sm disabled:bg-slate-100"
+            className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:opacity-60"
           >
             {profiles.map((p) => (
-              <option key={p.name} value={p.name}>
+              <option key={p.name} value={p.name} className="bg-slate-800 text-slate-100">
                 {p.name}
               </option>
             ))}
@@ -131,7 +131,7 @@ export function ConnectionPanel() {
             type="button"
             onClick={() => disconnectMutation.mutate()}
             disabled={disconnectMutation.isPending}
-            className="flex-1 rounded border border-slate-300 bg-white px-2 py-1 text-sm hover:bg-slate-50 disabled:opacity-50"
+            className="flex-1 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 transition hover:bg-slate-700 disabled:opacity-60"
           >
             {disconnectMutation.isPending ? 'Disconnecting...' : 'Disconnect'}
           </button>
@@ -142,7 +142,7 @@ export function ConnectionPanel() {
               if (selectedName) connectMutation.mutate(selectedName);
             }}
             disabled={!selectedName || connectMutation.isPending}
-            className="flex-1 rounded bg-blue-600 px-2 py-1 text-sm text-white hover:bg-blue-700 disabled:opacity-50"
+            className="flex-1 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-60"
           >
             {connectMutation.isPending ? 'Connecting...' : 'Connect'}
           </button>
@@ -150,32 +150,32 @@ export function ConnectionPanel() {
       </div>
 
       {connected && status && (
-        <div className="rounded border border-green-200 bg-green-50 px-2 py-1.5 text-xs text-green-800">
-          Connected as <strong>{status.profileName}</strong>
+        <div className="rounded-lg border border-green-700/50 bg-green-500/10 px-3 py-2 text-xs text-green-300">
+          Connected as <strong className="text-green-200">{status.profileName}</strong>
           {status.keyspace && (
             <>
               {' '}
-              · keyspace <strong>{status.keyspace}</strong>
+              · keyspace <strong className="text-green-200">{status.keyspace}</strong>
             </>
           )}
         </div>
       )}
 
       {error && (
-        <div className="rounded border border-red-200 bg-red-50 px-2 py-1.5 text-xs text-red-700">
+        <div className="rounded-lg border border-red-700/50 bg-red-500/10 px-3 py-2 text-xs text-red-300">
           {error}
         </div>
       )}
 
-      <details className="rounded border border-slate-200 bg-slate-50 px-2 py-1.5 text-sm">
-        <summary className="cursor-pointer select-none text-slate-700">
+      <details className="rounded-lg border border-slate-700 bg-slate-800/50 px-3 py-2 text-sm text-slate-200">
+        <summary className="cursor-pointer select-none text-slate-300">
           Manage connections
         </summary>
         <div className="mt-2 space-y-2">
           <button
             type="button"
             onClick={openNew}
-            className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-sm hover:bg-slate-100"
+            className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 transition hover:bg-slate-700"
           >
             + New profile
           </button>
@@ -183,7 +183,7 @@ export function ConnectionPanel() {
             type="button"
             onClick={openEdit}
             disabled={!selectedProfile || connected}
-            className="w-full rounded border border-slate-300 bg-white px-2 py-1 text-sm hover:bg-slate-100 disabled:opacity-50"
+            className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 transition hover:bg-slate-700 disabled:opacity-50"
           >
             Edit selected
           </button>
