@@ -80,5 +80,8 @@ export const DEFAULT_PROFILE: ConnectionProfile = {
   default_keyspace: '',
   consistency_level: 'LOCAL_ONE',
   connection_timeout: 5,
-  protocol_version: 5,
+  // v4 is the highest version the Node cassandra-driver accepts as an
+  // explicit maxVersion. v5/v6 constants exist but the driver rejects them
+  // during option validation.
+  protocol_version: 4,
 };

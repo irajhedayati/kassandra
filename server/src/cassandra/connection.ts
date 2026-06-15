@@ -54,6 +54,22 @@ function consistencyForProfile(profile: ConnectionProfile): number {
   return driverTypes.consistencies[key];
 }
 
+/**
+ * Whether the driver will accept this number as a `protocolOptions.maxVersion`.
+ * cassandra-driver defines version constants up to 6 and DSE 1/2, but its
+ * internal `protocolVersion.isSupported` check (used during option
+ * validation) rejects v5 and v6. Callers should omit `maxVersion` when this
+ * returns false so the driver auto-negotiates.
+ */
+function isSupportedProtocolVersion(v: number): boolean {
+  const pv = driverTypes.protocolVersion as unknown as {
+    isSupported?: (v: number) => boolean;
+  };
+  if (typeof pv.isSupported === 'function') return pv.isSupported(v);
+  // Fallback for older driver builds: accept v1–v4 + DSE v1/v2.
+  return v === 1 || v === 2 || v === 3 || v === 4 || v === 65 || v === 66;
+}
+
 function buildClientOptions(profile: ConnectionProfile): ClientOptions {
   const consistency = consistencyForProfile(profile);
   const defaultProfile = new ExecutionProfile('default', {
@@ -65,7 +81,14 @@ function buildClientOptions(profile: ConnectionProfile): ClientOptions {
     contactPoints: profile.hosts,
     protocolOptions: {
       port: profile.port,
-      maxVersion: profile.protocol_version,
+      // Only pass maxVersion if the driver recognizes it as supported.
+      // cassandra-driver defines constants for v5/v6 but its internal
+      // isSupported() check rejects them as a configured maxVersion,
+      // throwing "protocolOptions.maxVersion provided (N) is invalid".
+      // Without maxVersion the driver auto-negotiates.
+      ...(isSupportedProtocolVersion(profile.protocol_version)
+        ? { maxVersion: profile.protocol_version }
+        : {}),
     },
     socketOptions: {
       // legacy `connect_timeout` is in seconds; driver expects ms.
