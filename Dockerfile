@@ -10,7 +10,7 @@
 # GitHub Actions runners that build this image. npm resolves fresh
 # against registry.npmjs.org.
 
-FROM node:20-bookworm-slim AS builder
+FROM node:24-bookworm-slim AS builder
 WORKDIR /app
 COPY package.json ./
 COPY shared/package.json ./shared/
@@ -23,7 +23,7 @@ COPY server ./server
 COPY client ./client
 RUN npm run build
 
-FROM node:20-bookworm-slim
+FROM node:24-bookworm-slim
 WORKDIR /app
 COPY --from=builder /app/package.json ./
 COPY --from=builder /app/shared/package.json ./shared/

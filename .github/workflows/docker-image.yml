@@ -3,6 +3,11 @@ name: Docker Image CI
 on:
   workflow_dispatch:
 
+# Opt JavaScript actions (including actions/setup-node@v4) onto Node 24.
+# Node 20 was deprecated 2026-06-16 and will be removed 2026-09-16.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   docker:
     runs-on: ubuntu-latest
@@ -14,7 +19,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
 
       - name: Read version from package.json
