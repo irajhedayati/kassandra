@@ -1,17 +1,13 @@
 {
   "name": "kassandra",
-  "version": "1.0.0",
+  "version": "0.4.0",
   "private": true,
   "description": "Web-based GUI client for Apache Cassandra",
   "license": "MIT",
   "engines": {
     "node": ">=20.10"
   },
-  "workspaces": [
-    "shared",
-    "server",
-    "client"
-  ],
+  "workspaces": ["shared", "server", "client"],
   "scripts": {
     "dev": "concurrently -n server,client -c blue,green \"npm run dev -w @kassandra/server\" \"npm run dev -w @kassandra/client\"",
     "build": "npm run build -w @kassandra/shared && npm run build -w @kassandra/server && npm run build -w @kassandra/client",
