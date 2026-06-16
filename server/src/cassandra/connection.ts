@@ -21,11 +21,19 @@ import { clearActive, getActive, setActive } from './state.js';
 interface SecureContextOptions {
   rejectUnauthorized: boolean;
   ca?: Buffer;
+  // Match legacy Python `ssl_context.check_hostname = False`: validate
+  // the cert chain (when a CA is provided), but skip hostname/IP SAN
+  // matching so users can connect through tunnels, NAT, or any IP that
+  // doesn't appear in the cert's SAN list.
+  checkServerIdentity?: () => undefined;
 }
 
 function buildSslOptions(profile: ConnectionProfile): SecureContextOptions | undefined {
   if (!profile.ssl_enabled) return undefined;
-  const opts: SecureContextOptions = { rejectUnauthorized: false };
+  const opts: SecureContextOptions = {
+    rejectUnauthorized: false,
+    checkServerIdentity: () => undefined,
+  };
   if (profile.ssl_cert_path && profile.ssl_cert_path.trim() !== '') {
     opts.ca = fs.readFileSync(profile.ssl_cert_path);
     opts.rejectUnauthorized = true;
