@@ -41,6 +41,14 @@ export interface ConnectionProfile {
   consistency_level: ConsistencyLevel;
   connection_timeout: number;
   protocol_version: number;
+  /**
+   * Preferred datacenter for load-balancing. When set, the driver uses a
+   * DC-aware round-robin policy that routes queries to nodes in this DC and
+   * only falls back to remote DCs when the local one is unreachable. Empty
+   * string disables the preference (plain round-robin over contact points,
+   * matching legacy behavior).
+   */
+  local_datacenter: string;
 }
 
 export type TableMetadata = Record<string, Record<string, ColumnMetadata>>;
@@ -84,4 +92,5 @@ export const DEFAULT_PROFILE: ConnectionProfile = {
   // explicit maxVersion. v5/v6 constants exist but the driver rejects them
   // during option validation.
   protocol_version: 4,
+  local_datacenter: '',
 };

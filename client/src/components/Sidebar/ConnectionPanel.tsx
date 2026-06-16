@@ -65,6 +65,7 @@ export function ConnectionPanel() {
     onSuccess: async () => {
       setError(null);
       await queryClient.invalidateQueries({ queryKey: ['connection', 'status'] });
+      await queryClient.invalidateQueries({ queryKey: ['connection', 'datacenters'] });
       await queryClient.invalidateQueries({ queryKey: ['schema'] });
     },
     onError: (err: unknown) => {
@@ -78,6 +79,7 @@ export function ConnectionPanel() {
       setError(null);
       setKeyspace(null);
       await queryClient.invalidateQueries({ queryKey: ['connection', 'status'] });
+      await queryClient.invalidateQueries({ queryKey: ['connection', 'datacenters'] });
       await queryClient.invalidateQueries({ queryKey: ['schema'] });
     },
     onError: (err: unknown) => {

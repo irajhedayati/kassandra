@@ -5,7 +5,7 @@
  * (legacy/src/view/connection_form.py).
  */
 import { useEffect, useMemo, useState } from 'react';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   ConnectionProfile,
   ConsistencyLevel,
@@ -15,6 +15,7 @@ import { DEFAULT_PROFILE } from '@kassandra/shared';
 import {
   createProfile,
   deleteProfile,
+  listDatacenters,
   updateProfile,
 } from '../../api/connection.js';
 import { ApiError } from '../../api/client.js';
@@ -56,6 +57,7 @@ interface FormState {
   consistency_level: ConsistencyLevel;
   connection_timeout: number;
   protocol_version: number;
+  local_datacenter: string;
 }
 
 function profileToForm(profile: ConnectionProfile | null): FormState {
@@ -73,6 +75,7 @@ function profileToForm(profile: ConnectionProfile | null): FormState {
     consistency_level: base.consistency_level,
     connection_timeout: base.connection_timeout,
     protocol_version: base.protocol_version,
+    local_datacenter: base.local_datacenter,
   };
 }
 
@@ -113,6 +116,7 @@ function validate(form: FormState): { profile: ConnectionProfile } | { error: st
     consistency_level: form.consistency_level,
     connection_timeout: form.connection_timeout,
     protocol_version: form.protocol_version,
+    local_datacenter: form.local_datacenter.trim(),
   };
   return { profile };
 }
@@ -129,6 +133,19 @@ export function ConnectionForm({ open, onClose, initial }: Props) {
   const [error, setError] = useState<string | null>(null);
   const isEdit = !!initial;
   const originalName = useMemo(() => initial?.name ?? '', [initial]);
+
+  // Fetch the currently active cluster's DC list as a hint for the
+  // "Local datacenter" field. 409 (not connected) is fine — we just
+  // don't show the hint. Only fetched while the dialog is open so we
+  // don't ping the server unnecessarily.
+  const datacentersQuery = useQuery({
+    queryKey: ['connection', 'datacenters'],
+    queryFn: listDatacenters,
+    enabled: open,
+    retry: false,
+  });
+  const availableDatacenters =
+    datacentersQuery.data?.datacenters ?? [];
 
   useEffect(() => {
     if (open) {
@@ -357,6 +374,37 @@ export function ConnectionForm({ open, onClose, initial }: Props) {
               />
             </Field>
           </div>
+
+          <Field label="Local datacenter (optional)">
+            <input
+              type="text"
+              value={form.local_datacenter}
+              onChange={(e) => update('local_datacenter', e.target.value)}
+              className="w-full rounded border border-slate-300 px-2 py-1 text-sm"
+              placeholder="e.g. dc1 — leave empty for no DC preference"
+              list="kassandra-available-datacenters"
+              autoComplete="off"
+            />
+            {availableDatacenters.length > 0 && (
+              <>
+                <datalist id="kassandra-available-datacenters">
+                  {availableDatacenters.map((dc) => (
+                    <option key={dc} value={dc} />
+                  ))}
+                </datalist>
+                <p className="mt-1 text-xs text-slate-500">
+                  Available in the current cluster:{' '}
+                  <span className="font-mono">
+                    {availableDatacenters.join(', ')}
+                  </span>
+                </p>
+              </>
+            )}
+            <p className="mt-1 text-xs text-slate-500">
+              When set, queries route to nodes in this DC first and only
+              fall back to remote DCs if the local one is unreachable.
+            </p>
+          </Field>
 
           <div className="flex items-center justify-between border-t border-slate-200 pt-3">
             <div>

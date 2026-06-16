@@ -80,13 +80,22 @@ function isSupportedProtocolVersion(v: number): boolean {
 
 function buildClientOptions(profile: ConnectionProfile): ClientOptions {
   const consistency = consistencyForProfile(profile);
+  const localDc = profile.local_datacenter?.trim() ?? '';
+  // DCAwareRoundRobinPolicy routes to the local DC first and only falls
+  // back to remote nodes if the local DC is unreachable; without a local
+  // DC, plain RoundRobin over the contact points matches legacy behavior
+  // and avoids the localDataCenter requirement of the default policy.
+  const loadBalancing = localDc
+    ? new policies.loadBalancing.DCAwareRoundRobinPolicy(localDc)
+    : new policies.loadBalancing.RoundRobinPolicy();
   const defaultProfile = new ExecutionProfile('default', {
     consistency,
-    loadBalancing: new policies.loadBalancing.RoundRobinPolicy(),
+    loadBalancing,
   });
 
   const options: ClientOptions = {
     contactPoints: profile.hosts,
+    ...(localDc ? { localDataCenter: localDc } : {}),
     protocolOptions: {
       port: profile.port,
       // Only pass maxVersion if the driver recognizes it as supported.
@@ -103,12 +112,8 @@ function buildClientOptions(profile: ConnectionProfile): ClientOptions {
       connectTimeout: Math.max(1, profile.connection_timeout) * 1000,
     },
     profiles: [defaultProfile],
-    // Use plain RoundRobin over the supplied contact points; matches
-    // legacy WhiteListRoundRobinPolicy semantics for our small test
-    // clusters and avoids the localDataCenter requirement of the
-    // default DC-aware policy in cassandra-driver 4.x.
     policies: {
-      loadBalancing: new policies.loadBalancing.RoundRobinPolicy(),
+      loadBalancing,
     },
   };
 
@@ -134,6 +139,25 @@ export interface ConnectResult {
 }
 
 /**
+ * Enumerate the unique datacenter names currently visible to the given
+ * client. The driver's metadata.hosts map is populated once the client has
+ * connected; each Host exposes its `datacenter` (string) attribute. Order
+ * is deterministic (sorted) so the UI can render a stable list.
+ */
+export function listDatacenters(client: Client): string[] {
+  const hostsMap = client.hosts as unknown as {
+    values: () => Iterable<{ datacenter?: string }>;
+  };
+  const dcs = new Set<string>();
+  if (typeof hostsMap?.values === 'function') {
+    for (const host of hostsMap.values()) {
+      if (host.datacenter) dcs.add(host.datacenter);
+    }
+  }
+  return Array.from(dcs).sort();
+}
+
+/**
  * Disconnect the currently active client (if any), then connect using the
  * given profile. On success, register the new session via setActive().
  */
@@ -156,6 +180,28 @@ export async function connect(profile: ConnectionProfile): Promise<ConnectResult
       message: `Connection failed: ${message}`,
       status: { connected: false, profileName: null, keyspace: null },
     };
+  }
+
+  // Validate the requested datacenter exists in the cluster. The driver
+  // would otherwise silently route to the wrong DC (or to no nodes) and
+  // surface a cryptic NoHostAvailable on the first query.
+  const localDc = profile.local_datacenter?.trim() ?? '';
+  if (localDc) {
+    const available = listDatacenters(client);
+    if (available.length > 0 && !available.includes(localDc)) {
+      try {
+        await client.shutdown();
+      } catch {
+        /* ignore */
+      }
+      return {
+        ok: false,
+        message:
+          `Datacenter "${localDc}" is not present in the cluster. ` +
+          `Available: ${available.join(', ')}.`,
+        status: { connected: false, profileName: null, keyspace: null },
+      };
+    }
   }
 
   let keyspace: string | null = null;

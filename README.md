@@ -42,6 +42,20 @@ docker run -p 8501:8501 kassandra
 
 Connection profiles and per-column metadata are persisted to `~/.kassandra/config.json`. Override the directory with `KASSANDRA_HOME`.
 
+### Datacenter selection
+
+Each connection profile has an optional **Local datacenter** field. When set, the driver uses a DC-aware load-balancing policy: queries route to nodes in the named DC first, and only fall back to remote DCs if the local one becomes unreachable.
+
+Useful for:
+
+- **Local-first reads** to minimize cross-region latency.
+- **Compliance / data residency** requirements that pin reads to a specific region.
+- **Failover testing** of how the app behaves when a DC is down.
+
+If you set a DC that doesn't exist in the cluster, the app refuses to connect and shows the list of available DC names — no silent fallback. Leaving the field empty preserves the prior behavior (plain round-robin over the configured contact points, no DC preference).
+
+The form auto-completes the field from the currently-connected cluster's DC list (visible while editing if you're already connected to a cluster), so you don't have to memorize names. Programmatically, the list is also exposed at `GET /api/profiles/datacenters` while connected.
+
 See [docs/index.md](docs/index.md) for the user guide.
 
 ## Contributing

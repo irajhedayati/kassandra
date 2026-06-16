@@ -21,7 +21,8 @@ import {
   setLastConnection,
   upsertProfile,
 } from '../config/store.js';
-import { connect, disconnect, status } from '../cassandra/connection.js';
+import { connect, disconnect, listDatacenters, status } from '../cassandra/connection.js';
+import { getActive } from '../cassandra/state.js';
 
 export const connectionRouter = Router();
 
@@ -62,6 +63,7 @@ const ProfileSchema = z.object({
   consistency_level: ConsistencyLevelSchema,
   connection_timeout: z.number().int().min(1).max(300),
   protocol_version: z.number().int().min(1).max(5),
+  local_datacenter: z.string(),
 }) satisfies z.ZodType<ConnectionProfile>;
 
 const ConnectBodySchema = z.object({
@@ -129,10 +131,26 @@ connectionRouter.delete('/:name', (req, res) => {
   res.json({ ok: true, data: { deleted: name } });
 });
 
-// IMPORTANT: /status, /connect, /disconnect must be declared before any
-// catch-all `/:name` routes — they are, because we use distinct verbs.
+// IMPORTANT: /status, /datacenters, /connect, /disconnect must be declared
+// before any catch-all `/:name` routes — they are, because we use distinct
+// verbs.
 connectionRouter.get('/status', (_req, res) => {
   res.json({ ok: true, data: status() });
+});
+
+// Lists the datacenters visible to the currently-active client. The UI
+// surfaces this as a hint next to the "Local datacenter" form field so
+// users don't have to memorize names. Returns 409 if not connected.
+connectionRouter.get('/datacenters', (_req, res) => {
+  const active = getActive();
+  if (!active) {
+    res.status(409).json({
+      ok: false,
+      message: 'Not connected. Connect to enumerate datacenters.',
+    });
+    return;
+  }
+  res.json({ ok: true, data: { datacenters: listDatacenters(active.client) } });
 });
 
 connectionRouter.post(
