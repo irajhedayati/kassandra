@@ -7,3 +7,9 @@ node_modules
 legacy/.venv
 **/__pycache__
 *.log
+
+# Local-only artifacts that point at Apple's internal registry. The
+# Docker build runs on public GitHub-hosted runners, where those URLs
+# are unreachable; let npm resolve fresh against the public registry.
+.npmrc
+package-lock.json
