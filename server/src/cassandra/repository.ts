@@ -147,9 +147,17 @@ export class CassandraRepository {
 
     const whereParts: string[] = [];
     const params: unknown[] = [];
-    for (const [col, val] of filterEntries) {
-      whereParts.push(`${quoteIdent(col)} = ?`);
-      params.push(val);
+    for (const [colName, val] of filterEntries) {
+      const col = schema.columns.find((c) => c.name === colName);
+      if (!col) {
+        // Bail loudly rather than send a malformed query — the client
+        // should only send filter keys that match a real column.
+        const err = new Error(`Unknown filter column: ${colName}`);
+        (err as { status?: number }).status = 400;
+        throw err;
+      }
+      whereParts.push(`${quoteIdent(col.name)} = ?`);
+      params.push(coerceValue(col, val));
     }
 
     const tableRef = `${quoteIdent(schema.keyspace)}.${quoteIdent(schema.table_name)}`;

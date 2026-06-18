@@ -102,12 +102,22 @@ export function DataGrid({ keyspace, table }: Props) {
     return schema.columns.filter((c) => !metadata[c.name]?.hide);
   }, [schema, metadata]);
 
-  const textFilterColumns = useMemo(() => {
+  // Filterable columns are the partition + clustering keys, in their
+  // natural Cassandra order (partition keys by position, then clustering
+  // keys by position). Equality on PK/CK is what Cassandra is built for;
+  // letting users filter on regular text columns silently triggered
+  // ALLOW FILTERING full-table scans, which scale terribly.
+  const keyFilterColumns = useMemo(() => {
     if (!schema) return [];
-    return schema.columns.filter((c) => {
-      const root = rootCqlType(c.cql_type);
-      return root === 'text' || root === 'varchar' || root === 'ascii';
-    });
+    const partition = schema.columns
+      .filter((c) => c.kind === 'partition_key')
+      .slice()
+      .sort((a, b) => a.position - b.position);
+    const clustering = schema.columns
+      .filter((c) => c.kind === 'clustering')
+      .slice()
+      .sort((a, b) => a.position - b.position);
+    return [...partition, ...clustering];
   }, [schema]);
 
   const tableColumns = useMemo<ColumnDef<Row>[]>(() => {
@@ -202,15 +212,18 @@ export function DataGrid({ keyspace, table }: Props) {
         </div>
       </header>
 
-      {textFilterColumns.length > 0 && (
+      {keyFilterColumns.length > 0 && (
         <form
           onSubmit={onApplyFilters}
           className="flex flex-wrap items-end gap-2 rounded border border-slate-200 bg-white p-3"
         >
-          {textFilterColumns.map((col) => (
+          {keyFilterColumns.map((col) => (
             <div key={col.name} className="flex flex-col">
               <label className="text-xs text-slate-600" htmlFor={`filter-${col.name}`}>
                 {col.name}
+                <span className="ml-1 text-slate-400">
+                  {col.kind === 'partition_key' ? '(pk)' : '(ck)'}
+                </span>
               </label>
               <input
                 id={`filter-${col.name}`}
