@@ -1,3 +1,5 @@
+.npmrc
+
 # Build artifacts
 node_modules/
 dist/
