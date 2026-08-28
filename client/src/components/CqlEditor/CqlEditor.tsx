@@ -13,12 +13,13 @@
  *
  * Owned by the cql lane.
  */
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Editor, { type OnMount } from '@monaco-editor/react';
 import { useMutation } from '@tanstack/react-query';
 import type { QueryResponse } from '@kassandra/shared';
 import { execCql } from '../../api/cql.js';
 import { CqlResults } from './CqlResults.js';
+import { registerCqlCompletionProvider } from './cqlCompletion.js';
 
 const DEFAULT_PAGE_SIZE = 100;
 
@@ -27,6 +28,9 @@ export function CqlEditor() {
   const [result, setResult] = useState<QueryResponse | null>(null);
   const [pagingState, setPagingState] = useState<string | null>(null);
   const queryRef = useRef<string>('');
+  const completionDisposableRef = useRef<{ dispose: () => void } | null>(null);
+
+  useEffect(() => () => completionDisposableRef.current?.dispose(), []);
 
   const mutation = useMutation<QueryResponse, Error, { query: string; pagingState: string | null }>({
     mutationFn: ({ query: q, pagingState: ps }) =>
@@ -73,6 +77,8 @@ export function CqlEditor() {
           runQuery(null);
         },
       );
+      completionDisposableRef.current?.dispose();
+      completionDisposableRef.current = registerCqlCompletionProvider(monaco);
     },
     [runQuery],
   );

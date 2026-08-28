@@ -8,6 +8,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { KeyspaceList, TableList } from '@kassandra/shared';
 import { listKeyspaces, listTables } from '../../api/schema.js';
 import { useSelection } from '../../state/selection.js';
+import { SearchableSelect } from './SearchableSelect.js';
 
 export function SchemaNavigator() {
   const queryClient = useQueryClient();
@@ -31,16 +32,6 @@ export function SchemaNavigator() {
     }
   };
 
-  const onKeyspaceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value;
-    setKeyspace(value === '' ? null : value);
-  };
-
-  const onTableChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const value = e.target.value;
-    setTable(value === '' ? null : value);
-  };
-
   const keyspaces = keyspacesQuery.data?.keyspaces ?? [];
   const tables = tablesQuery.data?.tables ?? [];
 
@@ -62,25 +53,19 @@ export function SchemaNavigator() {
 
       <div className="space-y-1">
         <label className="block text-xs font-medium text-slate-400">Keyspace</label>
-        <select
-          value={keyspace ?? ''}
-          onChange={onKeyspaceChange}
+        <SearchableSelect
+          value={keyspace}
+          options={keyspaces}
+          onChange={setKeyspace}
           disabled={keyspacesQuery.isLoading || keyspaces.length === 0}
-          className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:opacity-60"
-        >
-          <option value="" className="bg-slate-800">
-            {keyspacesQuery.isLoading
+          placeholder={
+            keyspacesQuery.isLoading
               ? 'Loading…'
               : keyspaces.length === 0
                 ? 'No keyspaces'
-                : 'Select keyspace'}
-          </option>
-          {keyspaces.map((ks) => (
-            <option key={ks} value={ks} className="bg-slate-800">
-              {ks}
-            </option>
-          ))}
-        </select>
+                : 'Select keyspace'
+          }
+        />
         {keyspacesQuery.isError && (
           <p className="text-xs text-red-400">
             {(keyspacesQuery.error as Error).message}
@@ -90,27 +75,21 @@ export function SchemaNavigator() {
 
       <div className="space-y-1">
         <label className="block text-xs font-medium text-slate-400">Table</label>
-        <select
-          value={table ?? ''}
-          onChange={onTableChange}
+        <SearchableSelect
+          value={table}
+          options={tables}
+          onChange={setTable}
           disabled={!keyspace || tablesQuery.isLoading || tables.length === 0}
-          className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:opacity-60"
-        >
-          <option value="" className="bg-slate-800">
-            {!keyspace
+          placeholder={
+            !keyspace
               ? 'Select keyspace first'
               : tablesQuery.isLoading
                 ? 'Loading…'
                 : tables.length === 0
                   ? 'No tables'
-                  : 'Select table'}
-          </option>
-          {tables.map((t) => (
-            <option key={t} value={t} className="bg-slate-800">
-              {t}
-            </option>
-          ))}
-        </select>
+                  : 'Select table'
+          }
+        />
         {tablesQuery.isError && (
           <p className="text-xs text-red-400">
             {(tablesQuery.error as Error).message}
