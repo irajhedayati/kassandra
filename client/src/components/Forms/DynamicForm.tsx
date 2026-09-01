@@ -40,6 +40,8 @@ export interface DynamicFormProps {
   submitLabel?: string;
   /** When true, the submit button shows a "submitting" state. */
   submitting?: boolean;
+  /** When true, every field is disabled and the submit button is hidden. */
+  readOnly?: boolean;
 }
 
 function isPrimaryKey(column: ColumnInfo): boolean {
@@ -157,7 +159,7 @@ function validateCollectionsJson(
  *  - Collection fields are edited as JSON text and validated on submit.
  */
 export function DynamicForm(props: DynamicFormProps) {
-  const { schema, mode, initial, onSubmit, submitLabel, submitting } = props;
+  const { schema, mode, initial, onSubmit, submitLabel, submitting, readOnly } = props;
 
   const ordered = useMemo(() => sortColumns(schema.columns), [schema.columns]);
 
@@ -204,7 +206,7 @@ export function DynamicForm(props: DynamicFormProps) {
         {ordered.map((column) => {
           const Component = pickFieldComponent(column.cql_type);
           const placeholder = getTypeInfo(column.cql_type).placeholder;
-          const disabled = mode === 'update' && isPrimaryKey(column);
+          const disabled = readOnly || (mode === 'update' && isPrimaryKey(column));
           const fieldProps: FieldProps = {
             column,
             value: values[column.name] ?? '',
@@ -222,15 +224,17 @@ export function DynamicForm(props: DynamicFormProps) {
         </div>
       )}
 
-      <div className="flex justify-end">
-        <button
-          type="submit"
-          disabled={submitting}
-          className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-blue-400"
-        >
-          {submitting ? 'Submitting…' : (submitLabel ?? defaultLabel)}
-        </button>
-      </div>
+      {!readOnly && (
+        <div className="flex justify-end">
+          <button
+            type="submit"
+            disabled={submitting}
+            className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:cursor-not-allowed disabled:bg-blue-400"
+          >
+            {submitting ? 'Submitting…' : (submitLabel ?? defaultLabel)}
+          </button>
+        </div>
+      )}
     </form>
   );
 }
