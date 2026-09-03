@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import type { Row, TableSchema } from '@kassandra/shared';
+import type { ColumnMetadata, Row, TableSchema } from '@kassandra/shared';
 import { getSchema } from '../../api/schema.js';
+import { getMetadata } from '../../api/metadata.js';
 import { updateRow } from '../../api/data.js';
 import { DynamicForm } from './DynamicForm.js';
 
@@ -14,6 +15,8 @@ interface Props {
   onSuccess?: () => void;
   /** Optional cancel handler (shows the cancel button when provided). */
   onCancel?: () => void;
+  /** Column metadata, when already fetched by a caller (e.g. RowDetail). */
+  metadata?: Record<string, ColumnMetadata>;
 }
 
 function splitKeysAndUpdates(
@@ -48,7 +51,7 @@ function splitKeysAndUpdates(
  * server's UPDATE endpoint.
  */
 export function UpdateForm(props: Props) {
-  const { keyspace, table, initial, onSuccess, onCancel } = props;
+  const { keyspace, table, initial, onSuccess, onCancel, metadata } = props;
   const queryClient = useQueryClient();
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -57,6 +60,14 @@ export function UpdateForm(props: Props) {
     queryKey: ['schema', keyspace, table],
     queryFn: () => getSchema(keyspace, table),
   });
+
+  const metadataQuery = useQuery({
+    queryKey: ['metadata', keyspace, table],
+    queryFn: () => getMetadata(keyspace, table),
+    enabled: metadata === undefined,
+  });
+
+  const effectiveMetadata = metadata ?? metadataQuery.data;
 
   const mutation = useMutation({
     mutationFn: ({ keys, updates }: { keys: Row; updates: Row }) =>
@@ -108,6 +119,7 @@ export function UpdateForm(props: Props) {
         schema={schema}
         mode="update"
         initial={initial}
+        metadata={effectiveMetadata}
         submitLabel="Update Record"
         submitting={mutation.isPending}
         onSubmit={async (values) => {

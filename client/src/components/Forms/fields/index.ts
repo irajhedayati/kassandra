@@ -39,6 +39,7 @@ export { TimeField } from './TimeField.js';
 export { DatetimeField } from './DatetimeField.js';
 export { UuidField } from './UuidField.js';
 export { JsonField } from './JsonField.js';
+export { JsonHighlightField } from './JsonHighlightField.js';
 export { ListField } from './ListField.js';
 export { MapField } from './MapField.js';
 export { BlobHexField } from './BlobHexField.js';

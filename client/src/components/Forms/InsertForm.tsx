@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { getSchema } from '../../api/schema.js';
+import { getMetadata } from '../../api/metadata.js';
 import { insertRow } from '../../api/data.js';
 import type { Row } from '@kassandra/shared';
 import { DynamicForm } from './DynamicForm.js';
@@ -24,6 +25,11 @@ export function InsertForm(props: Props) {
   const schemaQuery = useQuery({
     queryKey: ['schema', keyspace, table],
     queryFn: () => getSchema(keyspace, table),
+  });
+
+  const metadataQuery = useQuery({
+    queryKey: ['metadata', keyspace, table],
+    queryFn: () => getMetadata(keyspace, table),
   });
 
   const mutation = useMutation({
@@ -71,6 +77,7 @@ export function InsertForm(props: Props) {
       <DynamicForm
         schema={schemaQuery.data}
         mode="insert"
+        metadata={metadataQuery.data}
         submitting={mutation.isPending}
         onSubmit={async (values) => {
           setSuccessMessage(null);

@@ -8,7 +8,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import type { Row, TableSchema } from '@kassandra/shared';
+import type { ColumnMetadata, Row, TableSchema } from '@kassandra/shared';
 import { deleteRow } from '../../api/data.js';
 import { ApiError } from '../../api/client.js';
 import { ConfirmDelete } from '../Dialogs/ConfirmDelete.js';
@@ -22,10 +22,11 @@ interface Props {
   schema: TableSchema;
   row: Row | null;
   onClose: () => void;
+  metadata?: Record<string, ColumnMetadata>;
 }
 
 export function RowDetail(props: Props) {
-  const { open, keyspace, table, schema, row, onClose } = props;
+  const { open, keyspace, table, schema, row, onClose, metadata } = props;
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<'view' | 'edit'>('view');
   const [confirming, setConfirming] = useState(false);
@@ -88,12 +89,13 @@ export function RowDetail(props: Props) {
 
         <div className="p-6">
           {mode === 'view' ? (
-            <DynamicForm schema={schema} mode="update" initial={row} onSubmit={() => {}} readOnly />
+            <DynamicForm schema={schema} mode="update" initial={row} metadata={metadata} onSubmit={() => {}} readOnly />
           ) : (
             <UpdateForm
               keyspace={keyspace}
               table={table}
               initial={row}
+              metadata={metadata}
               onSuccess={async () => {
                 await queryClient.invalidateQueries({ queryKey: ['data', keyspace, table] });
                 setMode('view');

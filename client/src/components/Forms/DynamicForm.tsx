@@ -1,5 +1,12 @@
 import {type FormEvent, useMemo, useState} from 'react';
-import {type ColumnInfo, getTypeInfo, rootCqlType, type Row, type TableSchema,} from '@kassandra/shared';
+import {
+    type ColumnInfo,
+    type ColumnMetadata,
+    getTypeInfo,
+    rootCqlType,
+    type Row,
+    type TableSchema,
+} from '@kassandra/shared';
 import {formatValueForEdit} from '../../utils/format.js';
 import {
     BlobHexField,
@@ -11,6 +18,7 @@ import {
     type FieldProps,
     InetField,
     JsonField,
+    JsonHighlightField,
     ListField,
     MapField,
     NumberField,
@@ -18,6 +26,16 @@ import {
     TimeField,
     UuidField,
 } from './fields';
+
+const TEXT_ROOT_TYPES = new Set(['text', 'varchar', 'ascii']);
+
+function isJsonTextColumn(
+    column: ColumnInfo,
+    metadata: Record<string, ColumnMetadata> | undefined,
+): boolean {
+    if (!TEXT_ROOT_TYPES.has(rootCqlType(column.cql_type))) return false;
+    return metadata?.[column.name]?.display_type === 'JSON';
+}
 
 export type FormMode = 'insert' | 'update';
 
@@ -37,6 +55,8 @@ export interface DynamicFormProps {
     submitting?: boolean;
     /** When true, every field is disabled and the submit button is hidden. */
     readOnly?: boolean;
+    /** Column metadata (display_type, hide, map_schema) keyed by column name. */
+    metadata?: Record<string, ColumnMetadata>;
 }
 
 function isPrimaryKey(column: ColumnInfo): boolean {
@@ -147,7 +167,7 @@ function validateCollectionsJson(schema: TableSchema, values: Record<string, str
  *  - Collection fields are edited as JSON text and validated on submit.
  */
 export function DynamicForm(props: DynamicFormProps) {
-    const {schema, mode, initial, onSubmit, submitLabel, submitting, readOnly} = props;
+    const {schema, mode, initial, onSubmit, submitLabel, submitting, readOnly, metadata} = props;
 
     const ordered = useMemo(() => sortColumns(schema.columns), [schema.columns]);
 
@@ -195,7 +215,9 @@ export function DynamicForm(props: DynamicFormProps) {
                 style={{gridTemplateColumns: 'repeat(auto-fit, minmax(480px, 1fr))'}}
             >
                 {ordered.map((column) => {
-                    const Component = pickFieldComponent(column.cql_type);
+                    const Component = isJsonTextColumn(column, metadata)
+                        ? JsonHighlightField
+                        : pickFieldComponent(column.cql_type);
                     const placeholder = getTypeInfo(column.cql_type).placeholder;
                     const disabled = readOnly || (mode === 'update' && isPrimaryKey(column));
                     const fieldValue = values[column.name] ?? '';

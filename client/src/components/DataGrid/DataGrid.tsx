@@ -339,6 +339,7 @@ export function DataGrid({ keyspace, table }: Props) {
         table={table}
         schema={schema}
         row={selectedRow}
+        metadata={metadata}
         onClose={() => setSelectedRow(null)}
       />
     </div>
