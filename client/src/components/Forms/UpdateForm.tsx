@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import type { ColumnMetadata, Row, TableSchema } from '@kassandra/shared';
+import { rootCqlType } from '@kassandra/shared';
 import { getSchema } from '../../api/schema.js';
 import { getMetadata } from '../../api/metadata.js';
 import { useCqlDraft } from '../../state/cqlDraft.js';
 import { buildUpdateCql } from '../../utils/cqlLiteral.js';
-import { DynamicForm } from './DynamicForm.js';
+import { DynamicForm, type UpdateDiff } from './DynamicForm.js';
 
 interface Props {
   keyspace: string;
@@ -20,13 +21,14 @@ interface Props {
   metadata?: Record<string, ColumnMetadata>;
 }
 
-function splitKeysAndUpdates(
+function splitKeysAndScalarUpdates(
   schema: TableSchema,
   values: Record<string, string>,
   initial: Row,
-): { keys: Row; updates: Row } {
+  changedColumns: Set<string>,
+): { keys: Row; scalarUpdates: Row } {
   const keys: Row = {};
-  const updates: Row = {};
+  const scalarUpdates: Row = {};
   for (const col of schema.columns) {
     if (col.kind === 'partition_key' || col.kind === 'clustering') {
       // Use the original initial value to avoid relying on string round-trip
@@ -38,12 +40,12 @@ function splitKeysAndUpdates(
         const v = values[col.name];
         if (v !== undefined && v !== '') keys[col.name] = v;
       }
-    } else {
+    } else if (rootCqlType(col.cql_type) !== 'map' && changedColumns.has(col.name)) {
       const v = values[col.name];
-      if (v !== undefined && v !== '') updates[col.name] = v;
+      if (v !== undefined && v !== '') scalarUpdates[col.name] = v;
     }
   }
-  return { keys, updates };
+  return { keys, scalarUpdates };
 }
 
 /**
@@ -106,15 +108,27 @@ export function UpdateForm(props: Props) {
         initial={initial}
         metadata={effectiveMetadata}
         submitLabel="Generate CQL"
-        onSubmit={(values) => {
+        onSubmit={(values, diff: UpdateDiff | undefined) => {
           setErrorMessage(null);
           setInfoMessage(null);
-          const { keys, updates } = splitKeysAndUpdates(schema, values, initial);
-          if (Object.keys(updates).length === 0) {
-            setErrorMessage('No regular columns changed.');
+          if (!diff || diff.changedColumns.size === 0) {
+            setErrorMessage('No columns changed.');
             return;
           }
-          const cql = buildUpdateCql(schema.keyspace, schema.table_name, schema.columns, keys, updates);
+          const { keys, scalarUpdates } = splitKeysAndScalarUpdates(
+            schema,
+            values,
+            initial,
+            diff.changedColumns,
+          );
+          const cql = buildUpdateCql(
+            schema.keyspace,
+            schema.table_name,
+            schema.columns,
+            keys,
+            scalarUpdates,
+            diff.mapDiffs,
+          );
           pushQuery(cql);
           setInfoMessage('UPDATE statement sent to the CQL editor below — review and execute it there.');
           onSuccess?.();

@@ -1,4 +1,4 @@
-import { rootCqlType } from '@kassandra/shared';
+import { mapKeyValueTypes, rootCqlType } from '@kassandra/shared';
 
 const NUMERIC_TYPES = new Set([
   'tinyint',
@@ -118,20 +118,49 @@ export function buildInsertCql(
   return `INSERT INTO ${keyspace}.${tableName} (${colList})\nVALUES (${valList});`;
 }
 
-/** Build `UPDATE ks.table SET ... WHERE ...;` from typed key values and raw update strings. */
+/** Build `UPDATE ks.table SET ... WHERE ...;` (plus a `DELETE` for removed
+ * map entries, if any) from typed key values, raw scalar update strings,
+ * and per-map-column key diffs.
+ */
 export function buildUpdateCql(
   keyspace: string,
   tableName: string,
   columns: ColumnLike[],
   keys: Record<string, unknown>,
   updates: Record<string, unknown>,
+  mapDiffs: Record<string, { set: Record<string, string>; deleted: string[] }> = {},
 ): string {
   const typeOf = (name: string) => columns.find((c) => c.name === name)?.cql_type ?? 'text';
-  const setClause = Object.entries(updates)
-    .map(([name, v]) => `${name} = ${valueToCqlLiteral(v, typeOf(name))}`)
-    .join(', ');
   const whereClause = Object.entries(keys)
     .map(([name, v]) => `${name} = ${valueToCqlLiteral(v, typeOf(name))}`)
     .join(' AND ');
-  return `UPDATE ${keyspace}.${tableName}\nSET ${setClause}\nWHERE ${whereClause};`;
+
+  const setParts = Object.entries(updates).map(
+    ([name, v]) => `${name} = ${valueToCqlLiteral(v, typeOf(name))}`,
+  );
+  const deleteTargets: string[] = [];
+
+  for (const [name, diff] of Object.entries(mapDiffs)) {
+    const kv = mapKeyValueTypes(typeOf(name)) ?? { keyType: 'text', valueType: 'text' };
+    const setEntries = Object.entries(diff.set);
+    if (setEntries.length > 0) {
+      const literalEntries = setEntries
+        .map(([k, v]) => `${valueToCqlLiteral(k, kv.keyType)}: ${valueToCqlLiteral(v, kv.valueType)}`)
+        .join(', ');
+      // Merge only the changed/added keys — leaves other entries untouched.
+      setParts.push(`${name} = ${name} + {${literalEntries}}`);
+    }
+    for (const k of diff.deleted) {
+      deleteTargets.push(`${name}[${valueToCqlLiteral(k, kv.keyType)}]`);
+    }
+  }
+
+  const statements: string[] = [];
+  if (setParts.length > 0) {
+    statements.push(`UPDATE ${keyspace}.${tableName}\nSET ${setParts.join(', ')}\nWHERE ${whereClause};`);
+  }
+  if (deleteTargets.length > 0) {
+    statements.push(`DELETE ${deleteTargets.join(', ')}\nFROM ${keyspace}.${tableName}\nWHERE ${whereClause};`);
+  }
+  return statements.join('\n\n');
 }

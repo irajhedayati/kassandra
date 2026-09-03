@@ -1,4 +1,4 @@
-import {type FormEvent, useMemo, useState} from 'react';
+import {type FormEvent, useMemo, useRef, useState} from 'react';
 import {
     type ColumnInfo,
     type ColumnMetadata,
@@ -50,6 +50,20 @@ function enumValuesFor(
 
 export type FormMode = 'insert' | 'update';
 
+export interface MapFieldDiff {
+    /** Keys that were added or whose value changed, ready to merge in via `col + {...}`. */
+    set: Record<string, string>;
+    /** Keys present in the original map but removed by the user. */
+    deleted: string[];
+}
+
+export interface UpdateDiff {
+    /** Names of columns whose value actually changed (map columns included only if their diff is non-empty). */
+    changedColumns: Set<string>;
+    /** Per-key diff for `map` columns, keyed by column name. */
+    mapDiffs: Record<string, MapFieldDiff>;
+}
+
 export interface DynamicFormProps {
     schema: TableSchema;
     mode: FormMode;
@@ -58,8 +72,11 @@ export interface DynamicFormProps {
     /**
      * Submission handler. Values are the form's string-keyed state — collection
      * fields hold JSON strings (the caller / server is responsible for parsing).
+     * In update mode, `diff` reports exactly what changed since `initial`, so
+     * the caller can generate a minimal UPDATE (and, for map columns, only
+     * touch the added/updated/removed entries).
      */
-    onSubmit: (values: Record<string, string>) => Promise<void> | void;
+    onSubmit: (values: Record<string, string>, diff?: UpdateDiff) => Promise<void> | void;
     /** Optional submit-button label override. */
     submitLabel?: string;
     /** When true, the submit button shows a "submitting" state. */
@@ -171,6 +188,36 @@ function validateCollectionsJson(schema: TableSchema, values: Record<string, str
     return null;
 }
 
+function parseMapObject(raw: string): Record<string, string> {
+    if (!raw || !raw.trim()) return {};
+    try {
+        const obj: unknown = JSON.parse(raw);
+        if (obj && typeof obj === 'object' && !Array.isArray(obj)) {
+            const out: Record<string, string> = {};
+            for (const [k, v] of Object.entries(obj as Record<string, unknown>)) {
+                out[k] = String(v ?? '');
+            }
+            return out;
+        }
+    } catch {
+        // unparsable — treat as empty; validateCollectionsJson already
+        // surfaces a proper error to the user before this ever runs.
+    }
+    return {};
+}
+
+/** Diff two map<K,V> columns (serialized as JSON objects) key by key. */
+function diffMapValue(oldRaw: string, newRaw: string): MapFieldDiff {
+    const oldMap = parseMapObject(oldRaw);
+    const newMap = parseMapObject(newRaw);
+    const set: Record<string, string> = {};
+    for (const [k, v] of Object.entries(newMap)) {
+        if (oldMap[k] === undefined || oldMap[k] !== v) set[k] = v;
+    }
+    const deleted = Object.keys(oldMap).filter((k) => !(k in newMap));
+    return {set, deleted};
+}
+
 /**
  * Schema-driven form generator. Mirrors legacy
  * `src/ui/dynamic_form.py:render_dynamic_form` semantics:
@@ -191,6 +238,10 @@ export function DynamicForm(props: DynamicFormProps) {
         }
         return seed;
     });
+    // Snapshot of the seed values, used to diff against on submit in update
+    // mode. `values` is never mutated in place (setValue always spreads into
+    // a new object), so this ref keeps pointing at the original values.
+    const initialSeedRef = useRef(values);
     const [error, setError] = useState<string | null>(null);
 
     function setValue(name: string, next: string) {
@@ -205,8 +256,30 @@ export function DynamicForm(props: DynamicFormProps) {
             setError(collectionError);
             return;
         }
+
+        let diff: UpdateDiff | undefined;
+        if (mode === 'update') {
+            const changedColumns = new Set<string>();
+            const mapDiffs: Record<string, MapFieldDiff> = {};
+            for (const column of ordered) {
+                if (isPrimaryKey(column)) continue;
+                const oldVal = initialSeedRef.current[column.name] ?? '';
+                const newVal = values[column.name] ?? '';
+                if (rootCqlType(column.cql_type) === 'map') {
+                    const d = diffMapValue(oldVal, newVal);
+                    if (Object.keys(d.set).length > 0 || d.deleted.length > 0) {
+                        changedColumns.add(column.name);
+                        mapDiffs[column.name] = d;
+                    }
+                } else if (oldVal !== newVal) {
+                    changedColumns.add(column.name);
+                }
+            }
+            diff = {changedColumns, mapDiffs};
+        }
+
         try {
-            await onSubmit(values);
+            await onSubmit(values, diff);
         } catch (err) {
             setError(err instanceof Error ? err.message : String(err));
         }
