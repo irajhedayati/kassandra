@@ -24,6 +24,7 @@ import { registerCqlCompletionProvider } from './cqlCompletion.js';
 const DEFAULT_PAGE_SIZE = 100;
 
 export function CqlEditor() {
+  const [collapsed, setCollapsed] = useState(false);
   const [query, setQuery] = useState<string>('');
   const [result, setResult] = useState<QueryResponse | null>(null);
   const [pagingState, setPagingState] = useState<string | null>(null);
@@ -102,9 +103,17 @@ export function CqlEditor() {
   return (
     <div className="flex flex-col gap-3 px-6 py-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-slate-700">CQL Editor</h2>
+        <button
+          type="button"
+          onClick={() => setCollapsed((c) => !c)}
+          className="flex items-center gap-1.5 text-sm font-semibold text-slate-700"
+          aria-expanded={!collapsed}
+        >
+          <span className={`inline-block transition-transform ${collapsed ? '-rotate-90' : ''}`}>▾</span>
+          CQL Editor
+        </button>
         <div className="flex items-center gap-2">
-          {hasMore && (
+          {!collapsed && hasMore && (
             <button
               type="button"
               onClick={onNextPage}
@@ -125,33 +134,37 @@ export function CqlEditor() {
         </div>
       </div>
 
-      <div className="rounded border border-slate-200">
-        <Editor
-          height="240px"
-          defaultLanguage="sql"
-          language="sql"
-          theme="vs-light"
-          value={query}
-          onChange={onChange}
-          onMount={handleEditorMount}
-          options={{
-            minimap: { enabled: false },
-            scrollBeyondLastLine: false,
-            fontSize: 13,
-            automaticLayout: true,
-            tabSize: 2,
-            wordWrap: 'on',
-          }}
-        />
-      </div>
+      {!collapsed && (
+        <>
+          <div className="rounded border border-slate-200">
+            <Editor
+              height="240px"
+              defaultLanguage="sql"
+              language="sql"
+              theme="vs-light"
+              value={query}
+              onChange={onChange}
+              onMount={handleEditorMount}
+              options={{
+                minimap: { enabled: false },
+                scrollBeyondLastLine: false,
+                fontSize: 13,
+                automaticLayout: true,
+                tabSize: 2,
+                wordWrap: 'on',
+              }}
+            />
+          </div>
 
-      <p className="text-xs text-slate-500">
-        Press <kbd className="rounded border border-slate-300 bg-slate-50 px-1">Cmd</kbd>/
-        <kbd className="rounded border border-slate-300 bg-slate-50 px-1">Ctrl</kbd> +{' '}
-        <kbd className="rounded border border-slate-300 bg-slate-50 px-1">Enter</kbd> to execute.
-      </p>
+          <p className="text-xs text-slate-500">
+            Press <kbd className="rounded border border-slate-300 bg-slate-50 px-1">Cmd</kbd>/
+            <kbd className="rounded border border-slate-300 bg-slate-50 px-1">Ctrl</kbd> +{' '}
+            <kbd className="rounded border border-slate-300 bg-slate-50 px-1">Enter</kbd> to execute.
+          </p>
 
-      <CqlResults result={result} />
+          <CqlResults result={result} />
+        </>
+      )}
     </div>
   );
 }
