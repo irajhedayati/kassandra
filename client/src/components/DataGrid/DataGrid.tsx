@@ -204,6 +204,20 @@ export function DataGrid({ keyspace, table }: Props) {
               : ''}
           </p>
         </div>
+        <button
+          type="button"
+          onClick={() => {
+            void schemaQuery.refetch();
+            void metadataQuery.refetch();
+            void dataQuery.refetch();
+          }}
+          disabled={dataQuery.isFetching}
+          className="flex items-center gap-1.5 rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          title="Reload rows for the current page and filters"
+        >
+          <span className={dataQuery.isFetching ? 'inline-block animate-spin' : 'inline-block'}>⟳</span>
+          Refresh
+        </button>
       </header>
 
       {filterColumns.length > 0 && (
