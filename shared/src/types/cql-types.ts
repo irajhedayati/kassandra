@@ -86,3 +86,38 @@ export function getTypeInfo(cqlType: string): CqlTypeInfo {
   const root = rootCqlType(cqlType);
   return CQL_TYPE_INFO[root] ?? { widget: 'text' };
 }
+
+/**
+ * Extract the key/value type parameters from a `map<K, V>` (optionally
+ * `frozen<map<K, V>>`) CQL type string. Returns null for non-map types or
+ * malformed generics.
+ *   "map<text, text>"         → { keyType: "text", valueType: "text" }
+ *   "frozen<map<text, int>>"  → { keyType: "text", valueType: "int" }
+ */
+export function mapKeyValueTypes(
+  cqlType: string,
+): { keyType: string; valueType: string } | null {
+  const inner = cqlType.startsWith('frozen<') && cqlType.endsWith('>')
+    ? cqlType.slice('frozen<'.length, -1)
+    : cqlType;
+  if (rootCqlType(inner) !== 'map') return null;
+  const lt = inner.indexOf('<');
+  const gt = inner.lastIndexOf('>');
+  if (lt === -1 || gt === -1 || gt < lt) return null;
+  const params = inner.slice(lt + 1, gt);
+  const comma = params.indexOf(',');
+  if (comma === -1) return null;
+  return {
+    keyType: params.slice(0, comma).trim(),
+    valueType: params.slice(comma + 1).trim(),
+  };
+}
+
+const STRING_LIKE_TYPES = new Set(['text', 'varchar', 'ascii']);
+
+/** True when both the key and value of a map<K, V> are string-like CQL types. */
+export function isStringStringMap(cqlType: string): boolean {
+  const kv = mapKeyValueTypes(cqlType);
+  if (!kv) return false;
+  return STRING_LIKE_TYPES.has(kv.keyType.toLowerCase()) && STRING_LIKE_TYPES.has(kv.valueType.toLowerCase());
+}

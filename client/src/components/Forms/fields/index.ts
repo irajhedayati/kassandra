@@ -44,3 +44,4 @@ export { MapField } from './MapField.js';
 export { BlobHexField } from './BlobHexField.js';
 export { InetField } from './InetField.js';
 export { DurationField } from './DurationField.js';
+export { CopyButton } from './CopyButton.js';
