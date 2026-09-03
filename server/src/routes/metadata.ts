@@ -26,6 +26,7 @@ const columnMetadataSchema = z
     hide: z.boolean().optional(),
     display_type: z.string().optional(),
     map_schema: z.array(mapSchemaEntrySchema).optional(),
+    enum_values: z.array(z.string()).optional(),
   })
   .strict();
 

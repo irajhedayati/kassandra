@@ -15,6 +15,7 @@ import {
     DateField,
     DatetimeField,
     DurationField,
+    EnumField,
     type FieldProps,
     InetField,
     JsonField,
@@ -35,6 +36,16 @@ function isJsonTextColumn(
 ): boolean {
     if (!TEXT_ROOT_TYPES.has(rootCqlType(column.cql_type))) return false;
     return metadata?.[column.name]?.display_type === 'JSON';
+}
+
+function enumValuesFor(
+    column: ColumnInfo,
+    metadata: Record<string, ColumnMetadata> | undefined,
+): string[] | null {
+    if (!TEXT_ROOT_TYPES.has(rootCqlType(column.cql_type))) return null;
+    const meta = metadata?.[column.name];
+    if (meta?.display_type !== 'enum') return null;
+    return meta.enum_values ?? [];
 }
 
 export type FormMode = 'insert' | 'update';
@@ -215,9 +226,7 @@ export function DynamicForm(props: DynamicFormProps) {
                 style={{gridTemplateColumns: 'repeat(auto-fit, minmax(480px, 1fr))'}}
             >
                 {ordered.map((column) => {
-                    const Component = isJsonTextColumn(column, metadata)
-                        ? JsonHighlightField
-                        : pickFieldComponent(column.cql_type);
+                    const enumValues = enumValuesFor(column, metadata);
                     const placeholder = getTypeInfo(column.cql_type).placeholder;
                     const disabled = readOnly || (mode === 'update' && isPrimaryKey(column));
                     const fieldValue = values[column.name] ?? '';
@@ -228,9 +237,18 @@ export function DynamicForm(props: DynamicFormProps) {
                         disabled,
                         ...(placeholder !== undefined ? {placeholder} : {}),
                     };
+                    let field: React.ReactNode;
+                    if (enumValues) {
+                        field = <EnumField {...fieldProps} enumValues={enumValues} />;
+                    } else {
+                        const Component = isJsonTextColumn(column, metadata)
+                            ? JsonHighlightField
+                            : pickFieldComponent(column.cql_type);
+                        field = <Component {...fieldProps} />;
+                    }
                     return (
                         <div key={column.name} className="relative">
-                            <Component {...fieldProps} />
+                            {field}
                             <div className="absolute right-0 top-0">
                                 <CopyButton value={fieldValue} label={column.name}/>
                             </div>

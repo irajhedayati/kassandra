@@ -57,6 +57,7 @@ export interface ColumnMetadata {
   hide?: boolean;
   display_type?: string;
   map_schema?: MapSchemaEntry[];
+  enum_values?: string[];
 }
 
 export interface MapSchemaEntry {

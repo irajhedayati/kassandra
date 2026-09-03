@@ -51,9 +51,21 @@ function sortColumns(columns: ColumnInfo[]): ColumnInfo[] {
   return [...partition, ...clustering, ...regular];
 }
 
+function enumValuesToText(values: string[] | undefined): string {
+  return (values ?? []).join(', ');
+}
+
+function parseEnumValuesText(text: string): string[] {
+  return text
+    .split(',')
+    .map((v) => v.trim())
+    .filter((v) => v !== '');
+}
+
 export function TableInfo({ keyspace, table }: Props) {
   const queryClient = useQueryClient();
   const [mapEditor, setMapEditor] = useState<MapEditorTarget | null>(null);
+  const [enumDrafts, setEnumDrafts] = useState<Record<string, string>>({});
 
   const schemaQuery = useQuery<TableSchema>({
     queryKey: ['schema', keyspace, table],
@@ -127,6 +139,12 @@ export function TableInfo({ keyspace, table }: Props) {
     );
   };
 
+  const handleEnumValuesBlur = (column: string) => {
+    const draft = enumDrafts[column];
+    if (draft === undefined) return;
+    updateColumn(column, { enum_values: parseEnumValuesText(draft) });
+  };
+
   return (
     <div>
       <h2 className="mb-4 text-lg font-semibold">Table Schema</h2>
@@ -154,17 +172,33 @@ export function TableInfo({ keyspace, table }: Props) {
                   <td className="px-3 py-2 font-mono">{col.name}</td>
                   <td className="px-3 py-2">
                     {isText ? (
-                      <select
-                        value={displayType}
-                        onChange={(e) =>
-                          updateColumn(col.name, { display_type: e.target.value })
-                        }
-                        disabled={mutation.isPending}
-                        className="rounded border border-slate-300 bg-white px-2 py-1 text-sm"
-                      >
-                        <option value="text">text</option>
-                        <option value="JSON">JSON</option>
-                      </select>
+                      <div className="flex flex-col gap-1">
+                        <select
+                          value={displayType}
+                          onChange={(e) =>
+                            updateColumn(col.name, { display_type: e.target.value })
+                          }
+                          disabled={mutation.isPending}
+                          className="rounded border border-slate-300 bg-white px-2 py-1 text-sm"
+                        >
+                          <option value="text">text</option>
+                          <option value="JSON">JSON</option>
+                          <option value="enum">enum</option>
+                        </select>
+                        {displayType === 'enum' && (
+                          <input
+                            type="text"
+                            value={enumDrafts[col.name] ?? enumValuesToText(meta.enum_values)}
+                            onChange={(e) =>
+                              setEnumDrafts((d) => ({ ...d, [col.name]: e.target.value }))
+                            }
+                            onBlur={() => handleEnumValuesBlur(col.name)}
+                            disabled={mutation.isPending}
+                            placeholder="value1, value2, value3"
+                            className="w-56 rounded border border-slate-300 bg-white px-2 py-1 text-sm"
+                          />
+                        )}
+                      </div>
                     ) : (
                       <span className="font-mono text-slate-700">{col.cql_type}</span>
                     )}
