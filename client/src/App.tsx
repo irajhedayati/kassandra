@@ -109,7 +109,9 @@ export function App() {
               </div>
               <div className="p-6">
                 {tab === 'data' && <DataGrid keyspace={keyspace} table={table} />}
-                {tab === 'insert' && <InsertForm keyspace={keyspace} table={table} />}
+                {tab === 'insert' && (
+                  <InsertForm keyspace={keyspace} table={table} onCancel={() => setTab('data')} />
+                )}
                 {tab === 'info' && <TableInfo keyspace={keyspace} table={table} />}
               </div>
             </div>

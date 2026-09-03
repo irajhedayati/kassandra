@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import { isStringStringMap } from '@kassandra/shared';
 import {
   fieldLabel,
@@ -37,11 +38,29 @@ function serializeEntries(entries: Entry[]): string {
 /**
  * Key/value tuple editor for `map<string, string>` columns. Falls back to a
  * raw JSON-object textarea for maps with non-string-string key/value types.
+ *
+ * Entries are kept in local state (rather than re-derived from `value` on
+ * every render) because serialization drops rows with an empty/duplicate
+ * key — re-parsing after each keystroke would make newly-added or
+ * in-progress rows disappear.
  */
 export function MapField(props: FieldProps) {
   const { column, value, onChange, disabled, placeholder } = props;
 
-  if (!isStringStringMap(column.cql_type)) {
+  const isTupleEditor = isStringStringMap(column.cql_type);
+  const [entries, setEntries] = useState<Entry[]>(() => parseEntries(value));
+  const lastEmitted = useRef<string>(value);
+
+  useEffect(() => {
+    // Only resync from the parent-controlled value when it changed for a
+    // reason other than our own onChange (e.g. switching rows in RowDetail).
+    if (value !== lastEmitted.current) {
+      setEntries(parseEntries(value));
+      lastEmitted.current = value;
+    }
+  }, [value]);
+
+  if (!isTupleEditor) {
     return (
       <label className="block">
         <span className={labelClass}>{fieldLabel(column)}</span>
@@ -58,10 +77,11 @@ export function MapField(props: FieldProps) {
     );
   }
 
-  const entries = parseEntries(value);
-
   function update(next: Entry[]) {
-    onChange(serializeEntries(next));
+    setEntries(next);
+    const serialized = serializeEntries(next);
+    lastEmitted.current = serialized;
+    onChange(serialized);
   }
 
   return (

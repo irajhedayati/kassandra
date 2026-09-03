@@ -9,6 +9,8 @@ import { useState } from 'react';
 interface Props {
   keyspace: string;
   table: string;
+  /** Optional cancel handler (e.g. switch back to the Data Browser tab). */
+  onCancel?: () => void;
 }
 
 /**
@@ -17,7 +19,7 @@ interface Props {
  * `/api/data/:ks/:t/rows/insert` on submit.
  */
 export function InsertForm(props: Props) {
-  const { keyspace, table } = props;
+  const { keyspace, table, onCancel } = props;
   const queryClient = useQueryClient();
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -79,6 +81,7 @@ export function InsertForm(props: Props) {
         mode="insert"
         metadata={metadataQuery.data}
         submitting={mutation.isPending}
+        onCancel={onCancel}
         onSubmit={async (values) => {
           setSuccessMessage(null);
           setErrorMessage(null);

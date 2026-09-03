@@ -2,9 +2,12 @@
  * Table info panel: schema readout (column name, type, key kind, hide,
  * map-schema editor for map columns).
  *
+ * Edits are held in local draft state and only persisted when the user
+ * clicks Save; Cancel discards them and reverts to the last saved metadata.
+ *
  * Owned by the metadata/info lane.
  */
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   ColumnInfo,
@@ -66,6 +69,8 @@ export function TableInfo({ keyspace, table }: Props) {
   const queryClient = useQueryClient();
   const [mapEditor, setMapEditor] = useState<MapEditorTarget | null>(null);
   const [enumDrafts, setEnumDrafts] = useState<Record<string, string>>({});
+  const [draft, setDraft] = useState<Record<string, ColumnMetadata>>({});
+  const draftKeyRef = useRef<string | null>(null);
 
   const schemaQuery = useQuery<TableSchema>({
     queryKey: ['schema', keyspace, table],
@@ -80,9 +85,25 @@ export function TableInfo({ keyspace, table }: Props) {
     queryFn: () => getMetadata(keyspace, table),
   });
 
-  const mutation = useMutation({
-    mutationFn: (vars: { column: string; metadata: ColumnMetadata }) =>
-      apiSetColumnMetadata(keyspace, table, vars.column, vars.metadata),
+  const metadata = useMemo(() => metadataQuery.data ?? {}, [metadataQuery.data]);
+
+  // Seed the draft from the server once per table; further server refetches
+  // must not clobber in-progress local edits.
+  useEffect(() => {
+    const key = `${keyspace}.${table}`;
+    if (metadataQuery.data && draftKeyRef.current !== key) {
+      setDraft(metadataQuery.data);
+      draftKeyRef.current = key;
+      setEnumDrafts({});
+    }
+  }, [keyspace, table, metadataQuery.data]);
+
+  const saveMutation = useMutation({
+    mutationFn: async (entries: { column: string; metadata: ColumnMetadata }[]) => {
+      await Promise.all(
+        entries.map((e) => apiSetColumnMetadata(keyspace, table, e.column, e.metadata)),
+      );
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['metadata', keyspace, table] });
     },
@@ -92,6 +113,8 @@ export function TableInfo({ keyspace, table }: Props) {
     () => (schemaQuery.data ? sortColumns(schemaQuery.data.columns) : []),
     [schemaQuery.data],
   );
+
+  const isDirty = JSON.stringify(draft) !== JSON.stringify(metadata);
 
   if (schemaQuery.isLoading || metadataQuery.isLoading) {
     return <div className="text-sm text-slate-500">Loading table info...</div>;
@@ -119,35 +142,62 @@ export function TableInfo({ keyspace, table }: Props) {
     return <div className="text-sm text-slate-500">No schema available.</div>;
   }
 
-  const metadata = metadataQuery.data ?? {};
-
-  const updateColumn = (column: string, patch: Partial<ColumnMetadata>) => {
-    const current: ColumnMetadata = metadata[column] ?? {};
-    const next: ColumnMetadata = { ...current, ...patch };
-    mutation.mutate({ column, metadata: next });
+  const updateDraftColumn = (column: string, patch: Partial<ColumnMetadata>) => {
+    setDraft((prev) => ({
+      ...prev,
+      [column]: { ...(prev[column] ?? {}), ...patch },
+    }));
   };
 
   const handleSaveMapSchema = (entries: MapSchemaEntry[]) => {
     if (!mapEditor) return;
-    const column = mapEditor.column;
-    const current: ColumnMetadata = metadata[column] ?? {};
-    mutation.mutate(
-      { column, metadata: { ...current, map_schema: entries } },
-      {
-        onSuccess: () => setMapEditor(null),
-      },
-    );
+    updateDraftColumn(mapEditor.column, { map_schema: entries });
+    setMapEditor(null);
   };
 
   const handleEnumValuesBlur = (column: string) => {
-    const draft = enumDrafts[column];
-    if (draft === undefined) return;
-    updateColumn(column, { enum_values: parseEnumValuesText(draft) });
+    const text = enumDrafts[column];
+    if (text === undefined) return;
+    updateDraftColumn(column, { enum_values: parseEnumValuesText(text) });
+  };
+
+  const handleSave = () => {
+    const changed = Object.entries(draft)
+      .filter(([col, m]) => JSON.stringify(m) !== JSON.stringify(metadata[col] ?? {}))
+      .map(([column, meta]) => ({ column, metadata: meta }));
+    if (changed.length === 0) return;
+    saveMutation.mutate(changed);
+  };
+
+  const handleCancel = () => {
+    setDraft(metadata);
+    setEnumDrafts({});
+    setMapEditor(null);
   };
 
   return (
     <div>
-      <h2 className="mb-4 text-lg font-semibold">Table Schema</h2>
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-lg font-semibold">Table Schema</h2>
+        <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={handleCancel}
+            disabled={!isDirty || saveMutation.isPending}
+            className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={!isDirty || saveMutation.isPending}
+            className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-blue-400"
+          >
+            {saveMutation.isPending ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
       <div className="overflow-x-auto rounded border border-slate-200 bg-white">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-left text-xs uppercase text-slate-600">
@@ -161,7 +211,7 @@ export function TableInfo({ keyspace, table }: Props) {
           </thead>
           <tbody>
             {sortedColumns.map((col) => {
-              const meta: ColumnMetadata = metadata[col.name] ?? {};
+              const meta: ColumnMetadata = draft[col.name] ?? {};
               const root = rootCqlType(col.cql_type);
               const isMap = root === 'map';
               const isText = col.cql_type === 'text';
@@ -176,9 +226,9 @@ export function TableInfo({ keyspace, table }: Props) {
                         <select
                           value={displayType}
                           onChange={(e) =>
-                            updateColumn(col.name, { display_type: e.target.value })
+                            updateDraftColumn(col.name, { display_type: e.target.value })
                           }
-                          disabled={mutation.isPending}
+                          disabled={saveMutation.isPending}
                           className="rounded border border-slate-300 bg-white px-2 py-1 text-sm"
                         >
                           <option value="text">text</option>
@@ -193,7 +243,7 @@ export function TableInfo({ keyspace, table }: Props) {
                               setEnumDrafts((d) => ({ ...d, [col.name]: e.target.value }))
                             }
                             onBlur={() => handleEnumValuesBlur(col.name)}
-                            disabled={mutation.isPending}
+                            disabled={saveMutation.isPending}
                             placeholder="value1, value2, value3"
                             className="w-56 rounded border border-slate-300 bg-white px-2 py-1 text-sm"
                           />
@@ -209,9 +259,9 @@ export function TableInfo({ keyspace, table }: Props) {
                       type="checkbox"
                       checked={hide}
                       onChange={(e) =>
-                        updateColumn(col.name, { hide: e.target.checked })
+                        updateDraftColumn(col.name, { hide: e.target.checked })
                       }
-                      disabled={mutation.isPending}
+                      disabled={saveMutation.isPending}
                     />
                   </td>
                   <td className="px-3 py-2">
@@ -239,9 +289,9 @@ export function TableInfo({ keyspace, table }: Props) {
         </table>
       </div>
 
-      {mutation.isError ? (
+      {saveMutation.isError ? (
         <div className="mt-3 text-sm text-red-600">
-          Save failed: {(mutation.error as Error).message}
+          Save failed: {(saveMutation.error as Error).message}
         </div>
       ) : null}
 
@@ -251,7 +301,6 @@ export function TableInfo({ keyspace, table }: Props) {
           initial={mapEditor.current}
           onSave={handleSaveMapSchema}
           onCancel={() => setMapEditor(null)}
-          saving={mutation.isPending}
         />
       ) : null}
     </div>

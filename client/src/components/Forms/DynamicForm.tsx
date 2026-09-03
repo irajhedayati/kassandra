@@ -68,6 +68,8 @@ export interface DynamicFormProps {
     readOnly?: boolean;
     /** Column metadata (display_type, hide, map_schema) keyed by column name. */
     metadata?: Record<string, ColumnMetadata>;
+    /** Optional cancel handler; shows a Cancel button next to Submit when provided. */
+    onCancel?: () => void;
 }
 
 function isPrimaryKey(column: ColumnInfo): boolean {
@@ -178,7 +180,7 @@ function validateCollectionsJson(schema: TableSchema, values: Record<string, str
  *  - Collection fields are edited as JSON text and validated on submit.
  */
 export function DynamicForm(props: DynamicFormProps) {
-    const {schema, mode, initial, onSubmit, submitLabel, submitting, readOnly, metadata} = props;
+    const {schema, mode, initial, onSubmit, submitLabel, submitting, readOnly, metadata, onCancel} = props;
 
     const ordered = useMemo(() => sortColumns(schema.columns), [schema.columns]);
 
@@ -264,7 +266,17 @@ export function DynamicForm(props: DynamicFormProps) {
             )}
 
             {!readOnly && (
-                <div className="flex justify-end">
+                <div className="flex justify-end gap-2">
+                    {onCancel && (
+                        <button
+                            type="button"
+                            onClick={onCancel}
+                            disabled={submitting}
+                            className="rounded border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                            Cancel
+                        </button>
+                    )}
                     <button
                         type="submit"
                         disabled={submitting}
