@@ -1,8 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { getSchema } from '../../api/schema.js';
 import { getMetadata } from '../../api/metadata.js';
-import { insertRow } from '../../api/data.js';
-import type { Row } from '@kassandra/shared';
+import { useCqlDraft } from '../../state/cqlDraft.js';
+import { buildInsertCql } from '../../utils/cqlLiteral.js';
 import { DynamicForm } from './DynamicForm.js';
 import { useState } from 'react';
 
@@ -15,14 +15,14 @@ interface Props {
 
 /**
  * Schema-driven INSERT form. Loads the table schema, renders a
- * `DynamicForm` in insert mode, and POSTs to
- * `/api/data/:ks/:t/rows/insert` on submit.
+ * `DynamicForm` in insert mode, and — instead of inserting directly —
+ * generates the equivalent `INSERT` statement and pushes it into the CQL
+ * editor so the user can review/edit it before running it themselves.
  */
 export function InsertForm(props: Props) {
   const { keyspace, table, onCancel } = props;
-  const queryClient = useQueryClient();
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const pushQuery = useCqlDraft((s) => s.pushQuery);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
 
   const schemaQuery = useQuery({
     queryKey: ['schema', keyspace, table],
@@ -32,21 +32,6 @@ export function InsertForm(props: Props) {
   const metadataQuery = useQuery({
     queryKey: ['metadata', keyspace, table],
     queryFn: () => getMetadata(keyspace, table),
-  });
-
-  const mutation = useMutation({
-    mutationFn: (values: Row) => insertRow(keyspace, table, values),
-    onSuccess: () => {
-      setSuccessMessage('Record inserted.');
-      setErrorMessage(null);
-      void queryClient.invalidateQueries({
-        queryKey: ['data', keyspace, table],
-      });
-    },
-    onError: (err) => {
-      setErrorMessage(err instanceof Error ? err.message : String(err));
-      setSuccessMessage(null);
-    },
   });
 
   if (schemaQuery.isLoading) {
@@ -64,35 +49,25 @@ export function InsertForm(props: Props) {
     );
   }
 
+  const schema = schemaQuery.data;
+
   return (
     <div className="max-w-4xl space-y-3">
-      {successMessage && (
-        <div className="rounded border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
-          {successMessage}
-        </div>
-      )}
-      {errorMessage && (
-        <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {errorMessage}
+      {infoMessage && (
+        <div className="rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700">
+          {infoMessage}
         </div>
       )}
       <DynamicForm
-        schema={schemaQuery.data}
+        schema={schema}
         mode="insert"
         metadata={metadataQuery.data}
-        submitting={mutation.isPending}
+        submitLabel="Generate CQL"
         onCancel={onCancel}
-        onSubmit={async (values) => {
-          setSuccessMessage(null);
-          setErrorMessage(null);
-          // Strip empty strings — the server interprets "missing" as
-          // "do not bind". Empty UUID fields are then auto-generated.
-          const payload: Row = {};
-          for (const [k, v] of Object.entries(values)) {
-            if (v === '') continue;
-            payload[k] = v;
-          }
-          await mutation.mutateAsync(payload);
+        onSubmit={(values) => {
+          const cql = buildInsertCql(schema.keyspace, schema.table_name, schema.columns, values);
+          pushQuery(cql);
+          setInfoMessage('INSERT statement sent to the CQL editor below — review and execute it there.');
         }}
       />
     </div>

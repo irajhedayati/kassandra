@@ -18,6 +18,7 @@ import Editor, { type OnMount } from '@monaco-editor/react';
 import { useMutation } from '@tanstack/react-query';
 import type { QueryResponse } from '@kassandra/shared';
 import { execCql } from '../../api/cql.js';
+import { useCqlDraft } from '../../state/cqlDraft.js';
 import { CqlResults } from './CqlResults.js';
 import { registerCqlCompletionProvider } from './cqlCompletion.js';
 
@@ -30,8 +31,24 @@ export function CqlEditor() {
   const [pagingState, setPagingState] = useState<string | null>(null);
   const queryRef = useRef<string>('');
   const completionDisposableRef = useRef<{ dispose: () => void } | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const pending = useCqlDraft((s) => s.pending);
+  const clearPending = useCqlDraft((s) => s.clearPending);
 
   useEffect(() => () => completionDisposableRef.current?.dispose(), []);
+
+  // Consume a query pushed from Insert/Update forms: load it into the
+  // editor, expand it if collapsed, and scroll it into view.
+  useEffect(() => {
+    if (!pending) return;
+    queryRef.current = pending.text;
+    setQuery(pending.text);
+    setCollapsed(false);
+    clearPending();
+    requestAnimationFrame(() => {
+      containerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+  }, [pending, clearPending]);
 
   const mutation = useMutation<QueryResponse, Error, { query: string; pagingState: string | null }>({
     mutationFn: ({ query: q, pagingState: ps }) =>
@@ -101,7 +118,7 @@ export function CqlEditor() {
   const hasMore = result?.success === true && result.hasMorePages && pagingState !== null;
 
   return (
-    <div className="flex flex-col gap-3 px-6 py-3">
+    <div ref={containerRef} className="flex flex-col gap-3 px-6 py-3">
       <div className="flex items-center justify-between">
         <button
           type="button"

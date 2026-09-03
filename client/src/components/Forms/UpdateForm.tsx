@@ -1,9 +1,10 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import type { ColumnMetadata, Row, TableSchema } from '@kassandra/shared';
 import { getSchema } from '../../api/schema.js';
 import { getMetadata } from '../../api/metadata.js';
-import { updateRow } from '../../api/data.js';
+import { useCqlDraft } from '../../state/cqlDraft.js';
+import { buildUpdateCql } from '../../utils/cqlLiteral.js';
 import { DynamicForm } from './DynamicForm.js';
 
 interface Props {
@@ -11,7 +12,7 @@ interface Props {
   table: string;
   /** Existing row values; primary-key fields are required and disabled. */
   initial: Row;
-  /** Optional callback fired after a successful update. */
+  /** Optional callback fired after the update CQL has been generated. */
   onSuccess?: () => void;
   /** Optional cancel handler (shows the cancel button when provided). */
   onCancel?: () => void;
@@ -46,15 +47,16 @@ function splitKeysAndUpdates(
 }
 
 /**
- * Schema-driven UPDATE form. Used by Lane C's RowDetail. Primary-key
- * fields are rendered disabled; only regular columns are sent to the
- * server's UPDATE endpoint.
+ * Schema-driven UPDATE form. Used by RowDetail. Primary-key fields are
+ * rendered disabled; instead of updating directly, generates the
+ * equivalent `UPDATE` statement and pushes it into the CQL editor so the
+ * user can review/edit it before running it themselves.
  */
 export function UpdateForm(props: Props) {
   const { keyspace, table, initial, onSuccess, onCancel, metadata } = props;
-  const queryClient = useQueryClient();
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const pushQuery = useCqlDraft((s) => s.pushQuery);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
 
   const schemaQuery = useQuery({
     queryKey: ['schema', keyspace, table],
@@ -68,23 +70,6 @@ export function UpdateForm(props: Props) {
   });
 
   const effectiveMetadata = metadata ?? metadataQuery.data;
-
-  const mutation = useMutation({
-    mutationFn: ({ keys, updates }: { keys: Row; updates: Row }) =>
-      updateRow(keyspace, table, keys, updates),
-    onSuccess: () => {
-      setSuccessMessage('Record updated.');
-      setErrorMessage(null);
-      void queryClient.invalidateQueries({
-        queryKey: ['data', keyspace, table],
-      });
-      onSuccess?.();
-    },
-    onError: (err) => {
-      setErrorMessage(err instanceof Error ? err.message : String(err));
-      setSuccessMessage(null);
-    },
-  });
 
   if (schemaQuery.isLoading) {
     return <div className="text-sm text-slate-500">Loading schema…</div>;
@@ -105,9 +90,9 @@ export function UpdateForm(props: Props) {
 
   return (
     <div className="space-y-3">
-      {successMessage && (
-        <div className="rounded border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700">
-          {successMessage}
+      {infoMessage && (
+        <div className="rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700">
+          {infoMessage}
         </div>
       )}
       {errorMessage && (
@@ -120,21 +105,19 @@ export function UpdateForm(props: Props) {
         mode="update"
         initial={initial}
         metadata={effectiveMetadata}
-        submitLabel="Update Record"
-        submitting={mutation.isPending}
-        onSubmit={async (values) => {
-          setSuccessMessage(null);
+        submitLabel="Generate CQL"
+        onSubmit={(values) => {
           setErrorMessage(null);
-          const { keys, updates } = splitKeysAndUpdates(
-            schema,
-            values,
-            initial,
-          );
+          setInfoMessage(null);
+          const { keys, updates } = splitKeysAndUpdates(schema, values, initial);
           if (Object.keys(updates).length === 0) {
             setErrorMessage('No regular columns changed.');
             return;
           }
-          await mutation.mutateAsync({ keys, updates });
+          const cql = buildUpdateCql(schema.keyspace, schema.table_name, schema.columns, keys, updates);
+          pushQuery(cql);
+          setInfoMessage('UPDATE statement sent to the CQL editor below — review and execute it there.');
+          onSuccess?.();
         }}
       />
       {onCancel && (
