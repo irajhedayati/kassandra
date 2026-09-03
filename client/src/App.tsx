@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useConnectionStatus } from './state/connection.js';
 import { useSelection } from './state/selection.js';
+import { useFavoriteKeyspaces } from './state/favorites.js';
 import { ConnectionPanel } from './components/Sidebar/ConnectionPanel.js';
 import { SchemaNavigator } from './components/Sidebar/SchemaNavigator.js';
 import { DataGrid } from './components/DataGrid/DataGrid.js';
@@ -14,6 +15,7 @@ export function App() {
   const { data: status } = useConnectionStatus();
   const connected = !!status?.connected;
   const { keyspace, table } = useSelection();
+  const { isFavorite, toggleFavorite } = useFavoriteKeyspaces(status?.profileName);
   const [tab, setTab] = useState<Tab>('data');
 
   return (
@@ -50,6 +52,21 @@ export function App() {
                 {keyspace ? (
                   <>
                     <span className="px-2 text-slate-300">/</span>
+                    <button
+                      type="button"
+                      onClick={() => toggleFavorite(keyspace)}
+                      className={`mr-1 align-middle ${
+                        isFavorite(keyspace)
+                          ? 'text-amber-400'
+                          : 'text-slate-300 hover:text-amber-400'
+                      }`}
+                      title={isFavorite(keyspace) ? 'Unfavorite keyspace' : 'Favorite keyspace'}
+                      aria-label={
+                        isFavorite(keyspace) ? 'Unfavorite keyspace' : 'Favorite keyspace'
+                      }
+                    >
+                      {isFavorite(keyspace) ? '★' : '☆'}
+                    </button>
                     <span className="text-slate-700">{keyspace}</span>
                   </>
                 ) : null}

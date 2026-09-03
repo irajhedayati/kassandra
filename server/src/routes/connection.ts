@@ -15,9 +15,12 @@ import { Router, type Request, type Response, type NextFunction } from 'express'
 import { z } from 'zod';
 import type { ConnectionProfile } from '@kassandra/shared';
 import {
+  addFavoriteKeyspace,
   deleteProfile as deleteProfileFromStore,
+  getFavoriteKeyspaces,
   getProfile,
   listProfiles,
+  removeFavoriteKeyspace,
   setLastConnection,
   upsertProfile,
 } from '../config/store.js';
@@ -170,6 +173,28 @@ connectionRouter.post(
     res.json({ ok: true, data: result.status });
   }),
 );
+
+// Favorite keyspaces, scoped per connection profile.
+connectionRouter.get('/:name/favorites', (req, res) => {
+  const name = req.params.name;
+  if (!name) throw badRequest('Profile name is required');
+  res.json({ ok: true, data: getFavoriteKeyspaces(name) });
+});
+
+connectionRouter.post('/:name/favorites', (req, res) => {
+  const name = req.params.name;
+  if (!name) throw badRequest('Profile name is required');
+  const keyspace = typeof req.body?.keyspace === 'string' ? req.body.keyspace : '';
+  if (!keyspace) throw badRequest('keyspace is required');
+  res.json({ ok: true, data: addFavoriteKeyspace(name, keyspace) });
+});
+
+connectionRouter.delete('/:name/favorites/:keyspace', (req, res) => {
+  const name = req.params.name;
+  const keyspace = req.params.keyspace;
+  if (!name || !keyspace) throw badRequest('Profile name and keyspace are required');
+  res.json({ ok: true, data: removeFavoriteKeyspace(name, keyspace) });
+});
 
 connectionRouter.post(
   '/disconnect',

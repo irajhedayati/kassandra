@@ -57,3 +57,28 @@ export function getStatus(): Promise<ConnectionStatus> {
 export function listDatacenters(): Promise<{ datacenters: string[] }> {
   return apiGet<{ datacenters: string[] }>('/api/profiles/datacenters');
 }
+
+export function listFavoriteKeyspaces(profileName: string): Promise<string[]> {
+  return apiGet<string[]>(`/api/profiles/${encodeURIComponent(profileName)}/favorites`);
+}
+
+export function addFavoriteKeyspace(
+  profileName: string,
+  keyspace: string,
+): Promise<string[]> {
+  return apiSend<string[]>(
+    'POST',
+    `/api/profiles/${encodeURIComponent(profileName)}/favorites`,
+    { keyspace },
+  );
+}
+
+export function removeFavoriteKeyspace(
+  profileName: string,
+  keyspace: string,
+): Promise<string[]> {
+  return apiSend<string[]>(
+    'DELETE',
+    `/api/profiles/${encodeURIComponent(profileName)}/favorites/${encodeURIComponent(keyspace)}`,
+  );
+}

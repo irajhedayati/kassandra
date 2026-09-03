@@ -68,6 +68,8 @@ export interface AppSettings {
   connections: ConnectionProfile[];
   last_connection_name: string;
   table_metadata: TableMetadata;
+  /** Favorite keyspace names, keyed by connection profile name. */
+  favorite_keyspaces: Record<string, string[]>;
 }
 
 export interface ConnectionStatus {

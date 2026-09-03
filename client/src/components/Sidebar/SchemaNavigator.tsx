@@ -8,11 +8,15 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { KeyspaceList, TableList } from '@kassandra/shared';
 import { listKeyspaces, listTables } from '../../api/schema.js';
 import { useSelection } from '../../state/selection.js';
+import { useConnectionStatus } from '../../state/connection.js';
+import { useFavoriteKeyspaces } from '../../state/favorites.js';
 import { SearchableSelect } from './SearchableSelect.js';
 
 export function SchemaNavigator() {
   const queryClient = useQueryClient();
   const { keyspace, table, setKeyspace, setTable } = useSelection();
+  const { data: status } = useConnectionStatus();
+  const { favorites } = useFavoriteKeyspaces(status?.profileName);
 
   const keyspacesQuery = useQuery<KeyspaceList>({
     queryKey: ['schema', 'keyspaces'],
@@ -33,6 +37,10 @@ export function SchemaNavigator() {
   };
 
   const keyspaces = keyspacesQuery.data?.keyspaces ?? [];
+  const orderedKeyspaces = [
+    ...favorites.filter((k) => keyspaces.includes(k)).sort(),
+    ...keyspaces.filter((k) => !favorites.includes(k)),
+  ];
   const tables = tablesQuery.data?.tables ?? [];
 
   return (
@@ -55,7 +63,7 @@ export function SchemaNavigator() {
         <label className="block text-xs font-medium text-slate-400">Keyspace</label>
         <SearchableSelect
           value={keyspace}
-          options={keyspaces}
+          options={orderedKeyspaces}
           onChange={setKeyspace}
           disabled={keyspacesQuery.isLoading || keyspaces.length === 0}
           placeholder={

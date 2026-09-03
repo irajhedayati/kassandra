@@ -36,6 +36,7 @@ function defaultSettings(): AppSettings {
     connections: [],
     last_connection_name: '',
     table_metadata: {},
+    favorite_keyspaces: {},
   };
 }
 
@@ -70,10 +71,15 @@ function normalizeSettings(raw: unknown): AppSettings {
     data.table_metadata && typeof data.table_metadata === 'object'
       ? (data.table_metadata as TableMetadata)
       : {};
+  const favoriteKeyspaces =
+    data.favorite_keyspaces && typeof data.favorite_keyspaces === 'object'
+      ? (data.favorite_keyspaces as Record<string, string[]>)
+      : {};
   return {
     connections,
     last_connection_name: last,
     table_metadata: tableMeta,
+    favorite_keyspaces: favoriteKeyspaces,
   };
 }
 
@@ -171,4 +177,28 @@ export function getTableMetadata(
 ): Record<string, ColumnMetadata> {
   const settings = loadSettings();
   return settings.table_metadata[tableKey(keyspace, table)] ?? {};
+}
+
+export function getFavoriteKeyspaces(profileName: string): string[] {
+  const settings = loadSettings();
+  return settings.favorite_keyspaces[profileName] ?? [];
+}
+
+export function addFavoriteKeyspace(profileName: string, keyspace: string): string[] {
+  const settings = loadSettings();
+  const existing = settings.favorite_keyspaces[profileName] ?? [];
+  if (!existing.includes(keyspace)) {
+    settings.favorite_keyspaces[profileName] = [...existing, keyspace];
+    saveSettings(settings);
+  }
+  return settings.favorite_keyspaces[profileName] ?? existing;
+}
+
+export function removeFavoriteKeyspace(profileName: string, keyspace: string): string[] {
+  const settings = loadSettings();
+  const existing = settings.favorite_keyspaces[profileName] ?? [];
+  const filtered = existing.filter((k) => k !== keyspace);
+  settings.favorite_keyspaces[profileName] = filtered;
+  saveSettings(settings);
+  return filtered;
 }
