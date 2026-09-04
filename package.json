@@ -5,7 +5,7 @@
   "description": "Web-based GUI client for Apache Cassandra",
   "license": "MIT",
   "engines": {
-    "node": ">=24"
+    "node": ">=26"
   },
   "workspaces": [
     "shared",

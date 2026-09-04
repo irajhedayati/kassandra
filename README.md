@@ -13,7 +13,12 @@ A web-based graphical client for Apache Cassandra. Schema-driven CRUD, raw CQL e
 - **Client:** React 18 + TypeScript + Vite + Tailwind CSS, with TanStack Query for server state and Zustand for client state.
 - **Single process:** Express serves the API and the built React SPA on one port.
 
-The previous Python/Streamlit implementation lives under [`legacy/`](legacy/) for reference.
+```shell
+nvm install v26
+nvm use v26.8.1 # whatever version installed
+```
+
+The previous Python/Streamlit implementation lives under [`legacy/`](legacy) for reference.
 
 ## Develop
 
