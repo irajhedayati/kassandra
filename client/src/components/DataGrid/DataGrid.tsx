@@ -11,14 +11,14 @@
  *     render as a formatted <pre> block in the cell.
  *   - Hidden columns (per Lane F metadata) are excluded from the grid.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { flexRender } from '@tanstack/react-table';
 import {
-  flexRender,
+  useLegacyTable,
   getCoreRowModel,
-  useReactTable,
-  type ColumnDef,
-} from '@tanstack/react-table';
+  type LegacyColumnDef,
+} from '@tanstack/react-table/legacy';
 import type {
   ColumnInfo,
   ColumnMetadata,
@@ -100,7 +100,7 @@ export function DataGrid({ keyspace, table }: Props) {
   const visibleColumns = useMemo<ColumnInfo[]>(() => {
     if (!schema) return [];
     return schema.columns.filter((c) => !metadata[c.name]?.hide);
-  }, [schema, metadata]);
+  }, [schema]);
 
   // Filterable columns: every column in the table, partition keys first,
   // then everything else, each group sorted by name. Filtering on regular
@@ -114,7 +114,7 @@ export function DataGrid({ keyspace, table }: Props) {
     return [...partition, ...rest];
   }, [schema]);
 
-  const tableColumns = useMemo<ColumnDef<Row>[]>(() => {
+  const tableColumns = useMemo<LegacyColumnDef<Row>[]>(() => {
     return visibleColumns.map((col) => ({
       id: col.name,
       accessorKey: col.name,
@@ -132,17 +132,17 @@ export function DataGrid({ keyspace, table }: Props) {
       ),
       cell: ({ getValue }) => renderCell(col, getValue() as CqlValue, metadata[col.name]),
     }));
-  }, [visibleColumns, metadata]);
+  }, [visibleColumns]);
 
   const rows = dataQuery.data?.rows ?? [];
 
-  const tableInstance = useReactTable({
+  const tableInstance = useLegacyTable({
     data: rows,
     columns: tableColumns,
     getCoreRowModel: getCoreRowModel(),
   });
 
-  const onApplyFilters = (e: React.FormEvent<HTMLFormElement>) => {
+  const onApplyFilters = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     // Drop empty entries before applying.
     const next: Record<string, string> = {};
@@ -364,7 +364,7 @@ function renderCell(
   col: ColumnInfo,
   value: CqlValue,
   metadata: ColumnMetadata | undefined,
-): React.ReactNode {
+): ReactNode {
   if (value === null || value === undefined) {
     return <span className="text-slate-400">null</span>;
   }
