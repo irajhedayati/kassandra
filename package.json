@@ -23,6 +23,9 @@
     "concurrently": "^9.1.0",
     "typescript": "^5.6.3"
   },
+  "overrides": {
+    "monaco-editor": "^0.55.1"
+  },
   "allowScripts": {
     "esbuild@0.21.5": true
   }
