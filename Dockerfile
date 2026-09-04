@@ -4,11 +4,6 @@
 # We use bookworm-slim (glibc) rather than alpine (musl) because Vite's
 # esbuild dependency ships separate native binaries for the two libcs;
 # alpine cross-builds via QEMU sometimes miss the musl variant.
-#
-# .npmrc and package-lock.json are excluded by .dockerignore — both are
-# tied to Apple's internal registry and aren't usable on the public
-# GitHub Actions runners that build this image. npm resolves fresh
-# against registry.npmjs.org.
 
 FROM node:24-bookworm-slim AS builder
 WORKDIR /app

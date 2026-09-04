@@ -78,7 +78,6 @@ export default {
           'Inter',
           'ui-sans-serif',
           'system-ui',
-          '-apple-system',
           'Segoe UI',
           'Roboto',
           'Helvetica Neue',
