@@ -3,8 +3,8 @@
 A web-based graphical client for Apache Cassandra. Schema-driven CRUD, raw CQL execution, and connection profile management.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-![Node](https://img.shields.io/badge/node-20%2B-green)
-![React](https://img.shields.io/badge/react-18-blue)
+![Node](https://img.shields.io/badge/node-26%2B-green)
+![React](https://img.shields.io/badge/react-19-blue)
 ![TypeScript](https://img.shields.io/badge/typescript-5-blue)
 
 ## Stack
