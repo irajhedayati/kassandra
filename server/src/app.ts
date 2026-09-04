@@ -25,7 +25,7 @@ export function createApp(): Express {
   app.use('/api/cql', cqlRouter);
   app.use('/api/metadata', metadataRouter);
 
-  app.get('/*splat', (_req, res) => {
+  app.get('/api/health', (_req, res) => {
     res.json({ ok: true });
   });
 
