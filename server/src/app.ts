@@ -25,7 +25,7 @@ export function createApp(): Express {
   app.use('/api/cql', cqlRouter);
   app.use('/api/metadata', metadataRouter);
 
-  app.get('/api/health', (_req, res) => {
+  app.get('/*splat', (_req, res) => {
     res.json({ ok: true });
   });
 
@@ -33,7 +33,7 @@ export function createApp(): Express {
   // from server/dist when running `node dist/index.js`.
   const clientDist = path.resolve(__dirname, '../../client/dist');
   app.use(express.static(clientDist));
-  app.get('*', (req, res, next) => {
+  app.get('/*splat', (req, res, next) => {
     if (req.path.startsWith('/api')) return next();
     res.sendFile(path.join(clientDist, 'index.html'), (err) => {
       if (err) next();
