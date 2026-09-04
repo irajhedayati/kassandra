@@ -33,16 +33,16 @@ const cqlValueSchema: z.ZodType<unknown> = z.lazy(() =>
     z.number(),
     z.boolean(),
     z.array(cqlValueSchema),
-    z.record(cqlValueSchema),
+    z.record(z.string(), cqlValueSchema),
   ]),
 );
 
-const rowSchema = z.record(cqlValueSchema);
+const rowSchema = z.record(z.string(), cqlValueSchema);
 
 const readBodySchema = z.object({
   pageSize: z.number().int().positive().max(1000).default(25),
   pagingState: z.string().nullable().optional(),
-  filters: z.record(z.string()).optional(),
+  filters: z.record(z.string(), z.string()).optional(),
 });
 
 const insertBodySchema = z.object({
