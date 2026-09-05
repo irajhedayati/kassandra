@@ -1,50 +1,50 @@
 /** @type {import('tailwindcss').Config} */
-// TailAdmin-flavoured palette.
-//
-// We REMAP Tailwind's `slate`, `blue`, `green`, `red` to TailAdmin's tones
-// so the components we already wrote — which use slate/blue/etc. classes
-// throughout — pick up the new look without per-component churn.
-//
-// Source: the open-source TailAdmin React dashboard design tokens.
-//   - brand blue: #3641f5 / #3c50e0 family
-//   - cool gray (their `gray-*`): #f9fafb / #f1f5f9 / #e5e7eb / ... / #1d2939
-//   - meta-green for success: #12b76a
-//   - meta-red for danger: #f04438
+// Kassandra brand palette, drawn from the logo's deep navy, electric blue,
+// and cyan gradient. Existing blue/slate utility classes inherit the brand
+// without requiring one-off colors throughout the component tree.
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
       colors: {
-        // TailAdmin's "brand" — we project it onto Tailwind `blue` so
-        // existing `bg-blue-600 / text-blue-700` classes Just Work.
         blue: {
-          50:  '#ecf3ff',
-          100: '#dde9ff',
-          200: '#c2d6ff',
-          300: '#9cb9ff',
-          400: '#7592ff',
-          500: '#5570f1',
-          600: '#3641f5', // brand
-          700: '#2a31d8',
-          800: '#252dae',
-          900: '#252e89',
-          950: '#171c50',
+          50:  '#effbff',
+          100: '#d6f6ff',
+          200: '#adefff',
+          300: '#70e4f8',
+          400: '#28cde8',
+          500: '#0aa9d1',
+          600: '#087fb8',
+          700: '#075f9e',
+          800: '#084a7d',
+          900: '#073866',
+          950: '#03244d',
         },
-        // TailAdmin's "gray" scale — projected onto `slate` for the
-        // same reason. Cooler and slightly lighter than Tailwind's
-        // default slate.
+        cyan: {
+          50:  '#edfeff',
+          100: '#cffbff',
+          200: '#a4f6fc',
+          300: '#65edf5',
+          400: '#20d8e5',
+          500: '#06bccd',
+          600: '#0797aa',
+          700: '#0d7889',
+          800: '#12616f',
+          900: '#134f5c',
+          950: '#05343f',
+        },
         slate: {
-          50:  '#f9fafb',
-          100: '#f2f4f7',
-          200: '#e4e7ec',
-          300: '#d0d5dd',
-          400: '#98a2b3',
-          500: '#667085',
-          600: '#475467',
-          700: '#344054',
-          800: '#1d2939',
-          900: '#101828',
-          950: '#0c111d',
+          50:  '#f7fafc',
+          100: '#edf4f8',
+          200: '#dce8f0',
+          300: '#bdceda',
+          400: '#8ba3b5',
+          500: '#627b90',
+          600: '#465f75',
+          700: '#30475c',
+          800: '#1b3248',
+          900: '#0d243a',
+          950: '#06182c',
         },
         green: {
           50:  '#ecfdf3',
@@ -92,8 +92,7 @@ export default {
         xl: '1rem',
       },
       boxShadow: {
-        // Subtle card shadow — TailAdmin uses a very light single-layer drop.
-        card: '0 1px 3px 0 rgba(16, 24, 40, 0.06), 0 1px 2px 0 rgba(16, 24, 40, 0.04)',
+        card: '0 1px 3px 0 rgba(3, 36, 77, 0.08), 0 1px 2px 0 rgba(3, 36, 77, 0.05)',
       },
     },
   },

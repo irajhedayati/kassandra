@@ -55,7 +55,7 @@ export function JsonHighlightField(props: FieldProps) {
           language="json"
           theme="vs-light"
           value={displayValue}
-          onChange={(v) => onChange(v ?? '')}
+          onChange={(v: string | undefined) => onChange(v ?? '')}
           onMount={handleMount}
           options={{
             readOnly: disabled,

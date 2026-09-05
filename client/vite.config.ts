@@ -3,6 +3,11 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    // Workspace dependencies are hoisted to the repository root. Force them
+    // to share the client's React runtime instead of loading a second copy.
+    dedupe: ['react', 'react-dom'],
+  },
   server: {
     port: 5173,
     proxy: {

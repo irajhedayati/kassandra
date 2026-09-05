@@ -20,21 +20,19 @@ export function App() {
 
   return (
     <div className="flex h-full bg-slate-100">
-      <aside className="flex w-72 shrink-0 flex-col overflow-y-auto border-r border-slate-800/40 bg-slate-900 text-slate-200">
-        <div className="border-b border-slate-800/60 px-6 py-5">
-          <div className="flex items-center gap-2">
-            <span className="grid h-8 w-8 place-items-center rounded-lg bg-blue-600 text-sm font-bold text-white">
-              k
-            </span>
-            <h1 className="text-lg font-semibold text-white">kassandra</h1>
-          </div>
-          <p className="mt-1 text-xs text-slate-400">Cassandra GUI</p>
+      <aside className="flex w-72 shrink-0 flex-col overflow-y-auto border-r border-cyan-400/20 bg-gradient-to-b from-blue-950 via-blue-900 to-cyan-950 text-slate-200">
+        <div className="border-b border-cyan-400/20 px-6 py-5">
+          <img
+            src="/logo.png"
+            alt="Kassandra — GUI for Cassandra databases"
+            className="w-full rounded-lg bg-white shadow-lg shadow-blue-950/30 ring-1 ring-cyan-300/30"
+          />
         </div>
         <div className="flex-1 overflow-y-auto px-4 py-4">
           <ConnectionPanel />
           {connected && (
             <>
-              <hr className="my-5 border-slate-800/60" />
+              <hr className="my-5 border-cyan-400/20" />
               <SchemaNavigator />
             </>
           )}
@@ -42,7 +40,7 @@ export function App() {
       </aside>
 
       <main className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex h-16 items-center border-b border-slate-200 bg-white px-6 shadow-sm">
+        <header className="flex h-16 items-center border-b border-blue-200 bg-gradient-to-r from-white via-blue-50 to-cyan-50 px-6 shadow-sm">
           <div className="text-sm text-slate-500">
             {connected ? (
               <>
@@ -83,7 +81,7 @@ export function App() {
           </div>
         </header>
 
-        <div className="flex-1 overflow-auto p-6">
+        <div className="flex-1 overflow-auto bg-gradient-to-br from-slate-100 via-blue-50/40 to-cyan-50/60 p-6">
           {!connected ? (
             <div className="card p-6 text-slate-600">
               Connect to a Cassandra cluster from the sidebar to get started.

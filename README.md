@@ -1,11 +1,22 @@
 # kassandra: Cassandra GUI Client
 
+<p align="center">
+  <img src="logo.png" alt="Kassandra — GUI for Cassandra databases" width="360">
+</p>
+
 A web-based graphical client for Apache Cassandra. Schema-driven CRUD, raw CQL execution, and connection profile management.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Node](https://img.shields.io/badge/node-26%2B-green)
 ![React](https://img.shields.io/badge/react-19-blue)
 ![TypeScript](https://img.shields.io/badge/typescript-5-blue)
+[![GitHub Release](https://img.shields.io/github/v/release/irajhedayati/py-sandra)](https://github.com/irajhedayati/py-sandra/releases)
+[![Docker Pulls](https://img.shields.io/docker/pulls/hedayati/kassandra)](https://hub.docker.com/r/hedayati/kassandra)
+[![Docker Image Size](https://img.shields.io/docker/image-size/hedayati/kassandra/latest)](https://hub.docker.com/r/hedayati/kassandra)
+[![Open Issues](https://img.shields.io/github/issues/irajhedayati/py-sandra)](https://github.com/irajhedayati/py-sandra/issues)
+[![Last Commit](https://img.shields.io/github/last-commit/irajhedayati/py-sandra)](https://github.com/irajhedayati/py-sandra/commits)
+[![CI](https://github.com/irajhedayati/kassandra/actions/workflows/docker-image.yml/badge.svg)](https://github.com/irajhedayati/py-sandra/actions/workflows/ci.yml)
+[![CI](https://github.com/irajhedayati/kassandra/actions/workflows/release.yml/badge.svg)](https://github.com/irajhedayati/py-sandra/actions/workflows/ci.yml)
 
 ## Stack
 
