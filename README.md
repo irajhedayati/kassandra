@@ -1,4 +1,4 @@
-# kassandra: Cassandra GUI Client
+# kassandra: See inside Cassandra
 
 <p align="center">
   <img src="logo.png" alt="Kassandra — GUI for Cassandra databases" width="360">
@@ -21,7 +21,8 @@ A web-based graphical client for Apache Cassandra. Schema-driven CRUD, raw CQL e
 ## Stack
 
 - **Server:** Node.js + Express + TypeScript, using the official DataStax `cassandra-driver`.
-- **Client:** React 18 + TypeScript + Vite + Tailwind CSS, with TanStack Query for server state and Zustand for client state.
+- **Client:** React 19 + TypeScript + Vite + Tailwind CSS, with TanStack Query for server state and Zustand for 
+  client state.
 - **Single process:** Express serves the API and the built React SPA on one port.
 
 ```shell
