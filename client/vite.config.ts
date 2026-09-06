@@ -1,8 +1,14 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
+import lockfile from '../package-lock.json' with { type: 'json' };
 
 export default defineConfig({
   plugins: [react()],
+  define: {
+    'import.meta.env.VITE_MONACO_VERSION': JSON.stringify(
+      lockfile.packages['node_modules/monaco-editor'].version,
+    ),
+  },
   resolve: {
     // Workspace dependencies are hoisted to the repository root. Force them
     // to share the client's React runtime instead of loading a second copy.
