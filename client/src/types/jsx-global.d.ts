@@ -1,7 +1,7 @@
 // @types/react 19 removed the ambient global `JSX` namespace in favor of
 // `React.JSX`. Some third-party component libraries (e.g. @monaco-editor/react)
 // still reference the bare global `JSX.Element` in their .d.ts files, which
-// resolves to `any` without this shim — silently widening prop/callback types
+// resolves to `any` without this shim; silently widening prop/callback types
 // (e.g. Editor's onChange) to `any` and breaking `noImplicitAny` checks.
 // https://react.dev/blog/2024/04/25/react-19-upgrade-guide#types-changes
 import 'react';

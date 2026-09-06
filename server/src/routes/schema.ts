@@ -27,7 +27,7 @@ export const schemaRouter = Router();
 
 // Express 5 types route params as `string | string[] | undefined` (repeated
 // path segments produce arrays). None of these routes use repeated segments,
-// so an array value would indicate malformed input — treat it like "missing".
+// so an array value would indicate malformed input; treat it like "missing".
 function requireStringParam(req: Request, name: string): string {
   const value = req.params[name];
   if (typeof value !== 'string' || value === '') {

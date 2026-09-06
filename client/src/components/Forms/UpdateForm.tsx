@@ -130,7 +130,7 @@ export function UpdateForm(props: Props) {
             diff.mapDiffs,
           );
           pushQuery(cql);
-          setInfoMessage('UPDATE statement sent to the CQL editor below — review and execute it there.');
+          setInfoMessage('UPDATE statement sent to the CQL editor below; review and execute it there.');
           onSuccess?.();
         }}
       />

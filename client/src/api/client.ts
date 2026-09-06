@@ -35,7 +35,7 @@ async function unwrap<T>(res: Response): Promise<T> {
     if (json.ok) return json.data as T;
     throw new ApiError(json.message, res.status);
   }
-  // QueryResponse — caller wants the envelope verbatim.
+  // QueryResponse; caller wants the envelope verbatim.
   if (!res.ok && 'success' in json && !json.success) {
     throw new ApiError(json.message, res.status);
   }

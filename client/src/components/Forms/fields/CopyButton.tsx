@@ -17,7 +17,7 @@ export function CopyButton({ value, label }: Props) {
       setCopied(true);
       setTimeout(() => setCopied(false), 1200);
     } catch {
-      // Clipboard API unavailable (e.g. insecure context) — ignore silently.
+      // Clipboard API unavailable (e.g. insecure context); ignore silently.
     }
   }
 

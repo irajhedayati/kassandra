@@ -135,7 +135,7 @@ export function ConnectionForm({ open, onClose, initial }: Props) {
   const originalName = useMemo(() => initial?.name ?? '', [initial]);
 
   // Fetch the currently active cluster's DC list as a hint for the
-  // "Local datacenter" field. 409 (not connected) is fine — we just
+  // "Local datacenter" field. 409 (not connected) is fine; we just
   // don't show the hint. Only fetched while the dialog is open so we
   // don't ping the server unnecessarily.
   const datacentersQuery = useQuery({
@@ -382,7 +382,7 @@ export function ConnectionForm({ open, onClose, initial }: Props) {
               value={form.local_datacenter}
               onChange={(e) => update('local_datacenter', e.target.value)}
               className="w-full rounded border border-slate-300 px-2 py-1 text-sm"
-              placeholder="e.g. dc1 — leave empty for no DC preference"
+              placeholder="e.g. dc1; leave empty for no DC preference"
               list="kassandra-available-datacenters"
               autoComplete="off"
             />

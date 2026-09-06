@@ -62,7 +62,7 @@ export const CQL_TYPE_INFO: Record<string, CqlTypeInfo> = {
   blob: { widget: 'blob_hex', placeholder: 'Hex string' },
   inet: { widget: 'inet', placeholder: 'IP address' },
 
-  // Collection placeholders — used when no parametric type is available.
+  // Collection placeholders; used when no parametric type is available.
   list: { widget: 'list', json_encoded: true, placeholder: 'JSON array' },
   set: { widget: 'set', json_encoded: true, placeholder: 'JSON array' },
   map: { widget: 'map', json_encoded: true, placeholder: 'JSON object' },

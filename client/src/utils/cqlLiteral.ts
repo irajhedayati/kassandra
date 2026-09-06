@@ -147,7 +147,7 @@ export function buildUpdateCql(
       const literalEntries = setEntries
         .map(([k, v]) => `${valueToCqlLiteral(k, kv.keyType)}: ${valueToCqlLiteral(v, kv.valueType)}`)
         .join(', ');
-      // Merge only the changed/added keys — leaves other entries untouched.
+      // Merge only the changed/added keys; leaves other entries untouched.
       setParts.push(`${name} = ${name} + {${literalEntries}}`);
     }
     for (const k of diff.deleted) {

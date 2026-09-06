@@ -1,4 +1,4 @@
-# Kassandra: Cassandra GUI Client — User Documentation
+# Kassandra: Quick Start
 
 ## Overview
 

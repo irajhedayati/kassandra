@@ -24,7 +24,7 @@ export function App() {
         <div className="border-b border-cyan-400/20 px-6 py-5">
           <img
             src="/logo.png"
-            alt="Kassandra — GUI for Cassandra databases"
+            alt="Kassandra; GUI for Cassandra databases"
             className="w-full rounded-lg bg-white shadow-lg shadow-blue-950/30 ring-1 ring-cyan-300/30"
           />
         </div>

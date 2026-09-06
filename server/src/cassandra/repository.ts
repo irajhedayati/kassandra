@@ -120,7 +120,7 @@ function normalizeValue(value: unknown): CqlValue {
       }
       return out;
     }
-    // Custom driver type — fall back to toString().
+    // Custom driver type; fall back to toString().
     if (typeof obj['toString'] === 'function') {
       return obj['toString']();
     }
@@ -150,7 +150,7 @@ export class CassandraRepository {
     for (const [colName, val] of filterEntries) {
       const col = schema.columns.find((c) => c.name === colName);
       if (!col) {
-        // Bail loudly rather than send a malformed query — the client
+        // Bail loudly rather than send a malformed query; the client
         // should only send filter keys that match a real column.
         const err = new Error(`Unknown filter column: ${colName}`);
         (err as { status?: number }).status = 400;

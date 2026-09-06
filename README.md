@@ -1,6 +1,6 @@
 
 <div align="center">
-  <img src="logo.png" alt="Kassandra — GUI for Cassandra databases" width="360">
+  <img src="logo.png" alt="Kassandra; GUI for Cassandra databases" width="360">
 
 # Kassandra: See inside Cassandra
 
@@ -47,7 +47,7 @@ npm install
 npm run dev      # runs the server (8501) and the Vite dev server (5173) in parallel
 ```
 
-Open http://localhost:5173 — Vite proxies `/api` to the server on 8501.
+Open http://localhost:5173; Vite proxies `/api` to the server on 8501.
 
 ## Build & run
 
@@ -77,7 +77,7 @@ Useful for:
 - **Compliance / data residency** requirements that pin reads to a specific region.
 - **Failover testing** of how the app behaves when a DC is down.
 
-If you set a DC that doesn't exist in the cluster, the app refuses to connect and shows the list of available DC names — no silent fallback. Leaving the field empty preserves the prior behavior (plain round-robin over the configured contact points, no DC preference).
+If you set a DC that doesn't exist in the cluster, the app refuses to connect and shows the list of available DC names; no silent fallback. Leaving the field empty preserves the prior behavior (plain round-robin over the configured contact points, no DC preference).
 
 The form auto-completes the field from the currently-connected cluster's DC list (visible while editing if you're already connected to a cluster), so you don't have to memorize names. Programmatically, the list is also exposed at `GET /api/profiles/datacenters` while connected.
 
@@ -89,4 +89,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT; see [LICENSE](LICENSE).

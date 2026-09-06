@@ -104,7 +104,7 @@ export function DataGrid({ keyspace, table }: Props) {
 
   // Filterable columns: every column in the table, partition keys first,
   // then everything else, each group sorted by name. Filtering on regular
-  // columns triggers ALLOW FILTERING server-side — acceptable here since
+  // columns triggers ALLOW FILTERING server-side; acceptable here since
   // the user asked for it explicitly.
   const filterColumns = useMemo(() => {
     if (!schema) return [];

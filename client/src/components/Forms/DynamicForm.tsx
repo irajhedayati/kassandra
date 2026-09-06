@@ -70,7 +70,7 @@ export interface DynamicFormProps {
     /** Initial values keyed by column name. Used by the update form. */
     initial?: Row | undefined;
     /**
-     * Submission handler. Values are the form's string-keyed state — collection
+     * Submission handler. Values are the form's string-keyed state; collection
      * fields hold JSON strings (the caller / server is responsible for parsing).
      * In update mode, `diff` reports exactly what changed since `initial`, so
      * the caller can generate a minimal UPDATE (and, for map columns, only
@@ -200,7 +200,7 @@ function parseMapObject(raw: string): Record<string, string> {
             return out;
         }
     } catch {
-        // unparsable — treat as empty; validateCollectionsJson already
+        // unparsable; treat as empty; validateCollectionsJson already
         // surfaces a proper error to the user before this ever runs.
     }
     return {};

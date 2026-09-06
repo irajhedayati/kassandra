@@ -1,7 +1,7 @@
 /**
  * Page-size selector + Next/Reset buttons for the data grid.
  * Cassandra paging is forward-only, so there's no explicit "Previous"
- * — Reset clears the paging state to start from the first page.
+ *; Reset clears the paging state to start from the first page.
  */
 interface Props {
   pageSize: number;

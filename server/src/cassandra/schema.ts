@@ -1,5 +1,5 @@
 /**
- * Schema introspection — queries system_schema.keyspaces / .tables / .columns.
+ * Schema introspection; queries system_schema.keyspaces / .tables / .columns.
  * Mirrors legacy/src/database/model.py SchemaInspector (lines 250–376).
  *
  * System keyspaces filtered out:

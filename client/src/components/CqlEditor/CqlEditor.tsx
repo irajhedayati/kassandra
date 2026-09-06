@@ -4,7 +4,7 @@
  *
  * Layout:
  *  - Mounted at the bottom of the main pane (see App.tsx).
- *  - Independent of keyspace/table selection — fires raw CQL against the
+ *  - Independent of keyspace/table selection; fires raw CQL against the
  *    active session.
  *
  * Shortcuts:

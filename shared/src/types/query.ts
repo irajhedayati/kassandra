@@ -1,5 +1,5 @@
 /**
- * Query result envelopes — used by both the data grid (paginated table reads)
+ * Query result envelopes; used by both the data grid (paginated table reads)
  * and the raw CQL editor.
  *
  * Cassandra paging-state is server-side opaque bytes; we encode it as base64

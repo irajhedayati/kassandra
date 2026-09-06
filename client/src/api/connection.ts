@@ -52,7 +52,7 @@ export function getStatus(): Promise<ConnectionStatus> {
 /**
  * Datacenters visible to the currently active client. Returns a sorted,
  * de-duplicated list. The server responds 409 (ApiError) when no
- * connection is active — callers should handle that case gracefully.
+ * connection is active; callers should handle that case gracefully.
  */
 export function listDatacenters(): Promise<{ datacenters: string[] }> {
   return apiGet<{ datacenters: string[] }>('/api/profiles/datacenters');

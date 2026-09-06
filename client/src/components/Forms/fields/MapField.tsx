@@ -21,7 +21,7 @@ function parseEntries(value: string): Entry[] {
       return Object.entries(obj).map(([key, v]) => ({ key, value: String(v ?? '') }));
     }
   } catch {
-    // fall through — return empty, treat as unparsable
+    // fall through; return empty, treat as unparsable
   }
   return [];
 }
@@ -41,7 +41,7 @@ function serializeEntries(entries: Entry[]): string {
  *
  * Entries are kept in local state (rather than re-derived from `value` on
  * every render) because serialization drops rows with an empty/duplicate
- * key — re-parsing after each keystroke would make newly-added or
+ * key; re-parsing after each keystroke would make newly-added or
  * in-progress rows disappear.
  */
 export function MapField(props: FieldProps) {

@@ -15,7 +15,7 @@ interface Props {
 
 /**
  * Schema-driven INSERT form. Loads the table schema, renders a
- * `DynamicForm` in insert mode, and — instead of inserting directly —
+ * `DynamicForm` in insert mode, and; instead of inserting directly;
  * generates the equivalent `INSERT` statement and pushes it into the CQL
  * editor so the user can review/edit it before running it themselves.
  */
@@ -67,7 +67,7 @@ export function InsertForm(props: Props) {
         onSubmit={(values) => {
           const cql = buildInsertCql(schema.keyspace, schema.table_name, schema.columns, values);
           pushQuery(cql);
-          setInfoMessage('INSERT statement sent to the CQL editor below — review and execute it there.');
+          setInfoMessage('INSERT statement sent to the CQL editor below; review and execute it there.');
         }}
       />
     </div>

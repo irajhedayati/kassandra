@@ -135,7 +135,7 @@ connectionRouter.delete('/:name', (req, res) => {
 });
 
 // IMPORTANT: /status, /datacenters, /connect, /disconnect must be declared
-// before any catch-all `/:name` routes — they are, because we use distinct
+// before any catch-all `/:name` routes; they are, because we use distinct
 // verbs.
 connectionRouter.get('/status', (_req, res) => {
   res.json({ ok: true, data: status() });

@@ -1,5 +1,5 @@
 /**
- * Searchable dropdown (combobox) built from scratch — no external
+ * Searchable dropdown (combobox) built from scratch; no external
  * listbox/combobox library is installed in this project. Filters options by
  * substring match as the user types; falls back to a plain option list when
  * the filter text is empty. Visual/interaction behavior follows Preline's

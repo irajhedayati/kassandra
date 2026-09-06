@@ -38,7 +38,7 @@ export function JsonHighlightField(props: FieldProps) {
   try {
     if (value.trim()) displayValue = JSON.stringify(JSON.parse(value), null, 2);
   } catch {
-    // leave as-is — invalid/partial JSON while typing
+    // leave as-is; invalid/partial JSON while typing
   }
 
   return (

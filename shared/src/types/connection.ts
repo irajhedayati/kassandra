@@ -2,7 +2,7 @@
  * Connection profiles. Persisted at ~/.kassandra/config.json
  * (KASSANDRA_HOME env var overrides the directory).
  *
- * Mirrors the legacy Python ConnectionProfile shape — see
+ * Mirrors the legacy Python ConnectionProfile shape; see
  * legacy/src/config/settings.py.
  */
 
