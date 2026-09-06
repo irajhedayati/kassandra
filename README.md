@@ -1,22 +1,30 @@
-# kassandra: See inside Cassandra
 
-<p align="center">
+<div align="center">
   <img src="logo.png" alt="Kassandra — GUI for Cassandra databases" width="360">
-</p>
 
-A web-based graphical client for Apache Cassandra. Schema-driven CRUD, raw CQL execution, and connection profile management.
+# Kassandra: See inside Cassandra
 
+**A web-based graphical client for Apache Cassandra. Schema-driven CRUD, raw CQL execution, and connection profile 
+management.**
+
+[![GitHub Release](https://img.shields.io/github/v/release/irajhedayati/kassandra)](https://github.com/irajhedayati/kassandra/releases)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
+[![CI](https://github.com/irajhedayati/kassandra/actions/workflows/docker-image.yml/badge.svg)](https://github.com/irajhedayati/kassandra/actions/workflows/ci.yml)
+[![CI](https://github.com/irajhedayati/kassandra/actions/workflows/release.yml/badge.svg)](https://github.com/irajhedayati/kassandra/actions/workflows/ci.yml)
+[![Open Issues](https://img.shields.io/github/issues/irajhedayati/kassandra)](https://github.com/irajhedayati/kassandra/issues)
+[![Last Commit](https://img.shields.io/github/last-commit/irajhedayati/kassandra)](https://github.com/irajhedayati/kassandra/commits)
+
 ![Node](https://img.shields.io/badge/node-26%2B-green)
 ![React](https://img.shields.io/badge/react-19-blue)
 ![TypeScript](https://img.shields.io/badge/typescript-5-blue)
-[![GitHub Release](https://img.shields.io/github/v/release/irajhedayati/kassandra)](https://github.com/irajhedayati/kassandra/releases)
+
+[![Docker Image Version](https://img.shields.io/docker/v/hedayati/kassandra)](https://hub.docker.com/r/hedayati/kassandra)
 [![Docker Pulls](https://img.shields.io/docker/pulls/hedayati/kassandra)](https://hub.docker.com/r/hedayati/kassandra)
 [![Docker Image Size](https://img.shields.io/docker/image-size/hedayati/kassandra/latest)](https://hub.docker.com/r/hedayati/kassandra)
-[![Open Issues](https://img.shields.io/github/issues/irajhedayati/kassandra)](https://github.com/irajhedayati/kassandra/issues)
-[![Last Commit](https://img.shields.io/github/last-commit/irajhedayati/kassandra)](https://github.com/irajhedayati/kassandra/commits)
-[![CI](https://github.com/irajhedayati/kassandra/actions/workflows/docker-image.yml/badge.svg)](https://github.com/irajhedayati/kassandra/actions/workflows/ci.yml)
-[![CI](https://github.com/irajhedayati/kassandra/actions/workflows/release.yml/badge.svg)](https://github.com/irajhedayati/kassandra/actions/workflows/ci.yml)
+
+</div>
+
+---
 
 ## Stack
 

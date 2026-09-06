@@ -35,7 +35,11 @@ Before you can query data, you need to tell kassandra where your cluster lives.
 4. Click **Save Connection**.
 
 Connect to the local Cassandra
-![Create Connection](1.create-connection.png)
+
+<div align="center">
+<!--suppress CheckImageSize -->
+<img src="1.create-connection.png" alt="Create Connection" width="800" />
+</div>
 
 ## 4. Connecting and Schema Navigation
 
@@ -45,7 +49,6 @@ Once saved, your connection will appear in the **Select Connection** dropdown.
 * **Schema Exploration:** Use the **Keyspace** and **Table** dropdowns to navigate through your database. 
   If you’ve just made changes via CQL, hit the **Refresh** button to update the list.
 
-![Connect](2.connect.png)
 ## 5. Using the CQL Editor
 
 For heavy lifting like schema creation or complex joins, use the built-in **CQL Editor**.
@@ -62,8 +65,11 @@ WITH replication = {
   'replication_factor': 1
 };
 ```
+<div align="center">
 
-![CQL Editor](3.cql-editor.png)
+![CQL Editor](3.cql-editor.gif)
+
+</div>
 
 ## 6. Browsing and Filtering Data
 
@@ -105,6 +111,12 @@ CREATE TABLE demo_shop.users (
 );
 ```
 
+<div align="center">
+
+![CQL Editor](insert.gif)
+
+</div>
+
 ### Sample Data
 
 ```sql
@@ -139,9 +151,13 @@ VALUES (
 );
 ```
 
-![Users Table](4.user.png)
-![Users Data](5.users-data.png)
-![Filter](6.users-filter.png)
+<div align="center">
+
+<!--suppress CheckImageSize -->
+<img src="data_browser.png" alt="Data Browser" width="640" />
+
+</div>
+
 Great for:
 
 * Showing map schema editor (`profile`)
@@ -167,7 +183,6 @@ CREATE TABLE demo_shop.products (
     PRIMARY KEY (product_id)
 );
 ```
-![Products](7.products.png)
 ### Sample Data
 
 ```sql
@@ -225,8 +240,6 @@ CREATE TABLE demo_shop.orders (
     PRIMARY KEY (user_id, order_id)
 ) WITH CLUSTERING ORDER BY (order_id DESC);
 ```
-
-![Orders](8.orders.png)
 
 ### Insert Sample Orders
 

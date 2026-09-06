@@ -204,10 +204,11 @@ export function ConnectionForm({ open, onClose, initial }: Props) {
   const deleting = deleteMutation.isPending;
 
   return (
-    <div
+    <dialog
       className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/40 p-6 overflow-y-auto"
-      role="dialog"
       aria-modal="true"
+      open={open}
+      style={{margin: "auto"}}
     >
       <div className="w-full max-w-xl rounded-lg bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
@@ -445,7 +446,7 @@ export function ConnectionForm({ open, onClose, initial }: Props) {
           </div>
         </form>
       </div>
-    </div>
+    </dialog>
   );
 }
 
