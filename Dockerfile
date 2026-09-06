@@ -7,7 +7,7 @@
 
 FROM node:24-bookworm-slim AS builder
 WORKDIR /app
-COPY package.json ./
+COPY package.json package-lock.json ./
 COPY shared/package.json ./shared/
 COPY server/package.json ./server/
 COPY client/package.json ./client/
