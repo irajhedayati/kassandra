@@ -2,7 +2,8 @@
 <div align="center">
   <img src="logo.png" alt="Kassandra; GUI for Cassandra databases" width="360">
 
-# Kassandra: See inside Cassandra
+# Kassandra
+### See inside Cassandra.
 
 Kassandra is an open-source web GUI for Apache Cassandra.
 
@@ -27,11 +28,51 @@ Explore keyspaces and tables, inspect and modify data, run CQL, and manage Cassa
 [![Docker Image Size](https://img.shields.io/docker/image-size/hedayati/kassandra/latest)](https://hub.docker.com/r/hedayati/kassandra)
 
 ---
+
+### Browse and query your Cassandra data
+
 <img src="docs/3.cql-editor.gif" alt="Data Browser" width="640" />
+
+### Edit data without writing CQL
 
 ![CQL Editor](docs/insert.gif)
 
 </div>
+
+---
+
+## Features
+
+| Feature                          | Description                                                              |
+|----------------------------------|--------------------------------------------------------------------------|
+| **Schema Browser**               | Explore keyspaces, tables, columns, partition keys, and clustering keys. |
+| **Data Browser**                 | Inspect Cassandra table data directly from the UI.                       |
+| **Schema-aware CRUD**            | Insert, update, and delete rows through schema-driven forms.             |
+| **CQL Editor**                   | Run raw CQL when you need full control.                                  |
+| **Connection Profiles**          | Save and switch between Cassandra cluster connections.                   |
+| **Datacenter-aware Routing**     | Prefer a selected local DC and fall back to remote DCs when necessary.   |
+| **DC Validation & Autocomplete** | Discover available datacenters and prevent invalid DC configuration.     |
+| **Docker Ready**                 | Run Kassandra locally or as a self-hosted container.                     |
+| **Open Source**                  | MIT licensed and built for community contribution.                       |
+---
+
+## Quick Start
+
+```bash
+docker run --rm \
+  -p 8501:8501 \
+  -v ~/.kassandra:/root/.kassandra \
+  hedayati/kassandra
+```  
+
+---
+
+## Why Kassandra?
+
+`cqlsh` is excellent when you know the exact query you want to run.
+
+Kassandra is for the other moments: exploring an unfamiliar schema, checking a row, editing data, switching between 
+clusters, or simply seeing what's inside Cassandra without writing a query first.
 
 ---
 
