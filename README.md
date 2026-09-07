@@ -4,8 +4,12 @@
 
 # Kassandra: See inside Cassandra
 
-**A web-based graphical client for Apache Cassandra. Schema-driven CRUD, raw CQL execution, and connection profile 
-management.**
+Kassandra is an open-source web GUI for Apache Cassandra.
+
+Explore keyspaces and tables, inspect and modify data, run CQL, and manage Cassandra connections without living in
+`cqlsh`.
+
+**Runs locally or in Docker. No hosted service required.**
 
 [![GitHub Release](https://img.shields.io/github/v/release/irajhedayati/kassandra)](https://github.com/irajhedayati/kassandra/releases)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
