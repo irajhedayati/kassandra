@@ -22,6 +22,11 @@ management.**
 [![Docker Pulls](https://img.shields.io/docker/pulls/hedayati/kassandra)](https://hub.docker.com/r/hedayati/kassandra)
 [![Docker Image Size](https://img.shields.io/docker/image-size/hedayati/kassandra/latest)](https://hub.docker.com/r/hedayati/kassandra)
 
+---
+<img src="docs/3.cql-editor.gif" alt="Data Browser" width="640" />
+
+![CQL Editor](docs/insert.gif)
+
 </div>
 
 ---
