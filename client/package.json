@@ -18,13 +18,13 @@
     "@tanstack/react-table": "^9.2.4",
     "monaco-editor": "^0.56.0",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8",
+    "react-dom": "^19.3.0",
     "zustand": "^5.0.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
     "@types/react": "^19.2.18",
-    "@types/react-dom": "^19.2.5",
+    "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.49",
