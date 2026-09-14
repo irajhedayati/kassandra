@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { isStringStringMap } from '@kassandra/shared';
+import { isStringStringMap, type MapSchemaEntry } from '@kassandra/shared';
 import {
   fieldLabel,
   labelClass,
@@ -26,10 +26,26 @@ function parseEntries(value: string): Entry[] {
   return [];
 }
 
+/**
+ * Merge in any `map_schema`-defined keys missing from `entries`, as empty
+ * rows ready for the user to fill in. Purely a display concern — these
+ * rows are dropped again by `serializeEntries` until given a value, so an
+ * untouched schema key never gets written to the column.
+ */
+function withSchemaKeys(entries: Entry[], mapSchema: MapSchemaEntry[] | undefined): Entry[] {
+  if (!mapSchema || mapSchema.length === 0) return entries;
+  const present = new Set(entries.map((e) => e.key));
+  const missing = mapSchema.filter((s) => !present.has(s.key)).map((s) => ({ key: s.key, value: '' }));
+  return missing.length === 0 ? entries : [...entries, ...missing];
+}
+
 function serializeEntries(entries: Entry[]): string {
   const obj: Record<string, string> = {};
   for (const { key, value } of entries) {
-    if (key.trim() === '') continue;
+    // Drop rows with no key, and rows whose value was never filled in
+    // (e.g. an empty entry seeded from the column's `map_schema`) — an
+    // untouched blank row should not be written as an empty-string value.
+    if (key.trim() === '' || value === '') continue;
     obj[key] = value;
   }
   return JSON.stringify(obj);
@@ -45,20 +61,20 @@ function serializeEntries(entries: Entry[]): string {
  * in-progress rows disappear.
  */
 export function MapField(props: FieldProps) {
-  const { column, value, onChange, disabled, placeholder } = props;
+  const { column, value, onChange, disabled, placeholder, mapSchema } = props;
 
   const isTupleEditor = isStringStringMap(column.cql_type);
-  const [entries, setEntries] = useState<Entry[]>(() => parseEntries(value));
+  const [entries, setEntries] = useState<Entry[]>(() => withSchemaKeys(parseEntries(value), mapSchema));
   const lastEmitted = useRef<string>(value);
 
   useEffect(() => {
     // Only resync from the parent-controlled value when it changed for a
     // reason other than our own onChange (e.g. switching rows in RowDetail).
     if (value !== lastEmitted.current) {
-      setEntries(parseEntries(value));
+      setEntries(withSchemaKeys(parseEntries(value), mapSchema));
       lastEmitted.current = value;
     }
-  }, [value]);
+  }, [value, mapSchema]);
 
   if (!isTupleEditor) {
     return (

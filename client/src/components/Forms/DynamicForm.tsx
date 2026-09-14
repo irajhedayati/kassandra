@@ -311,6 +311,9 @@ export function DynamicForm(props: DynamicFormProps) {
                         onChange: (v) => setValue(column.name, v),
                         disabled,
                         ...(placeholder !== undefined ? {placeholder} : {}),
+                        ...(metadata?.[column.name]?.map_schema
+                            ? {mapSchema: metadata[column.name]?.map_schema}
+                            : {}),
                     };
                     let field: React.ReactNode;
                     if (enumValues) {

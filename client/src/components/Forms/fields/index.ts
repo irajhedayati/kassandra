@@ -6,7 +6,7 @@
  * Key]" / "[Clustering Key]" suffix when applicable).
  */
 
-import type { ColumnInfo } from '@kassandra/shared';
+import type { ColumnInfo, MapSchemaEntry } from '@kassandra/shared';
 
 export interface FieldProps {
   column: ColumnInfo;
@@ -15,6 +15,8 @@ export interface FieldProps {
   onChange: (value: string) => void;
   disabled?: boolean;
   placeholder?: string;
+  /** For map<string,string> columns: user-defined known keys (Table Info), used to pre-populate the entry editor. */
+  mapSchema?: MapSchemaEntry[];
 }
 
 export function fieldLabel(column: ColumnInfo): string {
