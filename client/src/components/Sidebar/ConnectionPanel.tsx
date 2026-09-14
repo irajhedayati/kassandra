@@ -6,6 +6,8 @@
  */
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faPlug, faPlugCircleXmark, faRotate } from '@fortawesome/free-solid-svg-icons';
 import type { ConnectionProfile, ConnectionStatus } from '@kassandra/shared';
 import {
   connect,
@@ -14,6 +16,7 @@ import {
   listProfiles,
 } from '../../api/connection.js';
 import { ConnectionForm } from '../Dialogs/ConnectionForm.js';
+import { SearchableSelect } from './SearchableSelect.js';
 import { useSelection } from '../../state/selection.js';
 
 export function ConnectionPanel() {
@@ -87,6 +90,23 @@ export function ConnectionPanel() {
     },
   });
 
+  const reconnectMutation = useMutation({
+    mutationFn: async (name: string) => {
+      await disconnect();
+      await connect(name);
+    },
+    onSuccess: async () => {
+      setError(null);
+      setKeyspace(null);
+      await queryClient.invalidateQueries({ queryKey: ['connection', 'status'] });
+      await queryClient.invalidateQueries({ queryKey: ['connection', 'datacenters'] });
+      await queryClient.invalidateQueries({ queryKey: ['schema'] });
+    },
+    onError: (err: unknown) => {
+      setError(err instanceof Error ? err.message : String(err));
+    },
+  });
+
   function openNew() {
     setEditingProfile(null);
     setDialogMode('new');
@@ -112,31 +132,40 @@ export function ConnectionPanel() {
             No profiles yet. Create one to get started.
           </p>
         ) : (
-          <select
-            value={selectedName}
-            onChange={(e) => setSelectedName(e.target.value)}
+          <SearchableSelect
+            value={selectedName || null}
+            options={profiles.map((p) => p.name)}
+            placeholder="Select a profile…"
             disabled={connected || connectMutation.isPending}
-            className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:opacity-60"
-          >
-            {profiles.map((p) => (
-              <option key={p.name} value={p.name} className="bg-slate-800 text-slate-100">
-                {p.name}
-              </option>
-            ))}
-          </select>
+            onChange={(v) => setSelectedName(v ?? '')}
+          />
         )}
       </div>
 
       <div className="flex gap-2">
         {connected ? (
-          <button
-            type="button"
-            onClick={() => disconnectMutation.mutate()}
-            disabled={disconnectMutation.isPending}
-            className="flex-1 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 transition hover:bg-slate-700 disabled:opacity-60"
-          >
-            {disconnectMutation.isPending ? 'Disconnecting...' : 'Disconnect'}
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={() => disconnectMutation.mutate()}
+              disabled={disconnectMutation.isPending || reconnectMutation.isPending}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 transition hover:bg-slate-700 disabled:opacity-60"
+            >
+              <FontAwesomeIcon icon={faPlugCircleXmark} />
+              {disconnectMutation.isPending ? 'Disconnecting...' : 'Disconnect'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (status?.profileName) reconnectMutation.mutate(status.profileName);
+              }}
+              disabled={!status?.profileName || disconnectMutation.isPending || reconnectMutation.isPending}
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 transition hover:bg-slate-700 disabled:opacity-60"
+            >
+              <FontAwesomeIcon icon={faRotate} />
+              {reconnectMutation.isPending ? 'Reconnecting...' : 'Reconnect'}
+            </button>
+          </>
         ) : (
           <button
             type="button"
@@ -144,8 +173,9 @@ export function ConnectionPanel() {
               if (selectedName) connectMutation.mutate(selectedName);
             }}
             disabled={!selectedName || connectMutation.isPending}
-            className="flex-1 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-60"
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-60"
           >
+            <FontAwesomeIcon icon={faPlug} />
             {connectMutation.isPending ? 'Connecting...' : 'Connect'}
           </button>
         )}
