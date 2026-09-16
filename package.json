@@ -17,11 +17,13 @@
     "build": "npm run build -w @kassandra/shared && npm run build -w @kassandra/server && npm run build -w @kassandra/client",
     "start": "npm run start -w @kassandra/server",
     "typecheck": "npm run typecheck -ws --if-present",
+    "test": "npm run test -ws --if-present",
     "clean": "npm run clean -ws --if-present && rm -rf node_modules"
   },
   "devDependencies": {
     "concurrently": "^10.0.5",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^3.2.4"
   },
   "overrides": {
     "monaco-editor": "^0.56.0"

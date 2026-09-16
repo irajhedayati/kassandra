@@ -26,12 +26,15 @@ npm start
 # Type-check only
 npm run typecheck
 
+# Run unit tests (all workspaces)
+npm run test
+
 # Docker
 docker build -t kassandra .
 docker run -p 8501:8501 kassandra
 ```
 
-There is no test suite or linting configuration in this project.
+Unit tests use Vitest, one config-free `test` script per workspace (`shared`, `server`, `client`); there is no linting configuration in this project.
 
 ## Architecture
 
