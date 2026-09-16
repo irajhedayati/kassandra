@@ -55,6 +55,12 @@ export function RowDetail(props: Props) {
     return out;
   }, [row, schema.columns]);
 
+  // DynamicForm/UpdateForm seed their internal state once from `initial`
+  // and never resync it — force a remount when the selected row changes
+  // (identified by primary key) so a new row's data actually replaces the
+  // previous one instead of leaving stale form state on screen.
+  const rowKey = useMemo(() => JSON.stringify(primaryKeys), [primaryKeys]);
+
   const deleteMutation = useMutation({
     mutationFn: () => deleteRow(keyspace, table, primaryKeys),
     onSuccess: async () => {
@@ -89,9 +95,10 @@ export function RowDetail(props: Props) {
 
         <div className="p-6">
           {mode === 'view' ? (
-            <DynamicForm schema={schema} mode="update" initial={row} metadata={metadata} onSubmit={() => {}} readOnly />
+            <DynamicForm key={rowKey} schema={schema} mode="update" initial={row} metadata={metadata} onSubmit={() => {}} readOnly />
           ) : (
             <UpdateForm
+              key={rowKey}
               keyspace={keyspace}
               table={table}
               initial={row}
