@@ -35,7 +35,7 @@ export function MapSchemaEditor(props: Props) {
 
   const handleSave = () => {
     const cleaned = entries
-      .map((e) => ({ key: e.key.trim(), label: e.label.trim() }))
+      .map((e) => ({ key: (e.key ?? '').trim(), label: (e.label ?? '').trim() }))
       .filter((e) => e.key !== '');
     props.onSave(cleaned);
   };
@@ -66,14 +66,14 @@ export function MapSchemaEditor(props: Props) {
               >
                 <input
                   type="text"
-                  value={entry.key}
+                  value={entry.key ?? ''}
                   onChange={(e) => updateEntry(idx, 'key', e.target.value)}
                   placeholder="key"
                   className="rounded border border-slate-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
                 />
                 <input
                   type="text"
-                  value={entry.label}
+                  value={entry.label ?? ''}
                   onChange={(e) => updateEntry(idx, 'label', e.target.value)}
                   placeholder="label"
                   className="rounded border border-slate-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
