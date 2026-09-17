@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPlug, faPlugCircleXmark, faRotate } from '@fortawesome/free-solid-svg-icons';
+import { faFileImport, faPlug, faPlugCircleXmark, faRotate } from '@fortawesome/free-solid-svg-icons';
 import type { ConnectionProfile, ConnectionStatus } from '@kassandra/shared';
 import {
   connect,
@@ -16,6 +16,7 @@ import {
   listProfiles,
 } from '../../api/connection.js';
 import { ConnectionForm } from '../Dialogs/ConnectionForm.js';
+import { ImportConfigDialog } from '../Dialogs/ImportConfigDialog.js';
 import { SearchableSelect } from './SearchableSelect.js';
 import { useSelection } from '../../state/selection.js';
 
@@ -25,6 +26,7 @@ export function ConnectionPanel() {
   const [selectedName, setSelectedName] = useState<string>('');
   const [editingProfile, setEditingProfile] = useState<ConnectionProfile | null>(null);
   const [dialogMode, setDialogMode] = useState<'closed' | 'new' | 'edit'>('closed');
+  const [importOpen, setImportOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const profilesQuery = useQuery({
@@ -219,6 +221,14 @@ export function ConnectionPanel() {
           >
             Edit selected
           </button>
+          <button
+            type="button"
+            onClick={() => setImportOpen(true)}
+            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 transition hover:bg-slate-700"
+          >
+            <FontAwesomeIcon icon={faFileImport} />
+            Import configuration
+          </button>
         </div>
       </details>
 
@@ -226,6 +236,14 @@ export function ConnectionPanel() {
         open={dialogMode !== 'closed'}
         onClose={closeDialog}
         initial={dialogMode === 'edit' ? editingProfile : null}
+      />
+
+      <ImportConfigDialog
+        open={importOpen}
+        onClose={() => {
+          setImportOpen(false);
+          void queryClient.invalidateQueries({ queryKey: ['profiles'] });
+        }}
       />
     </div>
   );
