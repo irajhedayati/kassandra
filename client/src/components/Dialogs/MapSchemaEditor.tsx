@@ -7,6 +7,7 @@ interface Props {
   onSave: (entries: MapSchemaEntry[]) => void;
   onCancel: () => void;
   saving?: boolean;
+  errorMessage?: string | null;
 }
 
 /**
@@ -100,6 +101,12 @@ export function MapSchemaEditor(props: Props) {
             + Add row
           </button>
         </div>
+
+        {props.errorMessage && (
+          <div className="mb-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            Save failed: {props.errorMessage}
+          </div>
+        )}
 
         <div className="flex justify-end gap-2">
           <button

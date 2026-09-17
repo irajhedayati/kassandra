@@ -100,6 +100,8 @@ export function MapField(props: FieldProps) {
     onChange(serialized);
   }
 
+  const labelByKey = new Map((mapSchema ?? []).map((s) => [s.key, s.label]));
+
   return (
     <div>
       <span className={labelClass}>{fieldLabel(column)}</span>
@@ -107,43 +109,55 @@ export function MapField(props: FieldProps) {
         {entries.length === 0 && (
           <p className="text-xs text-slate-400">No entries.</p>
         )}
-        {entries.map((entry, i) => (
-          <div key={i} className="flex items-center gap-1.5">
-            <input
-              className={`${inputClass} flex-1`}
-              value={entry.key}
-              placeholder="key"
-              disabled={disabled}
-              onChange={(e) => {
-                const next = entries.slice();
-                next[i] = { key: e.target.value, value: entry.value };
-                update(next);
-              }}
-            />
-            <span className="text-slate-400">:</span>
-            <input
-              className={`${inputClass} flex-1`}
-              value={entry.value}
-              placeholder="value"
-              disabled={disabled}
-              onChange={(e) => {
-                const next = entries.slice();
-                next[i] = { key: entry.key, value: e.target.value };
-                update(next);
-              }}
-            />
-            {!disabled && (
-              <button
-                type="button"
-                onClick={() => update(entries.filter((_, j) => j !== i))}
-                className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
-                aria-label="Remove entry"
-              >
-                ×
-              </button>
-            )}
-          </div>
-        ))}
+        {entries.map((entry, i) => {
+          const schemaLabel = labelByKey.get(entry.key);
+          return (
+            <div key={i} className="flex items-center gap-1.5">
+              {schemaLabel ? (
+                <span
+                  className={`${inputClass} flex-1 truncate bg-slate-100 text-slate-700`}
+                  title={`Key: ${entry.key}`}
+                >
+                  {schemaLabel}
+                </span>
+              ) : (
+                <input
+                  className={`${inputClass} flex-1`}
+                  value={entry.key}
+                  placeholder="key"
+                  disabled={disabled}
+                  onChange={(e) => {
+                    const next = entries.slice();
+                    next[i] = { key: e.target.value, value: entry.value };
+                    update(next);
+                  }}
+                />
+              )}
+              <span className="text-slate-400">:</span>
+              <input
+                className={`${inputClass} flex-1`}
+                value={entry.value}
+                placeholder="value"
+                disabled={disabled}
+                onChange={(e) => {
+                  const next = entries.slice();
+                  next[i] = { key: entry.key, value: e.target.value };
+                  update(next);
+                }}
+              />
+              {!disabled && (
+                <button
+                  type="button"
+                  onClick={() => update(entries.filter((_, j) => j !== i))}
+                  className="rounded p-1 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                  aria-label="Remove entry"
+                >
+                  ×
+                </button>
+              )}
+            </div>
+          );
+        })}
         {!disabled && (
           <button
             type="button"

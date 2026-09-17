@@ -109,6 +109,14 @@ export function TableInfo({ keyspace, table }: Props) {
     },
   });
 
+  const mapSchemaMutation = useMutation({
+    mutationFn: (args: { column: string; metadata: ColumnMetadata }) =>
+      apiSetColumnMetadata(keyspace, table, args.column, args.metadata),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['metadata', keyspace, table] });
+    },
+  });
+
   const sortedColumns = useMemo(
     () => (schemaQuery.data ? sortColumns(schemaQuery.data.columns) : []),
     [schemaQuery.data],
@@ -149,9 +157,23 @@ export function TableInfo({ keyspace, table }: Props) {
     }));
   };
 
-  const handleSaveMapSchema = (entries: MapSchemaEntry[]) => {
+  const handleSaveMapSchema = async (entries: MapSchemaEntry[]) => {
     if (!mapEditor) return;
-    updateDraftColumn(mapEditor.column, { map_schema: entries });
+    const column = mapEditor.column;
+    const merged: ColumnMetadata = { ...(draft[column] ?? {}), map_schema: entries };
+    // The dialog's own "Save" implies the change is final — persist it
+    // immediately (and confirm it actually landed) rather than waiting for
+    // the page-level Save, which is otherwise easy to forget after closing
+    // the modal. Keep the dialog open on failure so the error — and the
+    // user's edits — aren't lost behind the table.
+    try {
+      await mapSchemaMutation.mutateAsync({ column, metadata: merged });
+    } catch {
+      // Surfaced to the user via mapSchemaMutation.isError/.error; keep the
+      // dialog open so they can retry without re-entering their edits.
+      return;
+    }
+    updateDraftColumn(column, { map_schema: entries });
     setMapEditor(null);
   };
 
@@ -299,8 +321,14 @@ export function TableInfo({ keyspace, table }: Props) {
         <MapSchemaEditor
           column={mapEditor.column}
           initial={mapEditor.current}
-          onSave={handleSaveMapSchema}
+          onSave={(entries) => {
+            void handleSaveMapSchema(entries);
+          }}
           onCancel={() => setMapEditor(null)}
+          saving={mapSchemaMutation.isPending}
+          errorMessage={
+            mapSchemaMutation.isError ? (mapSchemaMutation.error as Error).message : null
+          }
         />
       ) : null}
     </div>
