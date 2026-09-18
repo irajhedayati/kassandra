@@ -19,6 +19,8 @@ export const metadataRouter = Router();
 const mapSchemaEntrySchema = z.object({
   key: z.string(),
   label: z.string(),
+  display_type: z.string().optional(),
+  enum_values: z.array(z.string()).optional(),
 });
 
 const columnMetadataSchema = z

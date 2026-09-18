@@ -63,6 +63,14 @@ export interface ColumnMetadata {
 export interface MapSchemaEntry {
   key: string;
   label: string;
+  /**
+   * How this key's value should be rendered/edited. Same vocabulary as
+   * `ColumnMetadata.display_type` ('text' | 'JSON' | 'enum') since map
+   * values are always CQL text — this just picks the widget.
+   */
+  display_type?: string;
+  /** Allowed values when `display_type === 'enum'`. */
+  enum_values?: string[];
 }
 
 export interface AppSettings {
