@@ -8,13 +8,13 @@ The previous Python/Streamlit implementation is kept in [`legacy/`](../legacy) f
 
 ## Features
 
-- **Connection management**: Create, edit, and delete profiles with authentication, SSL, and optional local datacenter selection.
+- **Connection management**: Create, edit, delete, and import profiles with authentication, SSL, and optional local datacenter selection.
 - **Schema explorer**: Search keyspaces and tables, refresh schema lists, and favorite keyspaces.
-- **Data browser**: Browse paginated rows, apply column filters, and inspect individual records.
+- **Data browser**: Browse paginated rows, apply column filters, and inspect individual records in an inline row detail panel.
 - **Schema-driven forms**: Generate INSERT and UPDATE statements for review and execution in the CQL editor.
 - **Record deletion**: Delete a selected row after confirmation.
 - **CQL editor**: Write queries with syntax highlighting and completion, execute them, and page through results.
-- **Column customization**: Configure hidden columns, JSON and enum fields, and map schemas.
+- **Column customization**: Configure hidden columns, JSON and enum fields, and rich per-key schemas for map columns.
 
 ## Installation
 
@@ -85,8 +85,20 @@ Connection hosts must be reachable from inside the container. For Cassandra runn
 
 1. Select a saved profile from **Connection profile** in the sidebar.
 2. Click **Connect**. The connection status and **Schema** section appear when connected.
-3. To switch profiles or edit the selected profile, click **Disconnect** first.
-4. Under **Manage connections**, click **Edit selected** to change settings and **Save changes** to persist them. The dialog also provides **Delete**, with confirmation, to remove the profile.
+3. Click **Reconnect** at any time to disconnect and reconnect to the current profile, for example after the cluster or your credentials change.
+4. To switch profiles or edit the selected profile, click **Disconnect** first.
+5. Under **Manage connections**, click **Edit selected** to change settings and **Save changes** to persist them. The dialog also provides **Delete**, with confirmation, to remove the profile.
+
+#### Importing connection profiles
+
+If you already have connection profiles from a teammate or a previous install, you don't need to re-enter them by hand.
+
+1. Expand **Manage connections** and click **Import configuration**.
+2. Either drag and drop a `.json` file, click to browse for one, or switch to the **Paste JSON** tab and paste the configuration directly.
+3. The file can contain a single profile, an array of profiles, or an object with a `connections` array.
+4. Click **Import**. Each profile is imported individually, and the dialog lists which ones succeeded or failed.
+
+![Importing connection profiles](import-profile.gif)
 
 ### 2. Browsing Data
 
