@@ -58,8 +58,11 @@ For heavy lifting like schema creation or complex joins, use the built-in **CQL 
 were returned or if it was a schema-only change.
 
 ```sql
+-- noinspection SqlNoDataSourceInspectionForFile
+
 -- Example: Creating a shop keyspace
-CREATE KEYSPACE demo_shop 
+CREATE
+KEYSPACE demo_shop 
 WITH replication = {
   'class': 'SimpleStrategy', 
   'replication_factor': 1
@@ -84,7 +87,10 @@ When you select a table from the sidebar, the **Data Browser** tab opens automat
 ## Create Keyspace
 
 ```sql
-CREATE KEYSPACE demo_shop
+-- noinspection SqlNoDataSourceInspectionForFile
+
+CREATE
+KEYSPACE demo_shop
 WITH replication = {
   'class': 'SimpleStrategy',
   'replication_factor': 1
@@ -100,14 +106,18 @@ Good for:
 * Insert form demo
 
 ```sql
-CREATE TABLE demo_shop.users (
-    user_id UUID,
-    email TEXT,
-    full_name TEXT,
-    country TEXT,
-    created_at TIMESTAMP,
-    profile MAP<TEXT, TEXT>,
-    PRIMARY KEY (user_id)
+-- noinspection SqlNoDataSourceInspectionForFile
+
+CREATE TABLE demo_shop.users
+(
+   user_id    UUID,
+   email      TEXT,
+   full_name  TEXT,
+   country    TEXT,
+   created_at TIMESTAMP,
+   profile    MAP<TEXT,
+   TEXT>,
+   PRIMARY KEY (user_id)
 );
 ```
 

@@ -56,6 +56,30 @@ describe('buildInsertCql', () => {
     expect(cql).toContain("VALUES (11111111-1111-1111-1111-111111111111, 'Ada')");
     expect(cql).not.toContain('age');
   });
+
+  it('defaults an empty uuid primary-key column to uuid()', () => {
+    const pkColumns = [
+      { name: 'id', cql_type: 'uuid', kind: 'partition_key' },
+      { name: 'name', cql_type: 'text', kind: 'regular' },
+    ];
+    const cql = buildInsertCql('ks', 'people', pkColumns, { id: '', name: 'Ada' });
+    expect(cql).toContain('INSERT INTO ks.people (id, name)');
+    expect(cql).toContain("VALUES (uuid(), 'Ada')");
+  });
+
+  it('defaults an empty timeuuid clustering-key column to now()', () => {
+    const pkColumns = [
+      { name: 'id', cql_type: 'timeuuid', kind: 'clustering' },
+      { name: 'name', cql_type: 'text', kind: 'regular' },
+    ];
+    const cql = buildInsertCql('ks', 'people', pkColumns, { id: '', name: 'Ada' });
+    expect(cql).toContain("VALUES (now(), 'Ada')");
+  });
+
+  it('omits an empty uuid column that is not part of the primary key', () => {
+    const cql = buildInsertCql('ks', 'people', columns, { id: '', name: 'Ada', age: '' });
+    expect(cql).toBe("INSERT INTO ks.people (name)\nVALUES ('Ada');");
+  });
 });
 
 describe('buildUpdateCql', () => {

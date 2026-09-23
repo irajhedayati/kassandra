@@ -98,9 +98,25 @@ export function valueToCqlLiteral(value: unknown, cqlType: string): string {
 interface ColumnLike {
   name: string;
   cql_type: string;
+  kind?: string;
 }
 
-/** Build `INSERT INTO ks.table (...) VALUES (...);` from raw form values, skipping empty/unset columns. */
+/** CQL functions that generate a value server-side; used for empty uuid/timeuuid primary-key columns. */
+const UUID_GENERATOR_FN: Record<string, string> = {
+  uuid: 'uuid()',
+  timeuuid: 'now()',
+};
+
+function isPrimaryKeyKind(kind: string | undefined): boolean {
+  return kind === 'partition_key' || kind === 'clustering';
+}
+
+/**
+ * Build `INSERT INTO ks.table (...) VALUES (...);` from raw form values.
+ * Empty/unset columns are skipped, except empty uuid/timeuuid primary-key
+ * columns, which default to the CQL `uuid()`/`now()` generator functions
+ * rather than being omitted (an insert can't leave a key column unset).
+ */
 export function buildInsertCql(
   keyspace: string,
   tableName: string,
@@ -109,11 +125,18 @@ export function buildInsertCql(
 ): string {
   const entries = columns.filter((col) => {
     const v = values[col.name];
-    return v !== undefined && v !== '';
+    if (v !== undefined && v !== '') return true;
+    return isPrimaryKeyKind(col.kind) && UUID_GENERATOR_FN[rootCqlType(unwrapFrozen(col.cql_type))] !== undefined;
   });
   const colList = entries.map((col) => col.name).join(', ');
   const valList = entries
-    .map((col) => valueToCqlLiteral(values[col.name], col.cql_type))
+    .map((col) => {
+      const v = values[col.name];
+      if (v === undefined || v === '') {
+        return UUID_GENERATOR_FN[rootCqlType(unwrapFrozen(col.cql_type))];
+      }
+      return valueToCqlLiteral(v, col.cql_type);
+    })
     .join(', ');
   return `INSERT INTO ${keyspace}.${tableName} (${colList})\nVALUES (${valList});`;
 }
