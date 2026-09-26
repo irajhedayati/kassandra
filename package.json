@@ -23,7 +23,7 @@
   "devDependencies": {
     "concurrently": "^10.0.5",
     "typescript": "^7.0.2",
-    "vitest": "^3.2.4"
+    "vitest": "^5.0.1"
   },
   "overrides": {
     "monaco-editor": "^0.56.0"
