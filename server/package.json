@@ -14,7 +14,7 @@
   },
   "dependencies": {
     "@kassandra/shared": "*",
-    "cassandra-driver": "^4.7.2",
+    "cassandra-driver": "^4.10.0",
     "cors": "^2.8.5",
     "express": "^5.2.1",
     "uuid": "^14.0.2",
