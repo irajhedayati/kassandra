@@ -39,10 +39,17 @@ const cqlValueSchema: z.ZodType<unknown> = z.lazy(() =>
 
 const rowSchema = z.record(z.string(), cqlValueSchema);
 
+const filterConditionSchema = z.object({
+  column: z.string(),
+  operator: z.enum(['eq', 'contains', 'contains_key', 'map_entry_eq']),
+  mapKey: z.string().optional(),
+  value: z.string(),
+});
+
 const readBodySchema = z.object({
   pageSize: z.number().int().positive().max(1000).default(25),
   pagingState: z.string().nullable().optional(),
-  filters: z.record(z.string(), z.string()).optional(),
+  filters: z.array(filterConditionSchema).optional(),
 });
 
 const insertBodySchema = z.object({
@@ -110,7 +117,7 @@ dataRouter.post(
     return repo.readRows(schema, {
       pageSize: body.pageSize,
       pagingState: body.pagingState ?? null,
-      filters: body.filters ?? {},
+      filters: body.filters ?? [],
     });
   }),
 );

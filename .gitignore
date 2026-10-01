@@ -29,3 +29,5 @@ legacy/__pycache__/
 legacy/**/__pycache__/
 legacy/**/*.pyc
 legacy/**/*.egg-info/
+
+**/*.swp

@@ -14,12 +14,13 @@ import type { Client as CassandraClient, QueryOptions } from 'cassandra-driver';
 import type {
   ColumnInfo,
   CqlValue,
+  FilterCondition,
   PaginatedReadRequest,
   QueryResult,
   Row,
   TableSchema,
 } from '@kassandra/shared';
-import { rootCqlType } from '@kassandra/shared';
+import { mapKeyValueTypes, rootCqlType } from '@kassandra/shared';
 
 export interface CrudResult {
   rowsAffected?: number;
@@ -129,35 +130,90 @@ function normalizeValue(value: unknown): CqlValue {
   return String(value);
 }
 
+/** A ColumnInfo with its cql_type swapped out, for coercing map key/value parts. */
+function asType(column: ColumnInfo, cqlType: string): ColumnInfo {
+  return { ...column, cql_type: cqlType };
+}
+
+/**
+ * Build the `WHERE` fragment and bound params for a single filter condition.
+ * Throws a 400 error for operators that don't apply to the column's type.
+ */
+function buildFilterClause(
+  col: ColumnInfo,
+  filter: FilterCondition,
+): { sql: string; params: unknown[] } {
+  const root = rootCqlType(col.cql_type);
+  const ident = quoteIdent(col.name);
+
+  switch (filter.operator) {
+    case 'eq':
+      return { sql: `${ident} = ?`, params: [coerceValue(col, filter.value)] };
+
+    case 'contains': {
+      if (root !== 'map' && root !== 'list' && root !== 'set') {
+        throw makeUserError(`CONTAINS is only supported on list/set/map columns: ${col.name}`);
+      }
+      const kv = mapKeyValueTypes(col.cql_type);
+      const valueCol = kv ? asType(col, kv.valueType) : col;
+      return { sql: `${ident} CONTAINS ?`, params: [coerceValue(valueCol, filter.value)] };
+    }
+
+    case 'contains_key': {
+      if (root !== 'map') {
+        throw makeUserError(`CONTAINS KEY is only supported on map columns: ${col.name}`);
+      }
+      const kv = mapKeyValueTypes(col.cql_type);
+      const keyCol = kv ? asType(col, kv.keyType) : col;
+      return { sql: `${ident} CONTAINS KEY ?`, params: [coerceValue(keyCol, filter.value)] };
+    }
+
+    case 'map_entry_eq': {
+      if (root !== 'map') {
+        throw makeUserError(`Map-entry filters are only supported on map columns: ${col.name}`);
+      }
+      if (!filter.mapKey || filter.mapKey === '') {
+        throw makeUserError(`Map-entry filter on ${col.name} requires a key.`);
+      }
+      const kv = mapKeyValueTypes(col.cql_type);
+      const keyCol = kv ? asType(col, kv.keyType) : asType(col, 'text');
+      const valueCol = kv ? asType(col, kv.valueType) : col;
+      return {
+        sql: `${ident}[?] = ?`,
+        params: [coerceValue(keyCol, filter.mapKey), coerceValue(valueCol, filter.value)],
+      };
+    }
+  }
+}
+
 export class CassandraRepository {
   constructor(private readonly client: CassandraClient) {}
 
   /**
    * SELECT * FROM "ks"."t" [WHERE col = ? AND ...]
    *
-   * Filters apply equality on text columns only (matches legacy behavior).
+   * Filters support equality on any column, plus CONTAINS / CONTAINS KEY /
+   * map-entry (`map[key] = value`) predicates on collection columns.
    * Cassandra's `ALLOW FILTERING` is appended when filters are present.
    */
   async readRows(
     schema: TableSchema,
     request: PaginatedReadRequest,
   ): Promise<QueryResult> {
-    const filters = request.filters ?? {};
-    const filterEntries = Object.entries(filters).filter(([, v]) => v !== '' && v != null);
+    const filters = (request.filters ?? []).filter((f) => f.value !== '' && f.value != null);
 
     const whereParts: string[] = [];
     const params: unknown[] = [];
-    for (const [colName, val] of filterEntries) {
-      const col = schema.columns.find((c) => c.name === colName);
+    for (const filter of filters) {
+      const col = schema.columns.find((c) => c.name === filter.column);
       if (!col) {
         // Bail loudly rather than send a malformed query; the client
-        // should only send filter keys that match a real column.
-        const err = new Error(`Unknown filter column: ${colName}`);
-        (err as { status?: number }).status = 400;
-        throw err;
+        // should only send filter columns that match a real column.
+        throw makeUserError(`Unknown filter column: ${filter.column}`);
       }
-      whereParts.push(`${quoteIdent(col.name)} = ?`);
-      params.push(coerceValue(col, val));
+      const { sql, params: filterParams } = buildFilterClause(col, filter);
+      whereParts.push(sql);
+      params.push(...filterParams);
     }
 
     const tableRef = `${quoteIdent(schema.keyspace)}.${quoteIdent(schema.table_name)}`;

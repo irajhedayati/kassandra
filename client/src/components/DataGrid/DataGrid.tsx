@@ -5,13 +5,14 @@
  *   - Page-size selector [10, 25, 50] driving fetchSize.
  *   - Cassandra forward-only paging: Next page → push current paging state
  *     onto a stack; Reset → clear the stack and re-fetch from page 1.
- *   - Filters: equality only, on text columns, submitted on Enter.
+ *   - Filters: equality on any column, submitted on Enter; map columns get
+ *     extra operators (map[key] = value, CONTAINS, CONTAINS KEY).
  *   - Row click → RowDetail drawer with Edit / Delete.
  *   - Map columns marked `display_type === 'JSON'` (per Lane F metadata)
  *     render as a formatted <pre> block in the cell.
  *   - Hidden columns (per Lane F metadata) are excluded from the grid.
  */
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { flexRender } from '@tanstack/react-table';
 import {
@@ -23,6 +24,9 @@ import type {
   ColumnInfo,
   ColumnMetadata,
   CqlValue,
+  FilterCondition,
+  FilterOperator,
+  MapSchemaEntry,
   QueryResult,
   Row,
 } from '@kassandra/shared';
@@ -42,11 +46,21 @@ interface Props {
 const PAGE_SIZES = [10, 25, 50] as const;
 const DEFAULT_PAGE_SIZE = 25;
 
+interface FilterDraftEntry {
+  operator: FilterOperator;
+  mapKey?: string;
+  value: string;
+}
+
+function defaultOperatorFor(col: ColumnInfo): FilterOperator {
+  return rootCqlType(col.cql_type) === 'map' ? 'map_entry_eq' : 'eq';
+}
+
 export function DataGrid({ keyspace, table }: Props) {
   const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
   const [pageStack, setPageStack] = useState<(string | null)[]>([null]);
-  const [filterDraft, setFilterDraft] = useState<Record<string, string>>({});
-  const [filters, setFilters] = useState<Record<string, string>>({});
+  const [filterDraft, setFilterDraft] = useState<Record<string, FilterDraftEntry>>({});
+  const [filters, setFilters] = useState<FilterCondition[]>([]);
   const [selectedRow, setSelectedRow] = useState<Row | null>(null);
 
   const currentPagingState = pageStack[pageStack.length - 1] ?? null;
@@ -60,7 +74,7 @@ export function DataGrid({ keyspace, table }: Props) {
   // Reset filter inputs when switching tables.
   useEffect(() => {
     setFilterDraft({});
-    setFilters({});
+    setFilters([]);
   }, [keyspace, table]);
 
   const schemaQuery = useQuery({
@@ -144,17 +158,23 @@ export function DataGrid({ keyspace, table }: Props) {
 
   const onApplyFilters = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    // Drop empty entries before applying.
-    const next: Record<string, string> = {};
-    for (const [k, v] of Object.entries(filterDraft)) {
-      if (v.trim() !== '') next[k] = v;
+    const next: FilterCondition[] = [];
+    for (const [column, draft] of Object.entries(filterDraft)) {
+      if (draft.value.trim() === '') continue;
+      if (draft.operator === 'map_entry_eq' && (draft.mapKey ?? '').trim() === '') continue;
+      next.push({
+        column,
+        operator: draft.operator,
+        value: draft.value,
+        ...(draft.operator === 'map_entry_eq' ? { mapKey: draft.mapKey } : {}),
+      });
     }
     setFilters(next);
   };
 
   const onClearFilters = () => {
     setFilterDraft({});
-    setFilters({});
+    setFilters([]);
   };
 
   const onNext = () => {
@@ -199,8 +219,8 @@ export function DataGrid({ keyspace, table }: Props) {
           </h2>
           <p className="text-xs text-slate-500">
             {schema.columns.length} column{schema.columns.length === 1 ? '' : 's'}
-            {Object.keys(filters).length > 0
-              ? ` • ${Object.keys(filters).length} filter${Object.keys(filters).length === 1 ? '' : 's'} applied`
+            {filters.length > 0
+              ? ` • ${filters.length} filter${filters.length === 1 ? '' : 's'} applied`
               : ''}
           </p>
         </div>
@@ -225,28 +245,65 @@ export function DataGrid({ keyspace, table }: Props) {
           onSubmit={onApplyFilters}
           className="flex flex-wrap items-end gap-2 rounded border border-slate-200 bg-white p-3"
         >
-          {filterColumns.map((col) => (
-            <div key={col.name} className="flex flex-col">
-              <label className="text-xs text-slate-600" htmlFor={`filter-${col.name}`}>
-                {col.name}
-                {(col.kind === 'partition_key' || col.kind === 'clustering') && (
-                  <span className="ml-1 text-slate-400">
-                    {col.kind === 'partition_key' ? '(pk)' : '(ck)'}
-                  </span>
+          {filterColumns.map((col) => {
+            const isMap = rootCqlType(col.cql_type) === 'map';
+            const draft = filterDraft[col.name] ?? {
+              operator: defaultOperatorFor(col),
+              value: '',
+            };
+            const setDraft = (patch: Partial<FilterDraftEntry>) =>
+              setFilterDraft((d) => ({
+                ...d,
+                [col.name]: { ...draft, ...patch },
+              }));
+
+            return (
+              <div key={col.name} className="flex flex-col">
+                <label className="text-xs text-slate-600" htmlFor={`filter-${col.name}`}>
+                  {col.name}
+                  {(col.kind === 'partition_key' || col.kind === 'clustering') && (
+                    <span className="ml-1 text-slate-400">
+                      {col.kind === 'partition_key' ? '(pk)' : '(ck)'}
+                    </span>
+                  )}
+                </label>
+
+                {isMap && (
+                  <FilterOperatorDropdown
+                    label={`${col.name} filter operator`}
+                    value={draft.operator}
+                    onChange={(op) => setDraft({ operator: op })}
+                  />
                 )}
-              </label>
-              <input
-                id={`filter-${col.name}`}
-                type="text"
-                value={filterDraft[col.name] ?? ''}
-                onChange={(e) =>
-                  setFilterDraft((d) => ({ ...d, [col.name]: e.target.value }))
-                }
-                placeholder={`Filter by ${col.name}…`}
-                className="rounded border border-slate-300 px-2 py-1 text-sm"
-              />
-            </div>
-          ))}
+
+                <div className="flex gap-1">
+                  {isMap && draft.operator === 'map_entry_eq' && (
+                    <MapKeyCombobox
+                      value={draft.mapKey ?? ''}
+                      onChange={(v) => setDraft({ mapKey: v })}
+                      options={metadata[col.name]?.map_schema ?? []}
+                    />
+                  )}
+                  <input
+                    id={`filter-${col.name}`}
+                    type="text"
+                    value={draft.value}
+                    onChange={(e) => setDraft({ value: e.target.value })}
+                    placeholder={
+                      isMap
+                        ? draft.operator === 'contains_key'
+                          ? 'key'
+                          : draft.operator === 'map_entry_eq'
+                            ? 'value'
+                            : 'value it contains'
+                        : `Filter by ${col.name}…`
+                    }
+                    className="rounded border border-slate-300 px-2 py-1 text-sm"
+                  />
+                </div>
+              </div>
+            );
+          })}
           <div className="flex gap-2">
             <button
               type="submit"
@@ -356,6 +413,151 @@ export function DataGrid({ keyspace, table }: Props) {
         metadata={metadata}
         onClose={() => setSelectedRow(null)}
       />
+    </div>
+  );
+}
+
+/**
+ * Map filter operator choices, each with a Flowbite-style helper-text row
+ * (bold label + description) describing what the operator matches.
+ */
+const MAP_FILTER_OPERATORS: { value: FilterOperator; label: string; helperText: string }[] = [
+  { value: 'map_entry_eq', label: 'Key = value', helperText: "Match a specific key's value" },
+  { value: 'contains_key', label: 'Contains key', helperText: 'Map includes this key, any value' },
+  { value: 'contains', label: 'Contains value', helperText: 'Map includes this value, any key' },
+];
+
+function FilterOperatorDropdown({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: FilterOperator;
+  onChange: (op: FilterOperator) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDocMouseDown(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', onDocMouseDown);
+    return () => document.removeEventListener('mousedown', onDocMouseDown);
+  }, [open]);
+
+  const selected = MAP_FILTER_OPERATORS.find((o) => o.value === value) ?? MAP_FILTER_OPERATORS[0]!;
+
+  return (
+    <div ref={containerRef} className="relative mb-1">
+      <button
+        type="button"
+        aria-label={label}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-40 items-center justify-between gap-2 rounded border border-slate-300 bg-white px-2 py-1 text-sm text-slate-700 hover:bg-slate-50"
+      >
+        {selected.label}
+        <span className="text-slate-400">▾</span>
+      </button>
+      {open && (
+        <ul
+          role="listbox"
+          className="absolute left-0 top-full z-10 mt-1 w-72 rounded border border-slate-300 bg-white text-sm shadow-lg"
+        >
+          {MAP_FILTER_OPERATORS.map((o) => (
+            <li key={o.value} role="option" aria-selected={o.value === value}>
+              <button
+                type="button"
+                onClick={() => {
+                  onChange(o.value);
+                  setOpen(false);
+                }}
+                className={`block w-full px-3 py-2 text-left hover:bg-slate-50 ${
+                  o.value === value ? 'bg-blue-50' : ''
+                }`}
+              >
+                <span className="block font-medium text-slate-900">{o.label}</span>
+                <span className="block text-xs text-slate-500">{o.helperText}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Free-text input for a map key, with a wide dropdown (independent of the
+ * input's own width) suggesting keys from the column's map schema. Users
+ * can still type any key, including ones not in the suggested list.
+ */
+function MapKeyCombobox({
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: MapSchemaEntry[];
+}) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onDocMouseDown(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', onDocMouseDown);
+    return () => document.removeEventListener('mousedown', onDocMouseDown);
+  }, [open]);
+
+  const needle = value.trim().toLowerCase();
+  const filtered = needle
+    ? options.filter(
+        (o) => o.key.toLowerCase().includes(needle) || o.label.toLowerCase().includes(needle),
+      )
+    : options;
+
+  return (
+    <div ref={containerRef} className="relative">
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => {
+          onChange(e.target.value);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        placeholder="key"
+        className="w-24 rounded border border-slate-300 px-2 py-1 text-sm"
+      />
+      {open && filtered.length > 0 && (
+        <ul className="absolute left-0 top-full z-10 mt-1 max-h-60 w-64 overflow-auto rounded border border-slate-300 bg-white text-sm shadow-lg">
+          {filtered.map((o) => (
+            <li
+              key={o.key}
+              onClick={() => {
+                onChange(o.key);
+                setOpen(false);
+              }}
+              className="cursor-pointer px-2 py-1 hover:bg-blue-50"
+            >
+              {o.label}
+              {o.label !== o.key && <span className="ml-1 text-xs text-slate-400">({o.key})</span>}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

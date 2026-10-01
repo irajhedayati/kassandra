@@ -33,12 +33,28 @@ export interface QueryError {
 
 export type QueryResponse = QueryResult | QueryError;
 
+/**
+ * - 'eq': column = value
+ * - 'contains': list/set/map CONTAINS value (map: matches a value, not a key)
+ * - 'contains_key': map CONTAINS KEY value
+ * - 'map_entry_eq': map[mapKey] = value (requires `mapKey`)
+ */
+export type FilterOperator = 'eq' | 'contains' | 'contains_key' | 'map_entry_eq';
+
+export interface FilterCondition {
+  column: string;
+  operator: FilterOperator;
+  /** Required when operator is 'map_entry_eq'; the key to index into the map. */
+  mapKey?: string;
+  /** Formatted client-side as a string; coerced server-side to the column's CQL type. */
+  value: string;
+}
+
 export interface PaginatedReadRequest {
   pageSize: number;
   /** Base64-encoded paging state, or null/undefined to start from the first page. */
   pagingState?: string | null;
-  /** Per-column equality filters; values are formatted client-side as strings. */
-  filters?: Record<string, string>;
+  filters?: FilterCondition[];
 }
 
 export interface CqlExecRequest {

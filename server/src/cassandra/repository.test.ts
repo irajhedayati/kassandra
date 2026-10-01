@@ -11,6 +11,8 @@ function makeSchema(overrides: Partial<TableSchema> = {}): TableSchema {
       { name: 'id', cql_type: 'uuid', kind: 'partition_key', position: 0 },
       { name: 'name', cql_type: 'text', kind: 'regular', position: 0 },
       { name: 'tags', cql_type: 'set<text>', kind: 'regular', position: 0 },
+      { name: 'attrs', cql_type: 'map<text, text>', kind: 'regular', position: 0 },
+      { name: 'scores', cql_type: 'map<text, int>', kind: 'regular', position: 0 },
     ],
     ...overrides,
   } as TableSchema;
@@ -134,7 +136,7 @@ describe('CassandraRepository.readRows', () => {
     const repo = new CassandraRepository(client);
     const schema = makeSchema();
 
-    await repo.readRows(schema, { pageSize: 25, pagingState: null, filters: {} });
+    await repo.readRows(schema, { pageSize: 25, pagingState: null, filters: [] });
 
     const [cql, params] = (client.execute as ReturnType<typeof vi.fn>).mock.calls[0]!;
     expect(cql).toBe('SELECT * FROM "ks"."people"');
@@ -146,7 +148,11 @@ describe('CassandraRepository.readRows', () => {
     const repo = new CassandraRepository(client);
     const schema = makeSchema();
 
-    await repo.readRows(schema, { pageSize: 25, pagingState: null, filters: { name: 'Ada' } });
+    await repo.readRows(schema, {
+      pageSize: 25,
+      pagingState: null,
+      filters: [{ column: 'name', operator: 'eq', value: 'Ada' }],
+    });
 
     const [cql, params] = (client.execute as ReturnType<typeof vi.fn>).mock.calls[0]!;
     expect(cql).toBe('SELECT * FROM "ks"."people" WHERE "name" = ? ALLOW FILTERING');
@@ -158,9 +164,93 @@ describe('CassandraRepository.readRows', () => {
     const schema = makeSchema();
 
     await expect(
-      repo.readRows(schema, { pageSize: 25, pagingState: null, filters: { bogus: 'x' } }),
+      repo.readRows(schema, {
+        pageSize: 25,
+        pagingState: null,
+        filters: [{ column: 'bogus', operator: 'eq', value: 'x' }],
+      }),
     ).rejects.toMatchObject({
       message: 'Unknown filter column: bogus',
+      status: 400,
+    });
+  });
+
+  it('builds a map[key] = value predicate for map_entry_eq', async () => {
+    const client = fakeClient({ rows: [] });
+    const repo = new CassandraRepository(client);
+    const schema = makeSchema();
+
+    await repo.readRows(schema, {
+      pageSize: 25,
+      pagingState: null,
+      filters: [{ column: 'attrs', operator: 'map_entry_eq', mapKey: 'color', value: 'red' }],
+    });
+
+    const [cql, params] = (client.execute as ReturnType<typeof vi.fn>).mock.calls[0]!;
+    expect(cql).toBe('SELECT * FROM "ks"."people" WHERE "attrs"[?] = ? ALLOW FILTERING');
+    expect(params).toEqual(['color', 'red']);
+  });
+
+  it('rejects a map_entry_eq filter missing a key', async () => {
+    const repo = new CassandraRepository(fakeClient());
+    const schema = makeSchema();
+
+    await expect(
+      repo.readRows(schema, {
+        pageSize: 25,
+        pagingState: null,
+        filters: [{ column: 'attrs', operator: 'map_entry_eq', value: 'red' }],
+      }),
+    ).rejects.toMatchObject({
+      message: 'Map-entry filter on attrs requires a key.',
+      status: 400,
+    });
+  });
+
+  it('builds a CONTAINS KEY predicate on a map column', async () => {
+    const client = fakeClient({ rows: [] });
+    const repo = new CassandraRepository(client);
+    const schema = makeSchema();
+
+    await repo.readRows(schema, {
+      pageSize: 25,
+      pagingState: null,
+      filters: [{ column: 'attrs', operator: 'contains_key', value: 'color' }],
+    });
+
+    const [cql, params] = (client.execute as ReturnType<typeof vi.fn>).mock.calls[0]!;
+    expect(cql).toBe('SELECT * FROM "ks"."people" WHERE "attrs" CONTAINS KEY ? ALLOW FILTERING');
+    expect(params).toEqual(['color']);
+  });
+
+  it('builds a CONTAINS predicate on a map column value', async () => {
+    const client = fakeClient({ rows: [] });
+    const repo = new CassandraRepository(client);
+    const schema = makeSchema();
+
+    await repo.readRows(schema, {
+      pageSize: 25,
+      pagingState: null,
+      filters: [{ column: 'attrs', operator: 'contains', value: 'red' }],
+    });
+
+    const [cql, params] = (client.execute as ReturnType<typeof vi.fn>).mock.calls[0]!;
+    expect(cql).toBe('SELECT * FROM "ks"."people" WHERE "attrs" CONTAINS ? ALLOW FILTERING');
+    expect(params).toEqual(['red']);
+  });
+
+  it('rejects CONTAINS KEY on a non-map column', async () => {
+    const repo = new CassandraRepository(fakeClient());
+    const schema = makeSchema();
+
+    await expect(
+      repo.readRows(schema, {
+        pageSize: 25,
+        pagingState: null,
+        filters: [{ column: 'name', operator: 'contains_key', value: 'x' }],
+      }),
+    ).rejects.toMatchObject({
+      message: 'CONTAINS KEY is only supported on map columns: name',
       status: 400,
     });
   });
@@ -173,7 +263,7 @@ describe('CassandraRepository.readRows', () => {
     const repo = new CassandraRepository(client);
     const schema = makeSchema();
 
-    const result = await repo.readRows(schema, { pageSize: 25, pagingState: null, filters: {} });
+    const result = await repo.readRows(schema, { pageSize: 25, pagingState: null, filters: [] });
 
     expect(result.rows).toEqual([{ id: 'abc', name: 'Ada' }]);
     expect(result.hasMorePages).toBe(true);
@@ -186,7 +276,7 @@ describe('CassandraRepository.readRows', () => {
     const schema = makeSchema();
     const encoded = Buffer.from('resume-here').toString('base64');
 
-    await repo.readRows(schema, { pageSize: 10, pagingState: encoded, filters: {} });
+    await repo.readRows(schema, { pageSize: 10, pagingState: encoded, filters: [] });
 
     const [, , opts] = (client.execute as ReturnType<typeof vi.fn>).mock.calls[0]!;
     expect((opts as { pageState?: Buffer }).pageState).toEqual(Buffer.from('resume-here'));
