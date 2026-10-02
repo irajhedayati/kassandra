@@ -4,7 +4,7 @@
 
 Kassandra is a web-based graphical client for Apache Cassandra clusters. The current application uses a React and TypeScript frontend with a Node.js, Express, and TypeScript backend. It lets you browse data and schemas, manage connection profiles, generate CQL from forms, and execute queries.
 
-The previous Python/Streamlit implementation is kept in [`legacy/`](../legacy) for reference. Python, uv, and Streamlit are no longer needed to run the current application.
+The previous Python/Streamlit implementation is kept in [`../legacy`](../legacy) for reference. Python, uv, and Streamlit are no longer needed to run the current application.
 
 ## Features
 
