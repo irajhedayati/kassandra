@@ -41,3 +41,37 @@ export interface CreateKeyspaceRequest {
   durableWrites: boolean;
   ifNotExists: boolean;
 }
+
+export type CompactionStrategy =
+  | 'SizeTieredCompactionStrategy'
+  | 'LeveledCompactionStrategy'
+  | 'TimeWindowCompactionStrategy';
+
+export type CompressionAlgorithm =
+  | 'LZ4Compressor'
+  | 'SnappyCompressor'
+  | 'DeflateCompressor'
+  | 'none';
+
+export interface CreateTableColumn {
+  name: string;
+  /** Full CQL type, e.g. `text`, `list<int>`, `frozen<map<text, int>>`. */
+  type: string;
+  /** Position in the primary key follows the order of the columns array. */
+  kind: ColumnKind;
+  /** Clustering columns only. */
+  order?: ClusteringOrder;
+}
+
+/** Body of POST /api/schema/keyspaces/:keyspace/tables. Mirrors CQL CREATE TABLE. */
+export interface CreateTableRequest {
+  keyspace: string;
+  name: string;
+  ifNotExists: boolean;
+  columns: CreateTableColumn[];
+  comment?: string;
+  defaultTimeToLive?: number;
+  gcGraceSeconds?: number;
+  compaction?: CompactionStrategy;
+  compression?: CompressionAlgorithm;
+}

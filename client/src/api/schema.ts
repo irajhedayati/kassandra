@@ -1,4 +1,4 @@
-import type { CreateKeyspaceRequest, KeyspaceList, TableList, TableSchema } from '@kassandra/shared';
+import type { CreateKeyspaceRequest, CreateTableRequest, KeyspaceList, TableList, TableSchema } from '@kassandra/shared';
 import { apiGet, apiSend } from './client.js';
 
 /**
@@ -24,4 +24,12 @@ export function getSchema(keyspace: string, table: string): Promise<TableSchema>
 
 export function createKeyspace(req: CreateKeyspaceRequest): Promise<{ keyspace: string }> {
   return apiSend<{ keyspace: string }>('POST', '/api/schema/keyspaces', req);
+}
+
+export function createTable(req: CreateTableRequest): Promise<{ table: string }> {
+  return apiSend<{ table: string }>(
+    'POST',
+    `/api/schema/keyspaces/${encodeURIComponent(req.keyspace)}/tables`,
+    req,
+  );
 }

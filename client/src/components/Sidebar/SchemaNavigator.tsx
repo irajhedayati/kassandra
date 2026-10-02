@@ -13,12 +13,14 @@ import { listKeyspaces, listTables } from '../../api/schema.js';
 import { useSelection } from '../../state/selection.js';
 import { useConnectionStatus } from '../../state/connection.js';
 import { useFavoriteKeyspaces } from '../../state/favorites.js';
+import { CreateTableDialog } from '../Dialogs/CreateTableDialog.js';
 import { CreateKeyspaceDialog } from '../Dialogs/CreateKeyspaceDialog.js';
 import { SearchableSelect } from './SearchableSelect.js';
 
 export function SchemaNavigator() {
   const queryClient = useQueryClient();
   const [createOpen, setCreateOpen] = useState(false);
+  const [createTableOpen, setCreateTableOpen] = useState(false);
   const { keyspace, table, setKeyspace, setTable } = useSelection();
   const { data: status } = useConnectionStatus();
   const { favorites } = useFavoriteKeyspaces(status?.profileName);
@@ -101,27 +103,46 @@ export function SchemaNavigator() {
 
       <div className="space-y-1">
         <label className="block text-xs font-medium text-slate-400">Table</label>
-        <SearchableSelect
-          value={table}
-          options={tables}
-          onChange={setTable}
-          disabled={!keyspace || tablesQuery.isLoading || tables.length === 0}
-          placeholder={
-            !keyspace
-              ? 'Select keyspace first'
-              : tablesQuery.isLoading
-                ? 'Loading…'
-                : tables.length === 0
-                  ? 'No tables'
-                  : 'Select table'
-          }
-        />
+        <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <SearchableSelect
+              value={table}
+              options={tables}
+              onChange={setTable}
+              disabled={!keyspace || tablesQuery.isLoading || tables.length === 0}
+              placeholder={
+                !keyspace
+                  ? 'Select keyspace first'
+                  : tablesQuery.isLoading
+                    ? 'Loading…'
+                    : tables.length === 0
+                      ? 'No tables'
+                      : 'Select table'
+              }
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setCreateTableOpen(true)}
+            disabled={!keyspace}
+            aria-label="Create table"
+            title={keyspace ? 'Create table' : 'Select a keyspace first'}
+            className="rounded-md border border-slate-700 px-2.5 py-2 text-xs text-slate-300 transition hover:bg-slate-800 disabled:opacity-50"
+          >
+            <FontAwesomeIcon icon={faPlus} />
+          </button>
+        </div>
         {tablesQuery.isError && (
           <p className="text-xs text-red-400">
             {(tablesQuery.error as Error).message}
           </p>
         )}
       </div>
+      <CreateTableDialog
+        open={createTableOpen}
+        keyspace={keyspace}
+        onClose={() => setCreateTableOpen(false)}
+      />
       <CreateKeyspaceDialog open={createOpen} onClose={() => setCreateOpen(false)} />
     </div>
   );

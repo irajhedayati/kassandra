@@ -6,14 +6,17 @@
  *   GET /keyspaces                          → ApiOk<KeyspaceList>
  *   POST /keyspaces                         → CREATE KEYSPACE; ApiOk<{ keyspace }>
  *   GET /keyspaces/:ks/tables               → ApiOk<TableList>
+ *   POST /keyspaces/:ks/tables              → CREATE TABLE; ApiOk<{ table }>
  *   GET /keyspaces/:ks/tables/:t            → ApiOk<TableSchema>
  *
  * Owns: src/cassandra/schema.ts.
  */
 import { Router, type Request, type Response, type NextFunction } from 'express';
+import { CqlBuildError, buildCreateTableCql } from '@kassandra/shared';
 import type {
   ApiOk,
   CreateKeyspaceRequest,
+  CreateTableRequest,
   KeyspaceList,
   TableList,
   TableSchema,
@@ -81,6 +84,28 @@ schemaRouter.get(
       const keyspace = requireStringParam(req, 'keyspace');
       const tables = await getTables(ctx.client, keyspace);
       res.json({ ok: true, data: { tables } });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+schemaRouter.post(
+  '/keyspaces/:keyspace/tables',
+  async (req: Request, res: Response<ApiOk<{ table: string }>>, next: NextFunction) => {
+    try {
+      const ctx = requireSession();
+      const keyspace = requireStringParam(req, 'keyspace');
+      const body = { ...(req.body as CreateTableRequest), keyspace };
+      let cql: string;
+      try {
+        cql = buildCreateTableCql(body);
+      } catch (err) {
+        if (err instanceof CqlBuildError) (err as { status?: number }).status = 400;
+        throw err;
+      }
+      await ctx.client.execute(cql);
+      res.json({ ok: true, data: { table: body.name } });
     } catch (err) {
       next(err);
     }
