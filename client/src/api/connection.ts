@@ -37,8 +37,8 @@ export function deleteProfile(name: string): Promise<{ deleted: string }> {
   );
 }
 
-export function connect(name: string): Promise<ConnectionStatus> {
-  return apiSend<ConnectionStatus>('POST', '/api/profiles/connect', { name });
+export function connect(name: string, signal?: AbortSignal): Promise<ConnectionStatus> {
+  return apiSend<ConnectionStatus>('POST', '/api/profiles/connect', { name }, signal);
 }
 
 export function disconnect(): Promise<ConnectionStatus> {

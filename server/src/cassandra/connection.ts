@@ -161,13 +161,47 @@ export function listDatacenters(client: Client): string[] {
  * Disconnect the currently active client (if any), then connect using the
  * given profile. On success, register the new session via setActive().
  */
-export async function connect(profile: ConnectionProfile): Promise<ConnectResult> {
+export async function connect(
+  profile: ConnectionProfile,
+  signal?: AbortSignal,
+): Promise<ConnectResult> {
   await disconnect();
 
   const client = new Client(buildClientOptions(profile));
+  const cancelled = async (): Promise<ConnectResult> => {
+    try {
+      await client.shutdown();
+    } catch {
+      /* ignore */
+    }
+    return {
+      ok: false,
+      message: 'Connection cancelled',
+      status: { connected: false, profileName: null, keyspace: null },
+    };
+  };
+  // Shutting the client down makes a pending client.connect() reject promptly.
+  const onAbort = () => {
+    void client.shutdown().catch(() => undefined);
+  };
+  signal?.addEventListener('abort', onAbort, { once: true });
+  try {
+    return await establish(client, profile, signal, cancelled);
+  } finally {
+    signal?.removeEventListener('abort', onAbort);
+  }
+}
+
+async function establish(
+  client: Client,
+  profile: ConnectionProfile,
+  signal: AbortSignal | undefined,
+  cancelled: () => Promise<ConnectResult>,
+): Promise<ConnectResult> {
   try {
     await client.connect();
   } catch (err) {
+    if (signal?.aborted) return cancelled();
     // Clean up any partially-initialized client state so a retry works.
     try {
       await client.shutdown();
@@ -181,6 +215,8 @@ export async function connect(profile: ConnectionProfile): Promise<ConnectResult
       status: { connected: false, profileName: null, keyspace: null },
     };
   }
+
+  if (signal?.aborted) return cancelled();
 
   // Validate the requested datacenter exists in the cluster. The driver
   // would otherwise silently route to the wrong DC (or to no nodes) and
@@ -211,6 +247,7 @@ export async function connect(profile: ConnectionProfile): Promise<ConnectResult
       await client.execute(`USE "${profile.default_keyspace.replace(/"/g, '""')}"`);
       keyspace = profile.default_keyspace;
     } catch (err) {
+      if (signal?.aborted) return cancelled();
       const message = err instanceof Error ? err.message : String(err);
       try {
         await client.shutdown();
@@ -224,6 +261,8 @@ export async function connect(profile: ConnectionProfile): Promise<ConnectResult
       };
     }
   }
+
+  if (signal?.aborted) return cancelled();
 
   setActive({ client, profile, keyspace });
 

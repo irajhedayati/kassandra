@@ -4,10 +4,10 @@
  *
  * Mirrors legacy/src/view/main_view.py + connection_form.py.
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faFileImport, faPlug, faPlugCircleXmark, faRotate } from '@fortawesome/free-solid-svg-icons';
+import { faFileImport, faPlug, faPlugCircleXmark, faRotate, faSpinner } from '@fortawesome/free-solid-svg-icons';
 import type { ConnectionProfile, ConnectionStatus } from '@kassandra/shared';
 import {
   connect,
@@ -65,8 +65,20 @@ export function ConnectionPanel() {
     [profiles, selectedName],
   );
 
+  // Aborts the in-flight connect/reconnect request (the Stop button).
+  const abortRef = useRef<AbortController | null>(null);
+  const isAbort = (err: unknown) => err instanceof DOMException && err.name === 'AbortError';
+  const refreshConnection = async () => {
+    await queryClient.invalidateQueries({ queryKey: ['connection', 'status'] });
+    await queryClient.invalidateQueries({ queryKey: ['connection', 'datacenters'] });
+    await queryClient.invalidateQueries({ queryKey: ['schema'] });
+  };
+
   const connectMutation = useMutation({
-    mutationFn: (name: string) => connect(name),
+    mutationFn: (name: string) => {
+      abortRef.current = new AbortController();
+      return connect(name, abortRef.current.signal);
+    },
     onSuccess: async () => {
       setError(null);
       await queryClient.invalidateQueries({ queryKey: ['connection', 'status'] });
@@ -74,6 +86,7 @@ export function ConnectionPanel() {
       await queryClient.invalidateQueries({ queryKey: ['schema'] });
     },
     onError: (err: unknown) => {
+      if (isAbort(err)) return;
       setError(err instanceof Error ? err.message : String(err));
     },
   });
@@ -94,8 +107,10 @@ export function ConnectionPanel() {
 
   const reconnectMutation = useMutation({
     mutationFn: async (name: string) => {
+      const controller = new AbortController();
+      abortRef.current = controller;
       await disconnect();
-      await connect(name);
+      await connect(name, controller.signal);
     },
     onSuccess: async () => {
       setError(null);
@@ -105,7 +120,13 @@ export function ConnectionPanel() {
       await queryClient.invalidateQueries({ queryKey: ['schema'] });
     },
     onError: (err: unknown) => {
+      if (isAbort(err)) return;
       setError(err instanceof Error ? err.message : String(err));
+    },
+    // A stopped reconnect leaves the client disconnected; resync the UI.
+    onSettled: async () => {
+      setKeyspace(null);
+      await refreshConnection();
     },
   });
 
@@ -145,12 +166,21 @@ export function ConnectionPanel() {
       </div>
 
       <div className="flex gap-2">
-        {connected ? (
+        {connectMutation.isPending || reconnectMutation.isPending ? (
+          <button
+            type="button"
+            onClick={() => abortRef.current?.abort()}
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-red-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-red-700"
+          >
+            <FontAwesomeIcon icon={faSpinner} spin />
+            Stop
+          </button>
+        ) : connected ? (
           <>
             <button
               type="button"
               onClick={() => disconnectMutation.mutate()}
-              disabled={disconnectMutation.isPending || reconnectMutation.isPending}
+              disabled={disconnectMutation.isPending}
               className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 transition hover:bg-slate-700 disabled:opacity-60"
             >
               <FontAwesomeIcon icon={faPlugCircleXmark} />
@@ -161,11 +191,11 @@ export function ConnectionPanel() {
               onClick={() => {
                 if (status?.profileName) reconnectMutation.mutate(status.profileName);
               }}
-              disabled={!status?.profileName || disconnectMutation.isPending || reconnectMutation.isPending}
+              disabled={!status?.profileName || disconnectMutation.isPending}
               className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 transition hover:bg-slate-700 disabled:opacity-60"
             >
               <FontAwesomeIcon icon={faRotate} />
-              {reconnectMutation.isPending ? 'Reconnecting...' : 'Reconnect'}
+              Reconnect
             </button>
           </>
         ) : (
@@ -174,11 +204,11 @@ export function ConnectionPanel() {
             onClick={() => {
               if (selectedName) connectMutation.mutate(selectedName);
             }}
-            disabled={!selectedName || connectMutation.isPending}
+            disabled={!selectedName}
             className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-sm font-medium text-white shadow-sm transition hover:bg-blue-700 disabled:opacity-60"
           >
             <FontAwesomeIcon icon={faPlug} />
-            {connectMutation.isPending ? 'Connecting...' : 'Connect'}
+            Connect
           </button>
         )}
       </div>

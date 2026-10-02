@@ -164,7 +164,13 @@ connectionRouter.post(
     if (!profile) {
       throw badRequest(`Profile not found: ${name}`);
     }
-    const result = await connect(profile);
+    // Abort the attempt if the client goes away (user pressed Stop).
+    const controller = new AbortController();
+    res.on('close', () => {
+      if (!res.writableEnded) controller.abort();
+    });
+    const result = await connect(profile, controller.signal);
+    if (controller.signal.aborted) return;
     if (!result.ok) {
       res.status(502).json({ ok: false, message: result.message });
       return;

@@ -20,11 +20,13 @@ export async function apiSend<T>(
   method: 'POST' | 'PUT' | 'DELETE',
   path: string,
   body?: unknown,
+  signal?: AbortSignal,
 ): Promise<T> {
   const res = await fetch(path, {
     method,
     headers: { 'content-type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body),
+    signal,
   });
   return unwrap<T>(res);
 }
