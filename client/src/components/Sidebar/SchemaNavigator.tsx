@@ -4,16 +4,21 @@
  *
  * Owned by the schema lane.
  */
+import { useState } from 'react';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faPlus } from '@fortawesome/free-solid-svg-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { KeyspaceList, TableList } from '@kassandra/shared';
 import { listKeyspaces, listTables } from '../../api/schema.js';
 import { useSelection } from '../../state/selection.js';
 import { useConnectionStatus } from '../../state/connection.js';
 import { useFavoriteKeyspaces } from '../../state/favorites.js';
+import { CreateKeyspaceDialog } from '../Dialogs/CreateKeyspaceDialog.js';
 import { SearchableSelect } from './SearchableSelect.js';
 
 export function SchemaNavigator() {
   const queryClient = useQueryClient();
+  const [createOpen, setCreateOpen] = useState(false);
   const { keyspace, table, setKeyspace, setTable } = useSelection();
   const { data: status } = useConnectionStatus();
   const { favorites } = useFavoriteKeyspaces(status?.profileName);
@@ -61,19 +66,32 @@ export function SchemaNavigator() {
 
       <div className="space-y-1">
         <label className="block text-xs font-medium text-slate-400">Keyspace</label>
-        <SearchableSelect
-          value={keyspace}
-          options={orderedKeyspaces}
-          onChange={setKeyspace}
-          disabled={keyspacesQuery.isLoading || keyspaces.length === 0}
-          placeholder={
-            keyspacesQuery.isLoading
-              ? 'Loading…'
-              : keyspaces.length === 0
-                ? 'No keyspaces'
-                : 'Select keyspace'
-          }
-        />
+        <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <SearchableSelect
+              value={keyspace}
+              options={orderedKeyspaces}
+              onChange={setKeyspace}
+              disabled={keyspacesQuery.isLoading || keyspaces.length === 0}
+              placeholder={
+                keyspacesQuery.isLoading
+                  ? 'Loading…'
+                  : keyspaces.length === 0
+                    ? 'No keyspaces'
+                    : 'Select keyspace'
+              }
+            />
+          </div>
+          <button
+            type="button"
+            onClick={() => setCreateOpen(true)}
+            aria-label="Create keyspace"
+            title="Create keyspace"
+            className="rounded-md border border-slate-700 px-2.5 py-2 text-xs text-slate-300 transition hover:bg-slate-800"
+          >
+            <FontAwesomeIcon icon={faPlus} />
+          </button>
+        </div>
         {keyspacesQuery.isError && (
           <p className="text-xs text-red-400">
             {(keyspacesQuery.error as Error).message}
@@ -104,6 +122,7 @@ export function SchemaNavigator() {
           </p>
         )}
       </div>
+      <CreateKeyspaceDialog open={createOpen} onClose={() => setCreateOpen(false)} />
     </div>
   );
 }

@@ -1,5 +1,5 @@
-import type { KeyspaceList, TableList, TableSchema } from '@kassandra/shared';
-import { apiGet } from './client.js';
+import type { CreateKeyspaceRequest, KeyspaceList, TableList, TableSchema } from '@kassandra/shared';
+import { apiGet, apiSend } from './client.js';
 
 /**
  * Schema introspection client.
@@ -20,4 +20,8 @@ export function getSchema(keyspace: string, table: string): Promise<TableSchema>
   return apiGet<TableSchema>(
     `/api/schema/keyspaces/${encodeURIComponent(keyspace)}/tables/${encodeURIComponent(table)}`,
   );
+}
+
+export function createKeyspace(req: CreateKeyspaceRequest): Promise<{ keyspace: string }> {
+  return apiSend<{ keyspace: string }>('POST', '/api/schema/keyspaces', req);
 }

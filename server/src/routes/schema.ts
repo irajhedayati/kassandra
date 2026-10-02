@@ -4,6 +4,7 @@
  * Routes (mounted at /api/schema):
  *
  *   GET /keyspaces                          → ApiOk<KeyspaceList>
+ *   POST /keyspaces                         → CREATE KEYSPACE; ApiOk<{ keyspace }>
  *   GET /keyspaces/:ks/tables               → ApiOk<TableList>
  *   GET /keyspaces/:ks/tables/:t            → ApiOk<TableSchema>
  *
@@ -12,10 +13,12 @@
 import { Router, type Request, type Response, type NextFunction } from 'express';
 import type {
   ApiOk,
+  CreateKeyspaceRequest,
   KeyspaceList,
   TableList,
   TableSchema,
 } from '@kassandra/shared';
+import { buildCreateKeyspaceCql } from '../cassandra/keyspace.js';
 import { requireSession } from '../cassandra/state.js';
 import {
   getKeyspaces,
@@ -45,6 +48,25 @@ schemaRouter.get(
       const ctx = requireSession();
       const keyspaces = await getKeyspaces(ctx.client);
       res.json({ ok: true, data: { keyspaces } });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+schemaRouter.post(
+  '/keyspaces',
+  async (
+    req: Request,
+    res: Response<ApiOk<{ keyspace: string }>>,
+    next: NextFunction,
+  ) => {
+    try {
+      const ctx = requireSession();
+      const body = req.body as CreateKeyspaceRequest;
+      const cql = buildCreateKeyspaceCql(body);
+      await ctx.client.execute(cql);
+      res.json({ ok: true, data: { keyspace: body.name } });
     } catch (err) {
       next(err);
     }

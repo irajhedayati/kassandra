@@ -37,6 +37,7 @@ import { getMetadata } from '../../api/metadata.js';
 import { ApiError } from '../../api/client.js';
 import { PaginationBar } from './PaginationBar.js';
 import { RowDetail } from './RowDetail.js';
+import { OptionDropdown } from '../OptionDropdown.js';
 
 interface Props {
   keyspace: string;
@@ -436,59 +437,14 @@ function FilterOperatorDropdown({
   value: FilterOperator;
   onChange: (op: FilterOperator) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    function onDocMouseDown(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', onDocMouseDown);
-    return () => document.removeEventListener('mousedown', onDocMouseDown);
-  }, [open]);
-
-  const selected = MAP_FILTER_OPERATORS.find((o) => o.value === value) ?? MAP_FILTER_OPERATORS[0]!;
-
   return (
-    <div ref={containerRef} className="relative mb-1">
-      <button
-        type="button"
-        aria-label={label}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
-        className="flex w-40 items-center justify-between gap-2 rounded border border-slate-300 bg-white px-2 py-1 text-sm text-slate-700 hover:bg-slate-50"
-      >
-        {selected.label}
-        <span className="text-slate-400">▾</span>
-      </button>
-      {open && (
-        <ul
-          role="listbox"
-          className="absolute left-0 top-full z-10 mt-1 w-72 rounded border border-slate-300 bg-white text-sm shadow-lg"
-        >
-          {MAP_FILTER_OPERATORS.map((o) => (
-            <li key={o.value} role="option" aria-selected={o.value === value}>
-              <button
-                type="button"
-                onClick={() => {
-                  onChange(o.value);
-                  setOpen(false);
-                }}
-                className={`block w-full px-3 py-2 text-left hover:bg-slate-50 ${
-                  o.value === value ? 'bg-blue-50' : ''
-                }`}
-              >
-                <span className="block font-medium text-slate-900">{o.label}</span>
-                <span className="block text-xs text-slate-500">{o.helperText}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
+    <div className="mb-1">
+      <OptionDropdown
+        label={label}
+        value={value}
+        options={MAP_FILTER_OPERATORS}
+        onChange={onChange}
+      />
     </div>
   );
 }

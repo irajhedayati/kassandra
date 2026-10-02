@@ -27,3 +27,17 @@ export interface KeyspaceList {
 export interface TableList {
   tables: string[];
 }
+
+export type ReplicationStrategy = 'SimpleStrategy' | 'NetworkTopologyStrategy';
+
+/** Body of POST /api/schema/keyspaces. Mirrors CQL CREATE KEYSPACE. */
+export interface CreateKeyspaceRequest {
+  name: string;
+  strategy: ReplicationStrategy;
+  /** SimpleStrategy only. */
+  replicationFactor?: number;
+  /** NetworkTopologyStrategy only: datacenter name → replicas. */
+  datacenters?: Record<string, number>;
+  durableWrites: boolean;
+  ifNotExists: boolean;
+}
