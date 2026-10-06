@@ -15,7 +15,7 @@ export interface FieldProps {
   onChange: (value: string) => void;
   disabled?: boolean;
   placeholder?: string;
-  /** For map<string,string> columns: user-defined known keys (Table Info), used to pre-populate the entry editor. */
+  /** For map<string,string> columns: user-defined known keys (Table Info), offered in the "Add entry" key dropdown and used to pick each value's widget. */
   mapSchema?: MapSchemaEntry[];
 }
 
