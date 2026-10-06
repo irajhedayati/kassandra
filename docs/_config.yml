@@ -10,3 +10,11 @@ plugins:
   - jekyll-remote-theme
 show_downloads: false
 google_analytics: G-8K5Y0NEGFC
+
+# Side panel (docs/_layouts/with-sidebar.html) on every page.
+defaults:
+  - scope:
+      path: ""
+      type: pages
+    values:
+      layout: with-sidebar

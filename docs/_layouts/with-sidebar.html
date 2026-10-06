@@ -1,0 +1,74 @@
+---
+layout: default
+---
+{% comment %}
+  Wraps the Cayman theme's default layout with a left side panel listing the
+  guide pages and releases. Applied to every page via `defaults` in _config.yml.
+{% endcomment %}
+<style>
+  .main-content { max-width: 80rem; }
+  .docs-shell { display: flex; align-items: flex-start; gap: 2rem; }
+  .docs-sidebar {
+    flex: 0 0 13rem;
+    position: sticky;
+    top: 1rem;
+    padding: 1rem;
+    border: 1px solid #dce6f0;
+    border-radius: 0.5rem;
+    background: #fff;
+    font-size: 0.9rem;
+  }
+  .docs-sidebar h4 {
+    margin: 1rem 0 0.4rem;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #6b7c8c;
+  }
+  .docs-sidebar h4:first-child { margin-top: 0; }
+  .docs-sidebar ul { margin: 0; padding: 0; list-style: none; }
+  .docs-sidebar li { margin: 0; }
+  .docs-sidebar a { display: block; padding: 0.25rem 0.5rem; border-radius: 0.25rem; }
+  .docs-sidebar a:hover { background: #eef5fb; text-decoration: none; }
+  .docs-sidebar a.active { background: #e2f0fb; font-weight: 600; }
+  .docs-sidebar .release { display: flex; align-items: center; justify-content: space-between; }
+  .docs-sidebar .release a:first-child { flex: 1; }
+  .docs-sidebar .release small { display: block; font-weight: 400; color: #6b7c8c; }
+  .docs-sidebar .gh { flex: none; padding: 0.25rem 0.4rem; font-size: 0.75rem; }
+  .docs-content { flex: 1; min-width: 0; }
+  @media (max-width: 52em) {
+    .docs-shell { flex-direction: column; }
+    .docs-sidebar { position: static; flex: none; width: 100%; box-sizing: border-box; }
+  }
+</style>
+<div class="docs-shell">
+  <aside class="docs-sidebar">
+    <nav aria-label="Documentation">
+      <h4>Guide</h4>
+      <ul>
+        <li><a href="{{ '/' | relative_url }}"{% if page.path == 'index.md' %} class="active"{% endif %}>User guide</a></li>
+        <li><a href="{{ '/demo.html' | relative_url }}"{% if page.path == 'demo.md' %} class="active"{% endif %}>Demo walkthrough</a></li>
+      </ul>
+      <h4>Releases</h4>
+      <ul>
+        {% for release in site.data.releases %}
+        {% assign release_path = 'release-notes/' | append: release.version | append: '.md' %}
+        <li class="release">
+          <a href="{{ '/release-notes/' | append: release.version | append: '.html' | relative_url }}"{% if page.path == release_path %} class="active"{% endif %}>
+            {{ release.version }}<small>{{ release.date }}</small>
+          </a>
+          {% if release.released %}
+          <a class="gh" href="https://github.com/irajhedayati/kassandra/releases/tag/{{ release.version }}" title="{{ release.version }} on GitHub">GitHub</a>
+          {% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      <ul>
+        <li><a href="https://github.com/irajhedayati/kassandra/releases">All releases on GitHub</a></li>
+      </ul>
+    </nav>
+  </aside>
+  <div class="docs-content">
+    {{ content }}
+  </div>
+</div>
