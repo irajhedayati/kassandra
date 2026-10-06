@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import Editor from '@monaco-editor/react';
+import { OptionDropdown } from '../../OptionDropdown.js';
 import { getTypeInfo, isStringStringMap, type MapSchemaEntry, type WidgetKind } from '@kassandra/shared';
 import {
   fieldLabel,
@@ -283,21 +284,23 @@ export function MapField(props: FieldProps) {
                     {widget === 'JSON' ? 'JSON' : 'blob'} — edit below
                   </span>
                 ) : widget === 'enum' ? (
-                  <select
-                    className={`${inputClass} flex-1`}
-                    value={entry.value}
-                    disabled={disabled}
-                    onChange={(e) => setValue(e.target.value)}
-                  >
-                    <option value="">-- select --</option>
-                    {(entry.value && !enumValues.includes(entry.value) ? [entry.value, ...enumValues] : enumValues).map(
-                      (v) => (
-                        <option key={v} value={v}>
-                          {v}
-                        </option>
-                      ),
-                    )}
-                  </select>
+                  <div className="flex-1">
+                    <OptionDropdown
+                      label={`Value for ${entry.key}`}
+                      value={entry.value}
+                      options={[
+                        { value: '', label: '-- select --' },
+                        ...(entry.value && !enumValues.includes(entry.value)
+                          ? [entry.value, ...enumValues]
+                          : enumValues
+                        ).map((v) => ({ value: v, label: v })),
+                      ]}
+                      onChange={setValue}
+                      disabled={disabled}
+                      buttonClassName="w-full px-2 py-1.5"
+                      listClassName="w-full"
+                    />
+                  </div>
                 ) : widget === 'checkbox' ? (
                   <label className="flex flex-1 items-center gap-2">
                     <input

@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 export interface DropdownOption<T extends string> {
   value: T;
   label: string;
-  helperText: string;
+  helperText?: string;
 }
 
 interface Props<T extends string> {
@@ -15,6 +15,7 @@ interface Props<T extends string> {
   value: T;
   options: DropdownOption<T>[];
   onChange: (value: T) => void;
+  disabled?: boolean;
   /** Tailwind width class for the trigger button. */
   buttonClassName?: string;
   /** Tailwind width class for the option list. */
@@ -26,6 +27,7 @@ export function OptionDropdown<T extends string>({
   value,
   options,
   onChange,
+  disabled,
   buttonClassName = 'w-40',
   listClassName = 'w-72',
 }: Props<T>) {
@@ -52,10 +54,11 @@ export function OptionDropdown<T extends string>({
         aria-label={label}
         aria-haspopup="listbox"
         aria-expanded={open}
+        disabled={disabled}
         onClick={() => setOpen((o) => !o)}
-        className={`flex items-center justify-between gap-2 rounded border border-slate-300 bg-white px-2 py-1 text-sm text-slate-700 hover:bg-slate-50 ${buttonClassName}`}
+        className={`flex items-center justify-between gap-2 rounded border border-slate-300 bg-white px-2 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500 ${buttonClassName}`}
       >
-        {selected.label}
+        <span className={`truncate ${selected.value === '' ? 'text-slate-400' : ''}`}>{selected.label}</span>
         <span className="text-slate-400">▾</span>
       </button>
       {open && (
@@ -76,7 +79,9 @@ export function OptionDropdown<T extends string>({
                 }`}
               >
                 <span className="block font-medium text-slate-900">{o.label}</span>
-                <span className="block text-xs text-slate-500">{o.helperText}</span>
+                {o.helperText && (
+                  <span className="block text-xs text-slate-500">{o.helperText}</span>
+                )}
               </button>
             </li>
           ))}
