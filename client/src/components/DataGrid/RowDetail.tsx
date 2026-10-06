@@ -22,11 +22,13 @@ interface Props {
   schema: TableSchema;
   row: Row | null;
   onClose: () => void;
+  /** Called with the edited row's primary keys so the grid can show just that record. */
+  onSaved?: (keys: Row) => void;
   metadata?: Record<string, ColumnMetadata>;
 }
 
 export function RowDetail(props: Props) {
-  const { open, keyspace, table, schema, row, onClose, metadata } = props;
+  const { open, keyspace, table, schema, row, onClose, onSaved, metadata } = props;
   const queryClient = useQueryClient();
   const [mode, setMode] = useState<'view' | 'edit'>('view');
   const [confirming, setConfirming] = useState(false);
@@ -103,10 +105,10 @@ export function RowDetail(props: Props) {
               table={table}
               initial={row}
               metadata={metadata}
-              onSuccess={async () => {
-                await queryClient.invalidateQueries({ queryKey: ['data', keyspace, table] });
+              onSuccess={(keys) => {
                 setMode('view');
                 onClose();
+                onSaved?.(keys);
               }}
               onCancel={() => setMode('view')}
             />

@@ -42,6 +42,10 @@ import { OptionDropdown } from '../OptionDropdown.js';
 interface Props {
   keyspace: string;
   table: string;
+  /** Primary-key values of a just-saved record; the grid filters down to it. */
+  focusKeys?: Row | null;
+  /** Called once `focusKeys` has been applied so it isn't re-applied on remount. */
+  onFocusApplied?: () => void;
 }
 
 const PAGE_SIZES = [10, 25, 50] as const;
@@ -57,7 +61,7 @@ function defaultOperatorFor(col: ColumnInfo): FilterOperator {
   return rootCqlType(col.cql_type) === 'map' ? 'map_entry_eq' : 'eq';
 }
 
-export function DataGrid({ keyspace, table }: Props) {
+export function DataGrid({ keyspace, table, focusKeys, onFocusApplied }: Props) {
   const [pageSize, setPageSize] = useState<number>(DEFAULT_PAGE_SIZE);
   const [pageStack, setPageStack] = useState<(string | null)[]>([null]);
   const [filterDraft, setFilterDraft] = useState<Record<string, FilterDraftEntry>>({});
@@ -77,6 +81,28 @@ export function DataGrid({ keyspace, table }: Props) {
     setFilterDraft({});
     setFilters([]);
   }, [keyspace, table]);
+
+  // Narrow the grid to a single record by equality filters on its primary key.
+  const showRecord = (keys: Row) => {
+    const draft: Record<string, FilterDraftEntry> = {};
+    const next: FilterCondition[] = [];
+    for (const [column, raw] of Object.entries(keys)) {
+      if (raw === null || raw === undefined) continue;
+      const value = typeof raw === 'object' ? JSON.stringify(raw) : String(raw);
+      draft[column] = { operator: 'eq', value };
+      next.push({ column, operator: 'eq', value });
+    }
+    setFilterDraft(draft);
+    setFilters(next);
+  };
+
+  // Declared after the reset-on-table-change effect so it wins on mount.
+  useEffect(() => {
+    if (!focusKeys) return;
+    showRecord(focusKeys);
+    onFocusApplied?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusKeys]);
 
   const schemaQuery = useQuery({
     queryKey: ['schema', keyspace, table],
@@ -413,6 +439,7 @@ export function DataGrid({ keyspace, table }: Props) {
         row={selectedRow}
         metadata={metadata}
         onClose={() => setSelectedRow(null)}
+        onSaved={showRecord}
       />
     </div>
   );
