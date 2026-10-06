@@ -23,7 +23,7 @@ export function EnumField(props: EnumFieldProps) {
         onChange={onChange}
         disabled={disabled}
         buttonClassName="w-full px-2 py-1.5"
-        listClassName="w-full"
+        listClassName="w-auto"
       />
     </div>
   );

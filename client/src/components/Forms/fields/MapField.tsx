@@ -298,7 +298,7 @@ export function MapField(props: FieldProps) {
                       onChange={setValue}
                       disabled={disabled}
                       buttonClassName="w-full px-2 py-1.5"
-                      listClassName="w-full"
+                      listClassName="w-auto"
                     />
                   </div>
                 ) : widget === 'checkbox' ? (

@@ -22,6 +22,7 @@ import {
   setColumnMetadata as apiSetColumnMetadata,
 } from '../../api/metadata.js';
 import { MapSchemaEditor } from '../Dialogs/MapSchemaEditor.js';
+import { OptionDropdown, type DropdownOption } from '../OptionDropdown.js';
 
 interface Props {
   keyspace: string;
@@ -32,6 +33,12 @@ interface MapEditorTarget {
   column: string;
   current: MapSchemaEntry[];
 }
+
+const DISPLAY_TYPE_OPTIONS: DropdownOption<string>[] = [
+  { value: 'text', label: 'text', helperText: 'Plain text' },
+  { value: 'JSON', label: 'JSON', helperText: 'Shown and edited as formatted JSON' },
+  { value: 'enum', label: 'enum', helperText: 'Pick from a fixed list of values' },
+];
 
 function keyKindLabel(col: ColumnInfo): string {
   if (col.kind === 'partition_key') return 'Partition Key';
@@ -245,18 +252,16 @@ export function TableInfo({ keyspace, table }: Props) {
                   <td className="px-3 py-2">
                     {isText ? (
                       <div className="flex flex-col gap-1">
-                        <select
+                        <OptionDropdown
+                          label={`Display type for ${col.name}`}
                           value={displayType}
-                          onChange={(e) =>
-                            updateDraftColumn(col.name, { display_type: e.target.value })
-                          }
+                          options={DISPLAY_TYPE_OPTIONS}
+                          searchable
+                          onChange={(v) => updateDraftColumn(col.name, { display_type: v })}
                           disabled={saveMutation.isPending}
-                          className="rounded border border-slate-300 bg-white px-2 py-1 text-sm"
-                        >
-                          <option value="text">text</option>
-                          <option value="JSON">JSON</option>
-                          <option value="enum">enum</option>
-                        </select>
+                          buttonClassName="w-40"
+                          listClassName="w-64"
+                        />
                         {displayType === 'enum' && (
                           <input
                             type="text"

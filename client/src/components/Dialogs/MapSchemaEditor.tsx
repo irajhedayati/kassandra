@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { OptionDropdown } from '../OptionDropdown.js';
 import { CQL_TYPE_INFO, type MapSchemaEntry } from '@kassandra/shared';
 
 interface Props {
@@ -16,6 +17,7 @@ interface Props {
 const NON_SCALAR_ROOTS = new Set(['list', 'set', 'map', 'tuple', 'frozen', 'json', 'text']);
 const SCALAR_TYPES = Object.keys(CQL_TYPE_INFO).filter((t) => !NON_SCALAR_ROOTS.has(t)).sort();
 const TYPES = ['text', 'JSON', 'enum', ...SCALAR_TYPES] as const;
+const TYPE_OPTIONS = TYPES.map((t) => ({ value: t as string, label: t }));
 
 function enumValuesToText(values: string[] | undefined): string {
   return (values ?? []).join(', ');
@@ -114,18 +116,16 @@ export function MapSchemaEditor(props: Props) {
                       disabled={props.saving}
                       className="rounded border border-slate-300 px-2 py-1 text-sm focus:border-blue-500 focus:outline-none"
                     />
-                    <select
+                    <OptionDropdown
+                      label={`Type for row ${idx + 1}`}
                       value={displayType}
-                      onChange={(e) => updateEntry(idx, { display_type: e.target.value })}
+                      options={TYPE_OPTIONS}
+                      searchable
+                      onChange={(v) => updateEntry(idx, { display_type: v })}
                       disabled={props.saving}
-                      className="rounded border border-slate-300 bg-white px-2 py-1 text-sm"
-                    >
-                      {TYPES.map((t) => (
-                        <option key={t} value={t}>
-                          {t}
-                        </option>
-                      ))}
-                    </select>
+                      buttonClassName="w-full"
+                      listClassName="w-48"
+                    />
                     <button
                       type="button"
                       onClick={() => removeEntry(idx)}

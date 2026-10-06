@@ -293,6 +293,7 @@ export function CreateTableDialog({ open, keyspace, onClose }: Props) {
                     label="Column type"
                     value={r.base}
                     options={TYPE_OPTIONS}
+                    searchable
                     onChange={(base) => update(i, { base })}
                     buttonClassName="w-28"
                   />
@@ -394,7 +395,7 @@ export function CreateTableDialog({ open, keyspace, onClose }: Props) {
                   options={COMPACTION_OPTIONS}
                   onChange={setCompaction}
                   buttonClassName="w-full px-3 py-2"
-                  listClassName="w-full"
+                  listClassName="w-auto"
                 />
               </div>
               <div>
@@ -405,7 +406,7 @@ export function CreateTableDialog({ open, keyspace, onClose }: Props) {
                   options={COMPRESSION_OPTIONS}
                   onChange={setCompression}
                   buttonClassName="w-full px-3 py-2"
-                  listClassName="w-full"
+                  listClassName="w-auto"
                 />
               </div>
             </div>

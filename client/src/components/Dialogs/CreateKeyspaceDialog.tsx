@@ -217,7 +217,7 @@ export function CreateKeyspaceDialog({ open, onClose }: Props) {
               options={STRATEGY_OPTIONS}
               onChange={setStrategy}
               buttonClassName="w-full px-3 py-2"
-              listClassName="w-full"
+              listClassName="w-auto"
             />
           </div>
 
