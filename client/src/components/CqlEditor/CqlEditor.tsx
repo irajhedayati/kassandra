@@ -24,10 +24,20 @@ import { registerCqlCompletionProvider } from './cqlCompletion.js';
 
 const DEFAULT_PAGE_SIZE = 100;
 
+interface ExecInfo {
+  startedAt: Date;
+  durationMs: number;
+}
+
+function formatDuration(ms: number): string {
+  return ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(2)} s`;
+}
+
 export function CqlEditor() {
   const [collapsed, setCollapsed] = useState(false);
   const [query, setQuery] = useState<string>('');
   const [result, setResult] = useState<QueryResponse | null>(null);
+  const [execInfo, setExecInfo] = useState<ExecInfo | null>(null);
   const [pagingState, setPagingState] = useState<string | null>(null);
   const queryRef = useRef<string>('');
   const completionDisposableRef = useRef<{ dispose: () => void } | null>(null);
@@ -51,8 +61,15 @@ export function CqlEditor() {
   }, [pending, clearPending]);
 
   const mutation = useMutation<QueryResponse, Error, { query: string; pagingState: string | null }>({
-    mutationFn: ({ query: q, pagingState: ps }) =>
-      execCql({ query: q, pageSize: DEFAULT_PAGE_SIZE, pagingState: ps }),
+    mutationFn: async ({ query: q, pagingState: ps }) => {
+      const startedAt = new Date();
+      const t0 = performance.now();
+      try {
+        return await execCql({ query: q, pageSize: DEFAULT_PAGE_SIZE, pagingState: ps });
+      } finally {
+        setExecInfo({ startedAt, durationMs: performance.now() - t0 });
+      }
+    },
     onSuccess: (data) => {
       setResult(data);
       if (data.success) {
@@ -180,6 +197,13 @@ export function CqlEditor() {
           </p>
 
           <CqlResults result={result} />
+
+          {execInfo && !mutation.isPending && (
+            <p className="text-xs text-slate-500" data-testid="cql-status">
+              Executed {execInfo.startedAt.toLocaleString()} · took{' '}
+              {formatDuration(execInfo.durationMs)}
+            </p>
+          )}
         </>
       )}
     </div>
