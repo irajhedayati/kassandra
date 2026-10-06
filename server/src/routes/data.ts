@@ -4,8 +4,8 @@
  * Routes (mounted at /api/data):
  *
  *   POST   /:ks/:t/rows         → body: PaginatedReadRequest                  → QueryResponse
- *   POST   /:ks/:t/rows/insert  → body: { values: Row }                       → QueryResponse
- *   PUT    /:ks/:t/rows         → body: { keys, updates }                     → QueryResponse
+ *   POST   /:ks/:t/rows/insert  → body: { values: Row }                       → QueryResponse (rows: [stored row])
+ *   PUT    /:ks/:t/rows         → body: { keys, updates, mapChanges? }        → QueryResponse (rows: [stored row])
  *   DELETE /:ks/:t/rows         → body: { keys }                              → QueryResponse
  *
  * All routes:
@@ -59,6 +59,12 @@ const insertBodySchema = z.object({
 const updateBodySchema = z.object({
   keys: rowSchema,
   updates: rowSchema,
+  mapChanges: z
+    .record(
+      z.string(),
+      z.object({ set: z.record(z.string(), z.string()), deleted: z.array(z.string()) }),
+    )
+    .optional(),
 });
 
 const deleteBodySchema = z.object({
@@ -131,9 +137,11 @@ dataRouter.post(
     const schema = await getTableSchema(ctx.client, keyspace, table);
     const repo = new CassandraRepository(ctx.client);
     const out = await repo.insertRow(schema, body.values as Row);
+    // Return the stored row so the client can show exactly what was written.
+    const row = out.keys ? await repo.readRowByKeys(schema, out.keys) : null;
     return {
       success: true,
-      rows: [],
+      rows: row ? [row] : [],
       pagingState: null,
       hasMorePages: false,
       message: out.message ?? 'Row inserted.',
@@ -153,10 +161,12 @@ dataRouter.put(
       schema,
       body.keys as Row,
       body.updates as Row,
+      body.mapChanges,
     );
+    const row = out.keys ? await repo.readRowByKeys(schema, out.keys) : null;
     return {
       success: true,
-      rows: [],
+      rows: row ? [row] : [],
       pagingState: null,
       hasMorePages: false,
       message: out.message ?? 'Row updated.',

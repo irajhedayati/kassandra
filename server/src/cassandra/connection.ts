@@ -78,7 +78,7 @@ function isSupportedProtocolVersion(v: number): boolean {
   return v === 1 || v === 2 || v === 3 || v === 4 || v === 65 || v === 66;
 }
 
-function buildClientOptions(profile: ConnectionProfile): ClientOptions {
+export function buildClientOptions(profile: ConnectionProfile): ClientOptions {
   const consistency = consistencyForProfile(profile);
   const localDc = profile.local_datacenter?.trim() ?? '';
   // DCAwareRoundRobinPolicy routes to the local DC first and only falls
@@ -111,6 +111,9 @@ function buildClientOptions(profile: ConnectionProfile): ClientOptions {
       // legacy `connect_timeout` is in seconds; driver expects ms.
       connectTimeout: Math.max(1, profile.connection_timeout) * 1000,
     },
+    // Without these the driver only recognises plain objects/arrays, and binds
+    // ES6 Map/Set values as empty collections.
+    encoding: { map: Map, set: Set },
     profiles: [defaultProfile],
     policies: {
       loadBalancing,
