@@ -85,12 +85,21 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # 4. Generate release notes + create the GitHub Release
+      # 4. Create the GitHub Release. Prefer handwritten notes checked in at
+      # docs/release-notes/v<version>.md; fall back to GitHub's generated notes.
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "v${{ steps.version.outputs.version }}" \
-            --title "v${{ steps.version.outputs.version }}" \
-            --generate-notes \
+          tag="v${{ steps.version.outputs.version }}"
+          notes_file="docs/release-notes/${tag}.md"
+          if [ -f "$notes_file" ]; then
+            notes_args=(--notes-file "$notes_file")
+          else
+            echo "No $notes_file found; generating notes from merged PRs."
+            notes_args=(--generate-notes)
+          fi
+          gh release create "$tag" \
+            --title "$tag" \
+            "${notes_args[@]}" \
             --target "$(git rev-parse HEAD)"

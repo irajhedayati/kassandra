@@ -10,10 +10,11 @@ The previous Python/Streamlit implementation is kept in [`../legacy`](../legacy)
 
 - **Connection management**: Create, edit, delete, and import profiles with authentication, SSL, and optional local datacenter selection.
 - **Schema explorer**: Search keyspaces and tables, refresh schema lists, and favorite keyspaces.
-- **Data browser**: Browse paginated rows, apply column filters, and inspect individual records in an inline row detail panel.
+- **Keyspace and table creation**: Create keyspaces and tables from guided dialogs with a live CQL preview.
+- **Data browser**: Browse paginated rows, apply column filters (including map keys and values), and inspect individual records in an inline row detail panel.
 - **Schema-driven forms**: Generate INSERT and UPDATE statements for review and execution in the CQL editor.
 - **Record deletion**: Delete a selected row after confirmation.
-- **CQL editor**: Write queries with syntax highlighting and completion, execute them, and page through results.
+- **CQL editor**: Write queries with syntax highlighting and completion, execute them, page through results, and see when each query ran and how long it took.
 - **Column customization**: Configure hidden columns, JSON and enum fields, and rich per-key schemas for map columns.
 
 ## Installation
@@ -84,8 +85,8 @@ Connection hosts must be reachable from inside the container. For Cassandra runn
 #### Connecting and managing profiles
 
 1. Select a saved profile from **Connection profile** in the sidebar.
-2. Click **Connect**. The connection status and **Schema** section appear when connected.
-3. Click **Reconnect** at any time to disconnect and reconnect to the current profile, for example after the cluster or your credentials change.
+2. Click **Connect**. The connection status and **Schema** section appear when connected. While a connection attempt is running, the button becomes **Stop**; click it to cancel the attempt.
+3. Click **Reconnect** at any time to disconnect and reconnect to the current profile, for example after the cluster or your credentials change. It also becomes **Stop** while it runs; stopping a reconnect leaves you disconnected.
 4. To switch profiles or edit the selected profile, click **Disconnect** first.
 5. Under **Manage connections**, click **Edit selected** to change settings and **Save changes** to persist them. The dialog also provides **Delete**, with confirmation, to remove the profile.
 
@@ -112,10 +113,32 @@ Click the star beside the selected keyspace in the top bar to add or remove it f
 
 #### Data grid controls
 
-- **Filtering**: Enter values in the column fields above the grid, then click **Apply**. Click **Clear** to remove filters. These are equality filters; the generated query uses `ALLOW FILTERING`, which can scan substantial data for non-key columns.
+- **Filtering**: Enter values in the column fields above the grid, then click **Apply**. Click **Clear** to remove filters. Most columns use equality filters; map columns also offer *Key = value*, *Contains key*, and *Contains value*. The generated query uses `ALLOW FILTERING`, which can scan substantial data for non-key columns.
 - **Pagination**: Choose 10, 25, or 50 **Rows per page**. Use **Next page** to continue and **Reset** to return to the first page.
 - **Refresh**: The button above the grid reloads the current page and its schema and metadata.
 - **Selection**: Click a row to open its details dialog. Primary and clustering key columns are marked `(pk)` and `(ck)` in the grid.
+
+#### Creating keyspaces and tables
+
+Use the **+** buttons in the sidebar's **Schema** section. Each dialog has a **?** button with an inline guide to the options, and a **CQL preview** showing the statement that will run. Names are created exactly as typed (case-sensitive).
+
+**Create a keyspace** (the **+** beside **Keyspace**):
+
+1. Enter a name: it must start with a letter, use only letters, digits, and underscores, and be at most 48 characters.
+2. Choose a **Replication strategy**: *SimpleStrategy* takes one replication factor for the whole cluster (development or a single datacenter); *NetworkTopologyStrategy* takes replicas per datacenter and is recommended for production. Datacenter names from the connected cluster are suggested as you type.
+3. Optionally turn off **Durable writes** (not recommended) or tick **IF NOT EXISTS**.
+4. Click **Create**. The keyspace list refreshes and the new keyspace is selected.
+
+![Creating a keyspace](images/create-keyspace.gif)
+
+**Create a table** (the **+** beside **Table**, enabled once a keyspace is selected):
+
+1. Enter a table name and add columns. For each, choose its kind (*Partition key*, *Clustering*, *Regular*, or *Static*) and its type; `list`, `set`, and `map` columns also take element types and an optional `frozen`.
+2. Columns are listed in key order: partition key columns form the partition key in the order shown, and clustering columns are sorted in the order shown, each ASC or DESC.
+3. Optionally expand **Table options** to set a comment, default TTL, GC grace seconds, compaction, and compression. Blank fields use the server defaults.
+4. The preview explains anything invalid, for example no partition key, duplicate column names, a collection in a key that is not frozen, or a static column without a clustering column. **Create** is enabled once the definition is valid.
+
+![Creating a table](images/create-table.gif)
 
 ### 3. Inserting, Updating, and Deleting Records
 
@@ -130,6 +153,17 @@ Click the star beside the selected keyspace in the top bar to add or remove it f
 
 ![Generating an INSERT statement from the record form](insert.gif)
 
+**Map columns.** A map column shows its entries as key/value rows. Click **+ Add entry** to add one:
+
+- If the column has a map schema (see [Table Info](#5-table-info)), a searchable **Select a key…** dropdown lists the defined keys. Choosing one switches the value field to that key's type: text, JSON, enum, number, date or time, checkbox, and so on. Keys already used are not offered again.
+- To use a key that is not defined, type it in the search box and choose **Use "…" as a custom key**, or choose **Custom key…** and type it.
+- Without a map schema, type the key and value directly.
+- Entries with an empty key or value are left out of the generated statement.
+
+![Inserting a record with a map column](images/map-insert.png)
+
+![Picking a map key from the defined keys](images/map-schema.gif)
+
 #### Updating records
 
 1. Click a row in **Data Browser** to open its details dialog.
@@ -137,6 +171,8 @@ Click the star beside the selected keyspace in the top bar to add or remove it f
 3. Click **Generate CQL** to send the changes to the CQL editor.
 4. Review the generated statements and click **Execute Query** to apply them.
 5. Refresh the data browser to see the updated row.
+
+![Editing a row with a map column](images/edit-map-column.png)
 
 Generating CQL does not write to Cassandra; inserts and updates take effect when you execute the generated query.
 
@@ -159,6 +195,7 @@ The **CQL Editor** is a collapsible panel at the bottom of the application, avai
 
 3. Click **Execute Query**, or press **Cmd+Enter** on macOS / **Ctrl+Enter** on Windows and Linux.
 4. Read the returned rows in the results table, or the success or error message for the statement. Use **Next page** when more results are available.
+5. The line under the results shows when the query was sent and how long the request took.
 
 ![Executing queries in the CQL Editor](3.cql-editor.gif)
 
@@ -167,8 +204,10 @@ The **CQL Editor** is a collapsible panel at the bottom of the application, avai
 The **Table Info** tab displays column names, CQL types, and partition and clustering key information. It also lets you customize how Kassandra displays and edits columns:
 
 - **Hide**: Exclude a column from the data browser.
-- **Text fields**: Choose `text`, `JSON`, or `enum` presentation. For enums, enter the allowed values as a comma-separated list.
-- **Map Schema**: Configure map entries for the map form editor.
+- **Text fields**: Choose `text`, `JSON`, or `enum` presentation from the **Type** dropdown. For enums, enter the allowed values as a comma-separated list.
+- **Map Schema**: Click **Edit Schema** on a map column to define its known keys. Each row has a **Key**, a **Label** shown in the forms, and a value **Type** (text, JSON, enum, or a scalar CQL type). The defined keys are offered when adding map entries in the forms.
+
+![Editing a map schema](images/edit-map-schema.png)
 
 Click **Save** to persist these settings, or **Cancel** to discard pending changes. These settings customize Kassandra's interface; they do not alter the Cassandra table schema.
 

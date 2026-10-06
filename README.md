@@ -37,6 +37,14 @@ Explore keyspaces and tables, inspect and modify data, run CQL, and manage Cassa
 
 ![CQL Editor](docs/insert.gif)
 
+### Create keyspaces and tables
+
+<img src="docs/images/create-table.gif" alt="Create table" width="640" />
+
+### Work with map columns
+
+<img src="docs/images/map-schema.gif" alt="Picking a map key from the defined keys" width="640" />
+
 </div>
 
 ---
@@ -46,7 +54,8 @@ Explore keyspaces and tables, inspect and modify data, run CQL, and manage Cassa
 | Feature                          | Description                                                              |
 |----------------------------------|--------------------------------------------------------------------------|
 | **Schema Browser**               | Explore keyspaces, tables, columns, partition keys, and clustering keys. |
-| **Data Browser**                 | Inspect Cassandra table data directly from the UI.                       |
+| **Data Browser**                 | Inspect table data, with filters on columns and map keys/values.         |
+| **Create Keyspaces & Tables**    | Guided dialogs with a live CQL preview and built-in help.                |
 | **Schema-aware CRUD**            | Insert, update, and delete rows through schema-driven forms.             |
 | **CQL Editor**                   | Run raw CQL when you need full control.                                  |
 | **Connection Profiles**          | Save and switch between Cassandra cluster connections.                   |
