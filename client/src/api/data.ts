@@ -48,12 +48,11 @@ export async function updateRow(
   table: string,
   keys: Row,
   updates: Row,
-  mapChanges?: Record<string, { set: Record<string, string>; deleted: string[] }>,
 ): Promise<QueryResponse> {
   const res = await apiSend<QueryResponse>(
     'PUT',
     `/api/data/${encodeURIComponent(keyspace)}/${encodeURIComponent(table)}/rows`,
-    { keys, updates, ...(mapChanges ? { mapChanges } : {}) },
+    { keys, updates },
   );
   return unwrap(res);
 }

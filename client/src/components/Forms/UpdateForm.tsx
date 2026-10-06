@@ -4,9 +4,8 @@ import type { ColumnMetadata, Row, TableSchema } from '@kassandra/shared';
 import { rootCqlType } from '@kassandra/shared';
 import { getSchema } from '../../api/schema.js';
 import { getMetadata } from '../../api/metadata.js';
-import { useQueryClient } from '@tanstack/react-query';
-import { updateRow } from '../../api/data.js';
-import { primaryKeysOf } from '../../utils/primaryKeys.js';
+import { useCqlDraft } from '../../state/cqlDraft.js';
+import { buildUpdateCql } from '../../utils/cqlLiteral.js';
 import { DynamicForm, type UpdateDiff } from './DynamicForm.js';
 
 interface Props {
@@ -14,8 +13,8 @@ interface Props {
   table: string;
   /** Existing row values; primary-key fields are required and disabled. */
   initial: Row;
-  /** Called with the updated row's primary-key values once the update succeeds. */
-  onSuccess?: (keys: Row) => void;
+  /** Optional callback fired after the update CQL has been generated. */
+  onSuccess?: () => void;
   /** Optional cancel handler (shows the cancel button when provided). */
   onCancel?: () => void;
   /** Column metadata, when already fetched by a caller (e.g. RowDetail). */
@@ -43,8 +42,7 @@ function splitKeysAndScalarUpdates(
       }
     } else if (rootCqlType(col.cql_type) !== 'map' && changedColumns.has(col.name)) {
       const v = values[col.name];
-      // A cleared field unsets the column.
-      if (v !== undefined) scalarUpdates[col.name] = v === '' ? null : v;
+      if (v !== undefined && v !== '') scalarUpdates[col.name] = v;
     }
   }
   return { keys, scalarUpdates };
@@ -52,14 +50,15 @@ function splitKeysAndScalarUpdates(
 
 /**
  * Schema-driven UPDATE form. Used by RowDetail. Primary-key fields are
- * rendered disabled; only changed columns are sent, and the update is
- * applied directly (prepared statement on the server).
+ * rendered disabled; instead of updating directly, generates the
+ * equivalent `UPDATE` statement and pushes it into the CQL editor so the
+ * user can review/edit it before running it themselves.
  */
 export function UpdateForm(props: Props) {
   const { keyspace, table, initial, onSuccess, onCancel, metadata } = props;
-  const queryClient = useQueryClient();
+  const pushQuery = useCqlDraft((s) => s.pushQuery);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
 
   const schemaQuery = useQuery({
     queryKey: ['schema', keyspace, table],
@@ -93,6 +92,11 @@ export function UpdateForm(props: Props) {
 
   return (
     <div className="space-y-3">
+      {infoMessage && (
+        <div className="rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700">
+          {infoMessage}
+        </div>
+      )}
       {errorMessage && (
         <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           {errorMessage}
@@ -103,9 +107,10 @@ export function UpdateForm(props: Props) {
         mode="update"
         initial={initial}
         metadata={effectiveMetadata}
-        submitting={submitting}
-        onSubmit={async (values, diff: UpdateDiff | undefined) => {
+        submitLabel="Generate CQL"
+        onSubmit={(values, diff: UpdateDiff | undefined) => {
           setErrorMessage(null);
+          setInfoMessage(null);
           if (!diff || diff.changedColumns.size === 0) {
             setErrorMessage('No columns changed.');
             return;
@@ -116,20 +121,17 @@ export function UpdateForm(props: Props) {
             initial,
             diff.changedColumns,
           );
-          setSubmitting(true);
-          try {
-            const result = await updateRow(
-              keyspace,
-              table,
-              keys,
-              scalarUpdates,
-              diff.mapDiffs,
-            );
-            await queryClient.invalidateQueries({ queryKey: ['data', keyspace, table] });
-            onSuccess?.(primaryKeysOf(schema, result.success ? result.rows[0] : undefined));
-          } finally {
-            setSubmitting(false);
-          }
+          const cql = buildUpdateCql(
+            schema.keyspace,
+            schema.table_name,
+            schema.columns,
+            keys,
+            scalarUpdates,
+            diff.mapDiffs,
+          );
+          pushQuery(cql);
+          setInfoMessage('UPDATE statement sent to the CQL editor below; review and execute it there.');
+          onSuccess?.();
         }}
       />
       {onCancel && (

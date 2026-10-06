@@ -1,5 +1,4 @@
 import { useState } from 'react';
-import type { Row } from '@kassandra/shared';
 import { useConnectionStatus } from './state/connection.js';
 import { useSelection } from './state/selection.js';
 import { useFavoriteKeyspaces } from './state/favorites.js';
@@ -18,8 +17,6 @@ export function App() {
   const { keyspace, table } = useSelection();
   const { isFavorite, toggleFavorite } = useFavoriteKeyspaces(status?.profileName);
   const [tab, setTab] = useState<Tab>('data');
-  // Primary keys of a just-inserted record, handed to the Data Browser to display.
-  const [focusKeys, setFocusKeys] = useState<Row | null>(null);
 
   return (
     <div className="flex h-full bg-slate-100">
@@ -109,24 +106,9 @@ export function App() {
                 </nav>
               </div>
               <div className="p-6">
-                {tab === 'data' && (
-                  <DataGrid
-                    keyspace={keyspace}
-                    table={table}
-                    focusKeys={focusKeys}
-                    onFocusApplied={() => setFocusKeys(null)}
-                  />
-                )}
+                {tab === 'data' && <DataGrid keyspace={keyspace} table={table} />}
                 {tab === 'insert' && (
-                  <InsertForm
-                    keyspace={keyspace}
-                    table={table}
-                    onCancel={() => setTab('data')}
-                    onSaved={(keys) => {
-                      setFocusKeys(keys);
-                      setTab('data');
-                    }}
-                  />
+                  <InsertForm keyspace={keyspace} table={table} onCancel={() => setTab('data')} />
                 )}
                 {tab === 'info' && <TableInfo keyspace={keyspace} table={table} />}
               </div>

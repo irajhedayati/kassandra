@@ -1,10 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
 import { getSchema } from '../../api/schema.js';
 import { getMetadata } from '../../api/metadata.js';
-import { useQueryClient } from '@tanstack/react-query';
-import { insertRow } from '../../api/data.js';
-import { primaryKeysOf } from '../../utils/primaryKeys.js';
-import type { Row } from '@kassandra/shared';
+import { useCqlDraft } from '../../state/cqlDraft.js';
+import { buildInsertCql } from '../../utils/cqlLiteral.js';
 import { DynamicForm } from './DynamicForm.js';
 import { useState } from 'react';
 
@@ -13,20 +11,18 @@ interface Props {
   table: string;
   /** Optional cancel handler (e.g. switch back to the Data Browser tab). */
   onCancel?: () => void;
-  /** Called with the stored row's primary-key values once the insert succeeds. */
-  onSaved?: (keys: Row) => void;
 }
 
 /**
  * Schema-driven INSERT form. Loads the table schema, renders a
- * `DynamicForm` in insert mode, and inserts the row directly (prepared
- * statement on the server). On success the caller is told which record
- * was written so it can show it in the Data Browser.
+ * `DynamicForm` in insert mode, and; instead of inserting directly;
+ * generates the equivalent `INSERT` statement and pushes it into the CQL
+ * editor so the user can review/edit it before running it themselves.
  */
 export function InsertForm(props: Props) {
-  const { keyspace, table, onCancel, onSaved } = props;
-  const queryClient = useQueryClient();
-  const [submitting, setSubmitting] = useState(false);
+  const { keyspace, table, onCancel } = props;
+  const pushQuery = useCqlDraft((s) => s.pushQuery);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
 
   const schemaQuery = useQuery({
     queryKey: ['schema', keyspace, table],
@@ -57,21 +53,21 @@ export function InsertForm(props: Props) {
 
   return (
     <div className="max-w-4xl space-y-3">
+      {infoMessage && (
+        <div className="rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700">
+          {infoMessage}
+        </div>
+      )}
       <DynamicForm
         schema={schema}
         mode="insert"
         metadata={metadataQuery.data}
-        submitting={submitting}
+        submitLabel="Generate CQL"
         onCancel={onCancel}
-        onSubmit={async (values) => {
-          setSubmitting(true);
-          try {
-            const result = await insertRow(keyspace, table, values);
-            await queryClient.invalidateQueries({ queryKey: ['data', keyspace, table] });
-            onSaved?.(primaryKeysOf(schema, result.success ? result.rows[0] : undefined));
-          } finally {
-            setSubmitting(false);
-          }
+        onSubmit={(values) => {
+          const cql = buildInsertCql(schema.keyspace, schema.table_name, schema.columns, values);
+          pushQuery(cql);
+          setInfoMessage('INSERT statement sent to the CQL editor below; review and execute it there.');
         }}
       />
     </div>
