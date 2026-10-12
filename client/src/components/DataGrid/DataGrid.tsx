@@ -37,6 +37,7 @@ import { getMetadata } from '../../api/metadata.js';
 import { ApiError } from '../../api/client.js';
 import { PaginationBar } from './PaginationBar.js';
 import { RowDetail } from './RowDetail.js';
+import { CopyBar } from '../CopyBar.js';
 import { OptionDropdown } from '../OptionDropdown.js';
 
 interface Props {
@@ -225,7 +226,9 @@ export function DataGrid({ keyspace, table }: Props) {
               : ''}
           </p>
         </div>
-        <button
+        <div className="flex items-center gap-4">
+          <CopyBar columns={visibleColumns.map((c) => c.name)} rows={rows} />
+          <button
           type="button"
           onClick={() => {
             void schemaQuery.refetch();
@@ -239,6 +242,7 @@ export function DataGrid({ keyspace, table }: Props) {
           <span className={dataQuery.isFetching ? 'inline-block animate-spin' : 'inline-block'}>⟳</span>
           Refresh
         </button>
+        </div>
       </header>
 
       {filterColumns.length > 0 && (
