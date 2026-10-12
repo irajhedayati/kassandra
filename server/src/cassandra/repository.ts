@@ -90,7 +90,7 @@ function parseJson(value: unknown, cqlType: string): unknown {
  * JS type the driver expects for `cqlType`. Values that are already of a
  * suitable type pass through untouched.
  */
-function coerceByType(cqlType: string, value: unknown): unknown {
+export function coerceByType(cqlType: string, value: unknown): unknown {
   if (value === null || value === undefined) return null;
   const { root, args } = splitType(cqlType);
 

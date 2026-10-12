@@ -47,7 +47,7 @@ const filterConditionSchema = z.object({
 });
 
 const readBodySchema = z.object({
-  pageSize: z.number().int().positive().max(1000).default(25),
+  pageSize: z.number().int().positive().max(100).default(25),
   pagingState: z.string().nullable().optional(),
   filters: z.array(filterConditionSchema).optional(),
 });

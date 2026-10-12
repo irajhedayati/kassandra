@@ -16,10 +16,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Editor, { type OnMount } from '@monaco-editor/react';
 import { useMutation } from '@tanstack/react-query';
-import type { QueryResponse } from '@kassandra/shared';
+import { extractParamNames, type QueryResponse } from '@kassandra/shared';
 import { execCql } from '../../api/cql.js';
 import { useCqlDraft } from '../../state/cqlDraft.js';
 import { CqlResults } from './CqlResults.js';
+import { CqlParams } from './CqlParams.js';
+import { SaveQueryDialog } from '../Dialogs/SaveQueryDialog.js';
+import { SavedQueriesDialog } from '../Dialogs/SavedQueriesDialog.js';
 import { registerCqlCompletionProvider } from './cqlCompletion.js';
 
 const DEFAULT_PAGE_SIZE = 100;
@@ -39,7 +42,16 @@ export function CqlEditor() {
   const [result, setResult] = useState<QueryResponse | null>(null);
   const [execInfo, setExecInfo] = useState<ExecInfo | null>(null);
   const [pagingState, setPagingState] = useState<string | null>(null);
+  const [paramTypes, setParamTypes] = useState<Record<string, string>>({});
+  const [paramValues, setParamValues] = useState<Record<string, string>>({});
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [manageOpen, setManageOpen] = useState(false);
   const queryRef = useRef<string>('');
+  const paramsRef = useRef<{ types: Record<string, string>; values: Record<string, string> }>({
+    types: {},
+    values: {},
+  });
+  paramsRef.current = { types: paramTypes, values: paramValues };
   const completionDisposableRef = useRef<{ dispose: () => void } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const pending = useCqlDraft((s) => s.pending);
@@ -53,6 +65,8 @@ export function CqlEditor() {
     if (!pending) return;
     queryRef.current = pending.text;
     setQuery(pending.text);
+    setParamTypes(pending.paramTypes ?? {});
+    setParamValues({});
     setCollapsed(false);
     clearPending();
     requestAnimationFrame(() => {
@@ -65,7 +79,11 @@ export function CqlEditor() {
       const startedAt = new Date();
       const t0 = performance.now();
       try {
-        return await execCql({ query: q, pageSize: DEFAULT_PAGE_SIZE, pagingState: ps });
+        const { types, values } = paramsRef.current;
+        const params = Object.fromEntries(
+          extractParamNames(q).map((n) => [n, { type: types[n] ?? 'text', value: values[n] ?? '' }]),
+        );
+        return await execCql({ query: q, pageSize: DEFAULT_PAGE_SIZE, pagingState: ps, params });
       } finally {
         setExecInfo({ startedAt, durationMs: performance.now() - t0 });
       }
@@ -132,6 +150,7 @@ export function CqlEditor() {
     if (pagingState) runQuery(pagingState);
   };
 
+  const paramNames = extractParamNames(query);
   const hasMore = result?.success === true && result.hasMorePages && pagingState !== null;
 
   return (
@@ -157,6 +176,21 @@ export function CqlEditor() {
               Next page
             </button>
           )}
+          <button
+            type="button"
+            onClick={() => setSaveOpen(true)}
+            disabled={!query.trim()}
+            className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          >
+            Save query
+          </button>
+          <button
+            type="button"
+            onClick={() => setManageOpen(true)}
+            className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
+          >
+            Saved queries
+          </button>
           <button
             type="button"
             onClick={onExecute}
@@ -190,8 +224,17 @@ export function CqlEditor() {
             />
           </div>
 
+          <CqlParams
+            names={paramNames}
+            types={paramTypes}
+            values={paramValues}
+            onTypeChange={(n, t) => setParamTypes((p) => ({ ...p, [n]: t }))}
+            onValueChange={(n, v) => setParamValues((p) => ({ ...p, [n]: v }))}
+            onSubmit={onExecute}
+          />
+
           <p className="text-xs text-slate-500">
-            Press <kbd className="rounded border border-slate-300 bg-slate-50 px-1">Cmd</kbd>/
+            Use <code>:name</code> for parameters. Press <kbd className="rounded border border-slate-300 bg-slate-50 px-1">Cmd</kbd>/
             <kbd className="rounded border border-slate-300 bg-slate-50 px-1">Ctrl</kbd> +{' '}
             <kbd className="rounded border border-slate-300 bg-slate-50 px-1">Enter</kbd> to execute.
           </p>
@@ -206,6 +249,16 @@ export function CqlEditor() {
           )}
         </>
       )}
+
+      {saveOpen && (
+        <SaveQueryDialog
+          open
+          onClose={() => setSaveOpen(false)}
+          initialQuery={query}
+          initialParamTypes={paramTypes}
+        />
+      )}
+      <SavedQueriesDialog open={manageOpen} onClose={() => setManageOpen(false)} />
     </div>
   );
 }
