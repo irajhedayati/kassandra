@@ -10,15 +10,19 @@
  */
 import { Router } from 'express';
 import { z } from 'zod';
-import type { QueryResponse, Row } from '@kassandra/shared';
+import { toPositional, type QueryResponse, type Row } from '@kassandra/shared';
 import { requireSession } from '../cassandra/state.js';
+import { coerceByType } from '../cassandra/repository.js';
 
 export const cqlRouter = Router();
+
+const MAX_ROWS = 100;
 
 const ExecSchema = z.object({
   query: z.string(),
   pageSize: z.number().int().positive().optional(),
   pagingState: z.string().nullish(),
+  params: z.record(z.string(), z.object({ type: z.string(), value: z.string() })).optional(),
 });
 
 cqlRouter.post('/', async (req, res, next) => {
@@ -39,30 +43,50 @@ cqlRouter.post('/', async (req, res, next) => {
       return;
     }
 
+    // `:name` parameters are rewritten to positional `?` and bound as typed
+    // values via a prepared statement; never concatenated into the CQL.
+    const { cql, order } = toPositional(body.query);
+    const bound: unknown[] = [];
+    for (const name of order) {
+      const p = body.params?.[name];
+      if (!p) {
+        const missing: QueryResponse = { success: false, message: `Missing value for parameter :${name}` };
+        res.json(missing);
+        return;
+      }
+      try {
+        bound.push(coerceByType(p.type, p.value));
+      } catch (coerceErr) {
+        const message = coerceErr instanceof Error ? coerceErr.message : String(coerceErr);
+        const invalid: QueryResponse = { success: false, message: `Parameter :${name}: ${message}` };
+        res.json(invalid);
+        return;
+      }
+    }
+
     type ExecOptions = {
       prepare: boolean;
       fetchSize?: number;
       pageState?: Buffer;
     };
-    const options: ExecOptions = { prepare: false };
-    if (typeof body.pageSize === 'number') {
-      options.fetchSize = body.pageSize;
-    }
+    const options: ExecOptions = { prepare: order.length > 0 };
+    // Always cap the page so a huge result set can't overwhelm the UI.
+    options.fetchSize = Math.min(body.pageSize ?? MAX_ROWS, MAX_ROWS);
     if (body.pagingState) {
       options.pageState = Buffer.from(body.pagingState, 'base64');
     }
 
     try {
       // cassandra-driver's `execute` accepts (query, params, options).
-      // We pass an empty params array because the editor takes raw CQL.
-      const result = (await ctx.client.execute(body.query, [], options)) as {
+      // Raw CQL carries no bind values unless `:name` parameters were used.
+      const result = (await ctx.client.execute(cql, bound, options)) as {
         rows?: unknown[];
         pageState?: string | Buffer | null;
         rawPageState?: Buffer | null;
       };
 
       const rows: Row[] = Array.isArray(result.rows)
-        ? result.rows.map((r) => normalizeRow(r))
+        ? result.rows.slice(0, MAX_ROWS).map((r) => normalizeRow(r))
         : [];
 
       const rawPageState = result.rawPageState ?? null;

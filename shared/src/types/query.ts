@@ -59,6 +59,8 @@ export interface PaginatedReadRequest {
 
 export interface CqlExecRequest {
   query: string;
+  /** Values (as strings) and declared types for `:name` parameters in `query`. */
+  params?: Record<string, { type: string; value: string }>;
   pageSize?: number;
   pagingState?: string | null;
 }

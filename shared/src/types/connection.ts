@@ -5,6 +5,7 @@
  * Mirrors the legacy Python ConnectionProfile shape; see
  * legacy/src/config/settings.py.
  */
+import type { SavedQuery } from '../saved-query.js';
 
 export type SslProtocol =
   | 'PROTOCOL_TLS'
@@ -79,6 +80,7 @@ export interface AppSettings {
   table_metadata: TableMetadata;
   /** Favorite keyspace names, keyed by connection profile name. */
   favorite_keyspaces: Record<string, string[]>;
+  saved_queries: SavedQuery[];
 }
 
 export interface ConnectionStatus {

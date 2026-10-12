@@ -7,6 +7,7 @@
  * Mirrors legacy/src/config/settings.py (ConfigManager). Uses synchronous
  * fs because the file is tiny and operations are infrequent (request-scoped).
  */
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -14,6 +15,8 @@ import type {
   AppSettings,
   ColumnMetadata,
   ConnectionProfile,
+  SavedQuery,
+  SavedQueryInput,
   TableMetadata,
 } from '@kassandra/shared';
 import { DEFAULT_PROFILE } from '@kassandra/shared';
@@ -37,6 +40,7 @@ function defaultSettings(): AppSettings {
     last_connection_name: '',
     table_metadata: {},
     favorite_keyspaces: {},
+    saved_queries: [],
   };
 }
 
@@ -75,11 +79,17 @@ function normalizeSettings(raw: unknown): AppSettings {
     data.favorite_keyspaces && typeof data.favorite_keyspaces === 'object'
       ? (data.favorite_keyspaces as Record<string, string[]>)
       : {};
+  const savedQueries: SavedQuery[] = Array.isArray(data.saved_queries)
+    ? (data.saved_queries as SavedQuery[]).filter(
+        (q) => q && typeof q.id === 'string' && typeof q.name === 'string' && typeof q.query === 'string',
+      )
+    : [];
   return {
     connections,
     last_connection_name: last,
     table_metadata: tableMeta,
     favorite_keyspaces: favoriteKeyspaces,
+    saved_queries: savedQueries,
   };
 }
 
@@ -201,4 +211,67 @@ export function removeFavoriteKeyspace(profileName: string, keyspace: string): s
   settings.favorite_keyspaces[profileName] = filtered;
   saveSettings(settings);
   return filtered;
+}
+
+export class SavedQueryError extends Error {
+  constructor(message: string, public readonly status: number) {
+    super(message);
+  }
+}
+
+export function listSavedQueries(): SavedQuery[] {
+  return loadSettings().saved_queries;
+}
+
+export function createSavedQuery(input: SavedQueryInput): SavedQuery {
+  const settings = loadSettings();
+  if (settings.saved_queries.some((q) => q.name === input.name)) {
+    throw new SavedQueryError(`A saved query named "${input.name}" already exists`, 409);
+  }
+  const created: SavedQuery = { id: crypto.randomUUID(), ...input };
+  settings.saved_queries.push(created);
+  saveSettings(settings);
+  return created;
+}
+
+export function updateSavedQuery(id: string, input: SavedQueryInput): SavedQuery {
+  const settings = loadSettings();
+  const idx = settings.saved_queries.findIndex((q) => q.id === id);
+  if (idx === -1) throw new SavedQueryError('Saved query not found', 404);
+  if (settings.saved_queries.some((q) => q.id !== id && q.name === input.name)) {
+    throw new SavedQueryError(`A saved query named "${input.name}" already exists`, 409);
+  }
+  const updated: SavedQuery = { id, ...input };
+  settings.saved_queries[idx] = updated;
+  saveSettings(settings);
+  return updated;
+}
+
+export function deleteSavedQuery(id: string): void {
+  const settings = loadSettings();
+  const filtered = settings.saved_queries.filter((q) => q.id !== id);
+  if (filtered.length === settings.saved_queries.length) {
+    throw new SavedQueryError('Saved query not found', 404);
+  }
+  settings.saved_queries = filtered;
+  saveSettings(settings);
+}
+
+/** Upsert by name: existing queries with the same name are overwritten. */
+export function importSavedQueries(inputs: SavedQueryInput[]): { created: number; updated: number } {
+  const settings = loadSettings();
+  let created = 0;
+  let updated = 0;
+  for (const input of inputs) {
+    const idx = settings.saved_queries.findIndex((q) => q.name === input.name);
+    if (idx === -1) {
+      settings.saved_queries.push({ id: crypto.randomUUID(), ...input });
+      created++;
+    } else {
+      settings.saved_queries[idx] = { id: settings.saved_queries[idx]!.id, ...input };
+      updated++;
+    }
+  }
+  saveSettings(settings);
+  return { created, updated };
 }
