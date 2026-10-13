@@ -15,6 +15,7 @@ import { faFileArrowUp, faUpload } from '@fortawesome/free-solid-svg-icons';
 import type { ConnectionProfile } from '@kassandra/shared';
 import { createProfile } from '../../api/connection.js';
 import { ApiError } from '../../api/client.js';
+import { useEnterToConfirm } from '../../utils/useEnterToConfirm.js';
 
 interface Props {
   open: boolean;
@@ -129,6 +130,10 @@ export function ImportConfigDialog({ open, onClose }: Props) {
     }
     importMutation.mutate(candidates);
   }
+
+  useEnterToConfirm(open && tab === 'file', () => {
+    if (jsonText.trim() && !importMutation.isPending) handleImport();
+  });
 
   if (!open) return null;
 

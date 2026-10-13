@@ -13,6 +13,7 @@ import { createKeyspace } from '../../api/schema.js';
 import { listDatacenters } from '../../api/connection.js';
 import { OptionDropdown, type DropdownOption } from '../OptionDropdown.js';
 import { useSelection } from '../../state/selection.js';
+import { useEnterToConfirm } from '../../utils/useEnterToConfirm.js';
 
 interface Props {
   open: boolean;
@@ -123,6 +124,12 @@ export function CreateKeyspaceDialog({ open, onClose }: Props) {
     `CREATE KEYSPACE ${ifNotExists ? 'IF NOT EXISTS ' : ''}"${request.name || 'name'}"\n` +
     `  WITH REPLICATION = ${replicationCql}\n` +
     `  AND DURABLE_WRITES = ${durableWrites};`;
+
+  useEnterToConfirm(open, () => {
+    if (!canSubmit) return;
+    setError(null);
+    mutation.mutate();
+  });
 
   if (!open) return null;
 

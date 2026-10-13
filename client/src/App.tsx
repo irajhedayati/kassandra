@@ -8,6 +8,7 @@ import { DataGrid } from './components/DataGrid/DataGrid.js';
 import { InsertForm } from './components/Forms/InsertForm.js';
 import { TableInfo } from './components/TableInfo/TableInfo.js';
 import { CqlEditor } from './components/CqlEditor/CqlEditor.js';
+import { ShortcutsDialog } from './components/Dialogs/ShortcutsDialog.js';
 
 type Tab = 'data' | 'insert' | 'info';
 
@@ -20,6 +21,7 @@ export function App() {
 
   return (
     <div className="flex h-full bg-slate-100">
+      <ShortcutsDialog />
       <aside className="flex w-72 shrink-0 flex-col overflow-y-auto border-r border-cyan-400/20 bg-gradient-to-b from-blue-950 via-blue-900 to-cyan-950 text-slate-200">
         <div className="border-b border-cyan-400/20 px-6 py-5">
           <img

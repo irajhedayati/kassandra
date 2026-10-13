@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { extractParamNames, type SavedQuery } from '@kassandra/shared';
 import { createSavedQuery, updateSavedQuery } from '../../api/savedQueries.js';
+import { useEnterToConfirm } from '../../utils/useEnterToConfirm.js';
 
 interface Props {
   open: boolean;
@@ -46,9 +47,15 @@ export function SaveQueryDialog({ open, onClose, existing, initialQuery, initial
     onError: (err: unknown) => setError(err instanceof Error ? err.message : String(err)),
   });
 
-  if (!open) return null;
-
   const canSubmit = name.trim() !== '' && query.trim() !== '' && !mutation.isPending;
+
+  useEnterToConfirm(open, () => {
+    if (!canSubmit) return;
+    setError(null);
+    mutation.mutate();
+  });
+
+  if (!open) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">

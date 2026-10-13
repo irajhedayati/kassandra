@@ -3,6 +3,7 @@
  * Shows the primary key values for the row that will be deleted.
  */
 import type { Row } from '@kassandra/shared';
+import { useEnterToConfirm } from '../../utils/useEnterToConfirm.js';
 
 interface Props {
   open: boolean;
@@ -15,6 +16,10 @@ interface Props {
 }
 
 export function ConfirmDelete(props: Props) {
+  useEnterToConfirm(props.open, () => {
+    if (!props.loading) props.onConfirm();
+  });
+
   if (!props.open) return null;
 
   const entries = Object.entries(props.keys);

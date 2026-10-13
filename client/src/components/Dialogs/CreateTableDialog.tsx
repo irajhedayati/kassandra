@@ -20,6 +20,7 @@ import type {
 import { createTable } from '../../api/schema.js';
 import { OptionDropdown, type DropdownOption } from '../OptionDropdown.js';
 import { useSelection } from '../../state/selection.js';
+import { useEnterToConfirm } from '../../utils/useEnterToConfirm.js';
 
 interface Props {
   open: boolean;
@@ -192,6 +193,12 @@ export function CreateTableDialog({ open, keyspace, onClose }: Props) {
 
   const update = (i: number, patch: Partial<ColumnRow>) =>
     setRows((rs) => rs.map((r, idx) => (idx === i ? { ...r, ...patch } : r)));
+
+  useEnterToConfirm(open, () => {
+    if (validationError || !keyspace || mutation.isPending) return;
+    setError(null);
+    mutation.mutate();
+  });
 
   if (!open) return null;
 

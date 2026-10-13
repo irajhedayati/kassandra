@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { OptionDropdown } from '../OptionDropdown.js';
 import { CQL_TYPE_INFO, type MapSchemaEntry } from '@kassandra/shared';
+import { useEnterToConfirm } from '../../utils/useEnterToConfirm.js';
 
 interface Props {
   column: string;
@@ -74,6 +75,10 @@ export function MapSchemaEditor(props: Props) {
       .filter((e) => e.key !== '');
     props.onSave(cleaned);
   };
+
+  useEnterToConfirm(true, () => {
+    if (!props.saving) handleSave();
+  });
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">

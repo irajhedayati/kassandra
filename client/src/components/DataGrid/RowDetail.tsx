@@ -14,6 +14,7 @@ import { ApiError } from '../../api/client.js';
 import { ConfirmDelete } from '../Dialogs/ConfirmDelete.js';
 import { DynamicForm } from '../Forms/DynamicForm.js';
 import { UpdateForm } from '../Forms/UpdateForm.js';
+import { useEnterToConfirm } from '../../utils/useEnterToConfirm.js';
 
 interface Props {
   open: boolean;
@@ -74,6 +75,21 @@ export function RowDetail(props: Props) {
     },
   });
 
+  // Option+D / Ctrl+D opens the delete confirmation (Enter then confirms it).
+  // Matched on `code` because Option+D types a different character on macOS.
+  const canDelete = open && !!row && mode === 'view' && !confirming;
+  useEffect(() => {
+    if (!canDelete) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.code !== 'KeyD' || e.shiftKey || e.metaKey || !(e.altKey || e.ctrlKey)) return;
+      e.preventDefault();
+      setDeleteError(null);
+      setConfirming(true);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [canDelete]);
+
   if (!open || !row) return null;
 
   return (
@@ -124,6 +140,7 @@ export function RowDetail(props: Props) {
               className="rounded border border-red-300 bg-white px-3 py-1.5 text-sm text-red-700 hover:bg-red-50"
             >
               Delete
+              <kbd className="ml-1.5 text-xs text-red-400" title="Option+D / Ctrl+D">⌥D</kbd>
             </button>
             <button
               type="button"
