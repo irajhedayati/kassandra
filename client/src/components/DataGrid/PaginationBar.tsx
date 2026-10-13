@@ -13,6 +13,8 @@ interface Props {
   onReset: () => void;
   loading: boolean;
   rowCount: number;
+  /** Rows loaded on this page before client-side filtering; shown when it differs from rowCount. */
+  loadedCount?: number;
 }
 
 export function PaginationBar(props: Props) {
@@ -36,7 +38,9 @@ export function PaginationBar(props: Props) {
           ))}
         </select>
         <span className="ml-3 text-slate-500">
-          {props.rowCount} row{props.rowCount === 1 ? '' : 's'} on this page
+          {props.loadedCount !== undefined && props.loadedCount !== props.rowCount
+            ? `${props.rowCount} of ${props.loadedCount} rows shown on this page`
+            : `${props.rowCount} row${props.rowCount === 1 ? '' : 's'} on this page`}
         </span>
       </div>
 

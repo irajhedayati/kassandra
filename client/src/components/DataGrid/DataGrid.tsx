@@ -39,6 +39,7 @@ import { PaginationBar } from './PaginationBar.js';
 import { RowDetail } from './RowDetail.js';
 import { CopyBar } from '../CopyBar.js';
 import { OptionDropdown } from '../OptionDropdown.js';
+import { applyGridView, type SortState } from '../../utils/gridView.js';
 
 interface Props {
   keyspace: string;
@@ -64,6 +65,9 @@ export function DataGrid({ keyspace, table }: Props) {
   const [filterDraft, setFilterDraft] = useState<Record<string, FilterDraftEntry>>({});
   const [filters, setFilters] = useState<FilterCondition[]>([]);
   const [selectedRow, setSelectedRow] = useState<Row | null>(null);
+  // Client-side view over the loaded page only; not sent to the server.
+  const [sort, setSort] = useState<SortState | null>(null);
+  const [columnFilters, setColumnFilters] = useState<Record<string, string>>({});
 
   const currentPagingState = pageStack[pageStack.length - 1] ?? null;
 
@@ -77,6 +81,8 @@ export function DataGrid({ keyspace, table }: Props) {
   useEffect(() => {
     setFilterDraft({});
     setFilters([]);
+    setSort(null);
+    setColumnFilters({});
   }, [keyspace, table]);
 
   const schemaQuery = useQuery({
@@ -152,8 +158,23 @@ export function DataGrid({ keyspace, table }: Props) {
 
   const rows = dataQuery.data?.rows ?? [];
 
+  const viewRows = useMemo(
+    () => applyGridView(rows, columnFilters, sort),
+    [rows, columnFilters, sort],
+  );
+
+  // none → asc → desc → none
+  const toggleSort = (column: string) =>
+    setSort((cur) =>
+      cur?.column !== column
+        ? { column, direction: 'asc' }
+        : cur.direction === 'asc'
+          ? { column, direction: 'desc' }
+          : null,
+    );
+
   const tableInstance = useLegacyTable({
-    data: rows,
+    data: viewRows,
     columns: tableColumns,
     getCoreRowModel: getCoreRowModel(),
   });
@@ -227,7 +248,7 @@ export function DataGrid({ keyspace, table }: Props) {
           </p>
         </div>
         <div className="flex items-center gap-4">
-          <CopyBar columns={visibleColumns.map((c) => c.name)} rows={rows} />
+          <CopyBar columns={visibleColumns.map((c) => c.name)} rows={viewRows} />
           <button
           type="button"
           onClick={() => {
@@ -336,15 +357,48 @@ export function DataGrid({ keyspace, table }: Props) {
                   {hg.headers.map((h) => (
                     <th
                       key={h.id}
+                      aria-sort={
+                        sort?.column === h.column.id
+                          ? sort.direction === 'asc'
+                            ? 'ascending'
+                            : 'descending'
+                          : 'none'
+                      }
                       className="whitespace-nowrap border-b border-slate-200 px-3 py-2 font-medium"
                     >
-                      {h.isPlaceholder
-                        ? null
-                        : flexRender(h.column.columnDef.header, h.getContext())}
+                      <button
+                        type="button"
+                        onClick={() => toggleSort(h.column.id)}
+                        title="Sort the rows loaded on this page"
+                        className="flex items-center gap-1 uppercase hover:text-slate-900"
+                      >
+                        {h.isPlaceholder
+                          ? null
+                          : flexRender(h.column.columnDef.header, h.getContext())}
+                        <span className={sort?.column === h.column.id ? 'text-blue-600' : 'text-slate-300'}>
+                          {sort?.column === h.column.id ? (sort.direction === 'asc' ? '▲' : '▼') : '↕'}
+                        </span>
+                      </button>
                     </th>
                   ))}
                 </tr>
               ))}
+              <tr className="bg-white normal-case">
+                {visibleColumns.map((col) => (
+                  <th key={col.name} className="border-b border-slate-200 px-2 py-1 font-normal">
+                    <input
+                      type="text"
+                      aria-label={`Filter loaded rows by ${col.name}`}
+                      placeholder="filter…"
+                      value={columnFilters[col.name] ?? ''}
+                      onChange={(e) =>
+                        setColumnFilters((f) => ({ ...f, [col.name]: e.target.value }))
+                      }
+                      className="w-full min-w-20 rounded border border-slate-200 px-1.5 py-0.5 text-xs font-normal normal-case text-slate-800"
+                    />
+                  </th>
+                ))}
+              </tr>
             </thead>
             <tbody>
               {dataQuery.isLoading || dataQuery.isFetching ? (
@@ -372,6 +426,15 @@ export function DataGrid({ keyspace, table }: Props) {
                     className="px-3 py-6 text-center text-slate-500"
                   >
                     No rows.
+                  </td>
+                </tr>
+              ) : viewRows.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={Math.max(visibleColumns.length, 1)}
+                    className="px-3 py-6 text-center text-slate-500"
+                  >
+                    No loaded rows match the column filters.
                   </td>
                 </tr>
               ) : (
@@ -405,7 +468,8 @@ export function DataGrid({ keyspace, table }: Props) {
           onNext={onNext}
           onReset={onReset}
           loading={dataQuery.isFetching}
-          rowCount={rows.length}
+          rowCount={viewRows.length}
+          loadedCount={rows.length}
         />
       </div>
 
