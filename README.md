@@ -41,6 +41,14 @@ Explore keyspaces and tables, inspect and modify data, run CQL, and manage Cassa
 
 <img src="docs/images/create-table.gif" alt="Create table" width="640" />
 
+### Run parametrized queries
+
+<img src="docs/images/parametrized-query.gif" alt="Running a parametrized query" width="640" />
+
+### Save and reuse queries
+
+<img src="docs/images/saved-query.gif" alt="Saving and reopening a query" width="640" />
+
 ### Work with map columns
 
 <img src="docs/images/map-schema.gif" alt="Picking a map key from the defined keys" width="640" />
@@ -54,10 +62,11 @@ Explore keyspaces and tables, inspect and modify data, run CQL, and manage Cassa
 | Feature                          | Description                                                              |
 |----------------------------------|--------------------------------------------------------------------------|
 | **Schema Browser**               | Explore keyspaces, tables, columns, partition keys, and clustering keys. |
-| **Data Browser**                 | Inspect table data, with filters on columns and map keys/values.         |
+| **Data Browser**                 | Inspect table data; filter, sort, and copy rows (MD/CSV/TSV/JSON).       |
 | **Create Keyspaces & Tables**    | Guided dialogs with a live CQL preview and built-in help.                |
 | **Schema-aware CRUD**            | Insert, update, and delete rows through schema-driven forms.             |
-| **CQL Editor**                   | Run raw CQL when you need full control.                                  |
+| **CQL Editor**                   | Run raw CQL, with `:param` binding and saved, shareable queries.         |
+| **Keyboard Shortcuts**           | Run queries, delete rows, and confirm dialogs from the keyboard (`/`).   |
 | **Connection Profiles**          | Save and switch between Cassandra cluster connections.                   |
 | **Datacenter-aware Routing**     | Prefer a selected local DC and fall back to remote DCs when necessary.   |
 | **DC Validation & Autocomplete** | Discover available datacenters and prevent invalid DC configuration.     |

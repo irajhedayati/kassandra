@@ -11,10 +11,12 @@ The previous Python/Streamlit implementation is kept in [`../legacy`](../legacy)
 - **Connection management**: Create, edit, delete, and import profiles with authentication, SSL, and optional local datacenter selection.
 - **Schema explorer**: Search keyspaces and tables, refresh schema lists, and favorite keyspaces.
 - **Keyspace and table creation**: Create keyspaces and tables from guided dialogs with a live CQL preview.
-- **Data browser**: Browse paginated rows, apply column filters (including map keys and values), and inspect individual records in an inline row detail panel.
+- **Data browser**: Browse paginated rows, apply column filters (including map keys and values), sort and filter the loaded page, copy rows as MD, CSV, TSV, or JSON, and inspect individual records in an inline row detail panel.
 - **Schema-driven forms**: Generate INSERT and UPDATE statements for review and execution in the CQL editor.
 - **Record deletion**: Delete a selected row after confirmation.
 - **CQL editor**: Write queries with syntax highlighting and completion, execute them, page through results, and see when each query ran and how long it took.
+- **Saved parametrized queries**: Use `:name` placeholders bound as typed parameters, and save, reopen, import, and export queries.
+- **Keyboard shortcuts**: Run queries, delete rows, and confirm dialogs from the keyboard; press `/` for the list.
 - **Column customization**: Configure hidden columns, JSON and enum fields, and rich per-key schemas for map columns.
 
 ## Installation
@@ -114,6 +116,8 @@ Click the star beside the selected keyspace in the top bar to add or remove it f
 #### Data grid controls
 
 - **Filtering**: Enter values in the column fields above the grid, then click **Apply**. Click **Clear** to remove filters. Most columns use equality filters; map columns also offer *Key = value*, *Contains key*, and *Contains value*. The generated query uses `ALLOW FILTERING`, which can scan substantial data for non-key columns.
+- **Sort and filter the loaded page**: Click a column header to sort ascending, click again for descending, and a third time to clear. Type in the box under a header to filter that column. These apply only to the rows already loaded on the current page, do not query Cassandra, and reset when you switch tables. Use the filters above the grid to search the whole table.
+- **Copy**: **MD**, **CSV**, **TSV**, and **JSON** above the grid copy the rows to the clipboard.
 - **Pagination**: Choose 10, 25, or 50 **Rows per page**. Use **Next page** to continue and **Reset** to return to the first page.
 - **Refresh**: The button above the grid reloads the current page and its schema and metadata.
 - **Selection**: Click a row to open its details dialog. Primary and clustering key columns are marked `(pk)` and `(ck)` in the grid.
@@ -155,7 +159,7 @@ Use the **+** buttons in the sidebar's **Schema** section. Each dialog has a **?
 
 **Map columns.** A map column shows its entries as key/value rows. Click **+ Add entry** to add one:
 
-- If the column has a map schema (see [Table Info](#5-table-info)), a searchable **Select a key…** dropdown lists the defined keys. Choosing one switches the value field to that key's type: text, JSON, enum, number, date or time, checkbox, and so on. Keys already used are not offered again.
+- If the column has a map schema (see [Table Info](#6-table-info)), a searchable **Select a key…** dropdown lists the defined keys. Choosing one switches the value field to that key's type: text, JSON, enum, number, date or time, checkbox, and so on. Keys already used are not offered again.
 - To use a key that is not defined, type it in the search box and choose **Use "…" as a custom key**, or choose **Custom key…** and type it.
 - Without a map schema, type the key and value directly.
 - Entries with an empty key or value are left out of the generated statement.
@@ -180,7 +184,7 @@ Generating CQL does not write to Cassandra; inserts and updates take effect when
 
 1. Click a row in **Data Browser**.
 2. Click **Delete** in the details dialog.
-3. Confirm the deletion. This deletes the record directly and refreshes the data browser.
+3. Confirm the deletion. This deletes the record directly and refreshes the data browser. You can also press **Option+D** (macOS) or **Ctrl+D** while the details dialog is open, then confirm.
 
 ### 4. CQL Editor
 
@@ -199,7 +203,47 @@ The **CQL Editor** is a collapsible panel at the bottom of the application, avai
 
 ![Executing queries in the CQL Editor](3.cql-editor.gif)
 
-### 5. Table Info
+#### Parameters
+
+Write named placeholders as `:name` instead of pasting values into the query:
+
+```sql
+SELECT * FROM ks.table1 WHERE c1 = :filter_value;
+```
+
+A **Parameters** panel appears under the editor with one row per placeholder. Pick the CQL **type** (`text` by default; also `int`, `bigint`, `smallint`, `tinyint`, `varint`, `float`, `double`, `decimal`, `boolean`, `uuid`, `timeuuid`, `timestamp`, `date`, `time`, `inet`, and `blob`), enter a value, and execute. Press **Enter** in a value field to run the query. Values are bound as prepared-statement parameters, so they are never inserted into the CQL text. Placeholders inside string literals, quoted identifiers, and comments are ignored.
+
+![Running a parametrized query](images/parametrized-query.gif)
+
+#### Saved queries
+
+- **Save query** (enabled when the editor has text) asks for a **Name**, an optional **Description**, and the **Query**, and stores them with the parameter types.
+- **Saved queries** lists them. **Open** loads a query and its parameter types into the editor, **Edit** changes it, and **Delete** removes it after confirmation.
+- **Export** downloads all saved queries as JSON and **Import** loads a JSON file, for sharing with teammates.
+
+Saved queries are kept in `config.json` under `saved_queries`.
+
+![Saving and reopening a query](images/saved-query.gif)
+
+#### Copying results
+
+The **Copy** buttons above the results table (**MD**, **CSV**, **TSV**, **JSON**) copy the displayed rows to the clipboard.
+
+### 5. Keyboard Shortcuts
+
+Press **/** anywhere outside a text field to open the shortcut list; **Esc** closes it.
+
+| Shortcut | Action |
+|---|---|
+| `/` | Show the list of shortcuts |
+| `Cmd`/`Ctrl` + `Enter` | Execute the query in the CQL editor |
+| `Option`/`Ctrl` + `D` | Delete the row open in the details dialog (asks to confirm) |
+| `Enter` | Confirm the open dialog (OK, Create, Save, Delete, Import) |
+| `Esc` | Close the shortcut list |
+
+![Keyboard shortcuts](images/keyboard-shortcuts.png)
+
+### 6. Table Info
 
 The **Table Info** tab displays column names, CQL types, and partition and clustering key information. It also lets you customize how Kassandra displays and edits columns:
 
@@ -213,7 +257,7 @@ Click **Save** to persist these settings, or **Cancel** to discard pending chang
 
 ## Configuration
 
-Connection profiles, column metadata, and favorite keyspaces are stored on the server in `~/.kassandra/config.json`. Set `KASSANDRA_HOME` to use a different directory. The Node.js application reads the existing configuration format and fills missing profile fields with defaults.
+Connection profiles, column metadata, saved queries, and favorite keyspaces are stored on the server in `~/.kassandra/config.json`. Set `KASSANDRA_HOME` to use a different directory. The Node.js application reads the existing configuration format and fills missing profile fields with defaults.
 
 For source installations, `HOST` and `PORT` control the server's listening address and port; defaults are `127.0.0.1` and `8501`. The Docker image sets `HOST=0.0.0.0` so the published port is reachable.
 
