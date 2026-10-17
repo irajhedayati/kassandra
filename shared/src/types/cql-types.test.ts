@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   getTypeInfo,
   isStringStringMap,
+  isTextLikeOrTextList,
   mapKeyValueTypes,
+  primitiveListElementType,
   rootCqlType,
 } from './cql-types.js';
 
@@ -84,5 +86,32 @@ describe('isStringStringMap', () => {
 
   it('is false for non-map types', () => {
     expect(isStringStringMap('list<text>')).toBe(false);
+  });
+});
+
+describe('primitiveListElementType', () => {
+  it('returns the element type of primitive lists', () => {
+    expect(primitiveListElementType('list<text>')).toBe('text');
+    expect(primitiveListElementType('frozen<list<int>>')).toBe('int');
+  });
+
+  it('returns null for non-lists and nested/unknown element types', () => {
+    expect(primitiveListElementType('set<text>')).toBeNull();
+    expect(primitiveListElementType('text')).toBeNull();
+    expect(primitiveListElementType('list<list<int>>')).toBeNull();
+    expect(primitiveListElementType('list<my_udt>')).toBeNull();
+    expect(primitiveListElementType('list')).toBeNull();
+  });
+});
+
+describe('isTextLikeOrTextList', () => {
+  it('accepts text-like scalars and lists of them', () => {
+    expect(isTextLikeOrTextList('text')).toBe(true);
+    expect(isTextLikeOrTextList('list<varchar>')).toBe(true);
+  });
+
+  it('rejects other types', () => {
+    expect(isTextLikeOrTextList('list<int>')).toBe(false);
+    expect(isTextLikeOrTextList('int')).toBe(false);
   });
 });

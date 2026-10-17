@@ -15,7 +15,7 @@ import type {
   MapSchemaEntry,
   TableSchema,
 } from '@kassandra/shared';
-import { rootCqlType } from '@kassandra/shared';
+import { isTextLikeOrTextList, primitiveListElementType, rootCqlType } from '@kassandra/shared';
 import { apiGet } from '../../api/client.js';
 import {
   getMetadata,
@@ -243,7 +243,8 @@ export function TableInfo({ keyspace, table }: Props) {
               const meta: ColumnMetadata = draft[col.name] ?? {};
               const root = rootCqlType(col.cql_type);
               const isMap = root === 'map';
-              const isText = col.cql_type === 'text';
+              const isText = isTextLikeOrTextList(col.cql_type);
+              const isList = primitiveListElementType(col.cql_type) !== null;
               const displayType = meta.display_type ?? 'text';
               const hide = meta.hide ?? false;
               return (
@@ -252,16 +253,19 @@ export function TableInfo({ keyspace, table }: Props) {
                   <td className="px-3 py-2">
                     {isText ? (
                       <div className="flex flex-col gap-1">
-                        <OptionDropdown
-                          label={`Display type for ${col.name}`}
-                          value={displayType}
-                          options={DISPLAY_TYPE_OPTIONS}
-                          searchable
-                          onChange={(v) => updateDraftColumn(col.name, { display_type: v })}
-                          disabled={saveMutation.isPending}
-                          buttonClassName="w-40"
-                          listClassName="w-64"
-                        />
+                        <div className="flex items-center gap-2">
+                          {isList && <span className="text-slate-600">list of</span>}
+                          <OptionDropdown
+                            label={`Display type for ${col.name}`}
+                            value={displayType}
+                            options={isList ? DISPLAY_TYPE_OPTIONS.filter((o) => o.value !== 'JSON') : DISPLAY_TYPE_OPTIONS}
+                            searchable
+                            onChange={(v) => updateDraftColumn(col.name, { display_type: v })}
+                            disabled={saveMutation.isPending}
+                            buttonClassName="w-40"
+                            listClassName="w-64"
+                          />
+                        </div>
                         {displayType === 'enum' && (
                           <input
                             type="text"
