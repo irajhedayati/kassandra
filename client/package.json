@@ -22,7 +22,7 @@
     "@tanstack/react-table": "^9.2.4",
     "monaco-editor": "^0.57.0",
     "react": "^19.3.0",
-    "react-dom": "^19.3.0",
+    "react-dom": "^19.3.1",
     "zustand": "^5.0.1"
   },
   "devDependencies": {
