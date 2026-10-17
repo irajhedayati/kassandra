@@ -3,6 +3,7 @@ import {
     type ColumnInfo,
     type ColumnMetadata,
     getTypeInfo,
+    primitiveListElementType,
     rootCqlType,
     type Row,
     type TableSchema,
@@ -43,6 +44,23 @@ function enumValuesFor(
     metadata: Record<string, ColumnMetadata> | undefined,
 ): string[] | null {
     if (!TEXT_ROOT_TYPES.has(rootCqlType(column.cql_type))) return null;
+    return enumMetaValues(column, metadata);
+}
+
+/** Enum values for a `list<text>` column marked `display_type: 'enum'`; each item is picked from them. */
+function listEnumValuesFor(
+    column: ColumnInfo,
+    metadata: Record<string, ColumnMetadata> | undefined,
+): string[] | null {
+    const elem = primitiveListElementType(column.cql_type);
+    if (!elem || !TEXT_ROOT_TYPES.has(elem.toLowerCase())) return null;
+    return enumMetaValues(column, metadata);
+}
+
+function enumMetaValues(
+    column: ColumnInfo,
+    metadata: Record<string, ColumnMetadata> | undefined,
+): string[] | null {
     const meta = metadata?.[column.name];
     if (meta?.display_type !== 'enum') return null;
     return meta.enum_values ?? [];
@@ -316,8 +334,11 @@ export function DynamicForm(props: DynamicFormProps) {
                             : {}),
                     };
                     let field: React.ReactNode;
+                    const listEnumValues = listEnumValuesFor(column, metadata);
                     if (enumValues) {
                         field = <EnumField {...fieldProps} enumValues={enumValues} />;
+                    } else if (listEnumValues) {
+                        field = <ListField {...fieldProps} enumValues={listEnumValues} />;
                     } else {
                         const Component = isJsonTextColumn(column, metadata)
                             ? JsonHighlightField

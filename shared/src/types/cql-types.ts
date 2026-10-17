@@ -121,3 +121,37 @@ export function isStringStringMap(cqlType: string): boolean {
   if (!kv) return false;
   return STRING_LIKE_TYPES.has(kv.keyType.toLowerCase()) && STRING_LIKE_TYPES.has(kv.valueType.toLowerCase());
 }
+
+const SCALAR_LIST_WIDGETS = new Set<WidgetKind>([
+  'text', 'textarea', 'number_int', 'number_float', 'checkbox',
+  'date', 'time', 'datetime', 'uuid', 'blob_hex', 'inet', 'duration',
+]);
+
+/**
+ * Element type of a `list<T>` (optionally `frozen<list<T>>`) when T is a
+ * primitive CQL type; null for non-lists, sets, tuples and lists of
+ * collections / UDTs.
+ *   "list<text>"          → "text"
+ *   "frozen<list<int>>"   → "int"
+ *   "list<list<int>>"     → null
+ */
+export function primitiveListElementType(cqlType: string): string | null {
+  const t = cqlType.trim();
+  const inner = t.toLowerCase().startsWith('frozen<') && t.endsWith('>') ? t.slice('frozen<'.length, -1).trim() : t;
+  if (rootCqlType(inner) !== 'list') return null;
+  const lt = inner.indexOf('<');
+  const gt = inner.lastIndexOf('>');
+  if (lt === -1 || gt < lt) return null;
+  const elem = inner.slice(lt + 1, gt).trim();
+  if (elem.includes('<')) return null;
+  const info = CQL_TYPE_INFO[elem.toLowerCase()];
+  return info && SCALAR_LIST_WIDGETS.has(info.widget) ? elem : null;
+}
+
+/** True when `cqlType` is text/varchar/ascii, or a list of one of them (enum-capable). */
+export function isTextLikeOrTextList(cqlType: string): boolean {
+  const t = cqlType.trim().toLowerCase();
+  if (STRING_LIKE_TYPES.has(t)) return true;
+  const elem = primitiveListElementType(cqlType);
+  return elem !== null && STRING_LIKE_TYPES.has(elem.toLowerCase());
+}
