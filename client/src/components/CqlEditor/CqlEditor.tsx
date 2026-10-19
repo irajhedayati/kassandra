@@ -1,6 +1,7 @@
 /**
- * Monaco-based CQL editor + execute button. Renders results below
- * (table view for SELECT, success/error chip for DDL/DML).
+ * Monaco-based CQL editor + execute button. The content is split on `;` and
+ * run statement by statement (at most one SELECT); an execution report shows
+ * the state of each, and the SELECT's rows are rendered below as a table.
  *
  * Layout:
  *  - Mounted at the bottom of the main pane (see App.tsx).
@@ -15,12 +16,17 @@
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Editor, { type OnMount } from '@monaco-editor/react';
-import { useMutation } from '@tanstack/react-query';
-import { extractParamNames, type QueryResponse } from '@kassandra/shared';
+import {
+  extractParamNames,
+  splitCqlStatements,
+  type QueryResponse,
+} from '@kassandra/shared';
 import { execCql } from '../../api/cql.js';
+import { describeSuccess } from '../../utils/cqlReport.js';
 import { useCqlDraft } from '../../state/cqlDraft.js';
 import { CqlResults } from './CqlResults.js';
 import { CqlParams } from './CqlParams.js';
+import { CqlExecutionReport, type StatementRun } from './CqlExecutionReport.js';
 import { SaveQueryDialog } from '../Dialogs/SaveQueryDialog.js';
 import { SavedQueriesDialog } from '../Dialogs/SavedQueriesDialog.js';
 import { registerCqlCompletionProvider } from './cqlCompletion.js';
@@ -39,7 +45,13 @@ function formatDuration(ms: number): string {
 export function CqlEditor() {
   const [collapsed, setCollapsed] = useState(false);
   const [query, setQuery] = useState<string>('');
+  // Rows of the SELECT statement, if any, and where it sits in `runs` (for paging).
   const [result, setResult] = useState<QueryResponse | null>(null);
+  const [runs, setRuns] = useState<StatementRun[]>([]);
+  const [notice, setNotice] = useState<{ kind: 'info' | 'error'; text: string } | null>(null);
+  const [selectPos, setSelectPos] = useState<number | null>(null);
+  const [running, setRunning] = useState(false);
+  const runningRef = useRef(false);
   const [execInfo, setExecInfo] = useState<ExecInfo | null>(null);
   const [pagingState, setPagingState] = useState<string | null>(null);
   const [paramTypes, setParamTypes] = useState<Record<string, string>>({});
@@ -74,66 +86,123 @@ export function CqlEditor() {
     });
   }, [pending, clearPending]);
 
-  const mutation = useMutation<QueryResponse, Error, { query: string; pagingState: string | null }>({
-    mutationFn: async ({ query: q, pagingState: ps }) => {
-      const startedAt = new Date();
-      const t0 = performance.now();
-      try {
-        const { types, values } = paramsRef.current;
-        const params = Object.fromEntries(
-          extractParamNames(q).map((n) => [n, { type: types[n] ?? 'text', value: values[n] ?? '' }]),
-        );
-        return await execCql({ query: q, pageSize: DEFAULT_PAGE_SIZE, pagingState: ps, params });
-      } finally {
-        setExecInfo({ startedAt, durationMs: performance.now() - t0 });
-      }
-    },
-    onSuccess: (data) => {
-      setResult(data);
-      if (data.success) {
-        setPagingState(data.pagingState);
-      } else {
-        setPagingState(null);
-      }
-    },
-    onError: (err) => {
-      setResult({ success: false, message: err.message });
-      setPagingState(null);
-    },
-  });
+  const updateRun = (pos: number, patch: Partial<StatementRun>) =>
+    setRuns((prev) => prev.map((r, i) => (i === pos ? { ...r, ...patch } : r)));
 
-  const runQuery = useCallback(
-    (nextPagingState: string | null) => {
-      const q = queryRef.current;
-      if (!q.trim()) {
-        setResult({
-          success: true,
-          rows: [],
-          pagingState: null,
-          hasMorePages: false,
-          message: 'Empty query',
-        });
-        setPagingState(null);
-        return;
+  const execStatement = async (text: string, ps: string | null): Promise<QueryResponse> => {
+    const { types, values } = paramsRef.current;
+    const params = Object.fromEntries(
+      extractParamNames(text).map((n) => [n, { type: types[n] ?? 'text', value: values[n] ?? '' }]),
+    );
+    try {
+      return await execCql({ query: text, pageSize: DEFAULT_PAGE_SIZE, pagingState: ps, params });
+    } catch (err) {
+      return { success: false, message: err instanceof Error ? err.message : String(err) };
+    }
+  };
+
+  /** Run every statement in the editor in order; stops at the first failure. */
+  const runAll = useCallback(async () => {
+    if (runningRef.current) return;
+    setResult(null);
+    setPagingState(null);
+    setSelectPos(null);
+    setExecInfo(null);
+    setNotice(null);
+
+    const statements = splitCqlStatements(queryRef.current);
+    if (statements.length === 0) {
+      setRuns([]);
+      setNotice({ kind: 'info', text: 'Empty query' });
+      return;
+    }
+    const selects = statements.filter((s) => s.command === 'SELECT');
+    if (selects.length > 1) {
+      setRuns([]);
+      setNotice({
+        kind: 'error',
+        text: `Only one SELECT statement is allowed per execution, found ${selects.length} (#${selects
+          .map((s) => s.index)
+          .join(', #')}). Nothing was run.`,
+      });
+      return;
+    }
+
+    runningRef.current = true;
+    setRunning(true);
+    const startedAt = new Date();
+    const t0 = performance.now();
+    setRuns(statements.map((statement) => ({ statement, status: 'queued' })));
+    try {
+      for (let pos = 0; pos < statements.length; pos++) {
+        const statement = statements[pos]!;
+        updateRun(pos, { status: 'running' });
+        const res = await execStatement(statement.text, null);
+        if (!res.success) {
+          setRuns((prev) =>
+            prev.map((r, i) =>
+              i === pos
+                ? { ...r, status: 'failed', detail: res.message }
+                : i > pos
+                  ? { ...r, status: 'skipped' }
+                  : r,
+            ),
+          );
+          break;
+        }
+        updateRun(pos, { status: 'success', detail: describeSuccess(statement.command, res) });
+        if (statement.command === 'SELECT') {
+          setResult(res);
+          setPagingState(res.pagingState);
+          setSelectPos(pos);
+        }
       }
-      mutation.mutate({ query: q, pagingState: nextPagingState });
-    },
-    [mutation],
-  );
+    } finally {
+      setExecInfo({ startedAt, durationMs: performance.now() - t0 });
+      runningRef.current = false;
+      setRunning(false);
+    }
+  }, []);
+
+  /** Fetch the next page of the SELECT only; the other statements are not re-run. */
+  const runNextPage = async () => {
+    const run = selectPos === null ? undefined : runs[selectPos];
+    if (!run || !pagingState || runningRef.current) return;
+    runningRef.current = true;
+    setRunning(true);
+    const startedAt = new Date();
+    const t0 = performance.now();
+    updateRun(selectPos!, { status: 'running' });
+    try {
+      const res = await execStatement(run.statement.text, pagingState);
+      if (res.success) {
+        updateRun(selectPos!, { status: 'success', detail: describeSuccess('SELECT', res) });
+        setResult(res);
+        setPagingState(res.pagingState);
+      } else {
+        updateRun(selectPos!, { status: 'failed', detail: res.message });
+        setPagingState(null);
+      }
+    } finally {
+      setExecInfo({ startedAt, durationMs: performance.now() - t0 });
+      runningRef.current = false;
+      setRunning(false);
+    }
+  };
 
   const handleEditorMount: OnMount = useCallback(
     (editor, monaco) => {
       editor.addCommand(
         monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter,
         () => {
-          // Always start a fresh result set when triggered from the editor.
-          runQuery(null);
+          // Always start a fresh run when triggered from the editor.
+          void runAll();
         },
       );
       completionDisposableRef.current?.dispose();
       completionDisposableRef.current = registerCqlCompletionProvider(monaco);
     },
-    [runQuery],
+    [runAll],
   );
 
   const onChange = useCallback((value: string | undefined) => {
@@ -143,11 +212,11 @@ export function CqlEditor() {
   }, []);
 
   const onExecute = () => {
-    runQuery(null);
+    void runAll();
   };
 
   const onNextPage = () => {
-    if (pagingState) runQuery(pagingState);
+    void runNextPage();
   };
 
   const paramNames = extractParamNames(query);
@@ -170,7 +239,7 @@ export function CqlEditor() {
             <button
               type="button"
               onClick={onNextPage}
-              disabled={mutation.isPending}
+              disabled={running}
               className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
             >
               Next page
@@ -194,10 +263,10 @@ export function CqlEditor() {
           <button
             type="button"
             onClick={onExecute}
-            disabled={mutation.isPending}
+            disabled={running}
             className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
           >
-            {mutation.isPending ? 'Running…' : 'Execute Query'}
+            {running ? 'Running…' : 'Execute Query'}
           </button>
         </div>
       </div>
@@ -234,14 +303,29 @@ export function CqlEditor() {
           />
 
           <p className="text-xs text-slate-500">
+            Separate several statements with <code>;</code> to run them one by one (at most one <code>SELECT</code>).
             Use <code>:name</code> for parameters. Press <kbd className="rounded border border-slate-300 bg-slate-50 px-1">Cmd</kbd>/
             <kbd className="rounded border border-slate-300 bg-slate-50 px-1">Ctrl</kbd> +{' '}
             <kbd className="rounded border border-slate-300 bg-slate-50 px-1">Enter</kbd> to execute.
           </p>
 
+          {notice && (
+            <div
+              className={`rounded border px-3 py-2 text-sm ${
+                notice.kind === 'error'
+                  ? 'border-red-300 bg-red-50 text-red-800'
+                  : 'border-green-200 bg-green-50 text-green-800'
+              }`}
+            >
+              {notice.text}
+            </div>
+          )}
+
+          <CqlExecutionReport runs={runs} />
+
           <CqlResults result={result} />
 
-          {execInfo && !mutation.isPending && (
+          {execInfo && !running && (
             <p className="text-xs text-slate-500" data-testid="cql-status">
               Executed {execInfo.startedAt.toLocaleString()} · took{' '}
               {formatDuration(execInfo.durationMs)}

@@ -19,8 +19,8 @@ Streamlit are no longer needed to run the current application.
   loaded page, copy rows as MD, CSV, TSV, or JSON, and inspect individual records in an inline row detail panel.
 - **Schema-driven forms**: Generate INSERT and UPDATE statements for review and execution in the CQL editor.
 - **Record deletion**: Delete a selected row after confirmation.
-- **CQL editor**: Write queries with syntax highlighting and completion, execute them, page through results, and see
-  when each query ran and how long it took.
+- **CQL editor**: Write queries with syntax highlighting and completion, run several `;`-separated statements one by
+  one with a per-statement report, page through results, and see when they ran and how long they took.
 - **Saved parametrized queries**: Use `:name` placeholders bound as typed parameters, and save, reopen, import, and
   export queries.
 - **Keyboard shortcuts**: Run queries, delete rows, and confirm dialogs from the keyboard; press `/` for the list.
@@ -252,11 +252,50 @@ You can use it before selecting a table, including to create keyspaces or tables
    ```
 
 3. Click **Execute Query**, or press **Cmd+Enter** on macOS / **Ctrl+Enter** on Windows and Linux.
-4. Read the returned rows in the results table, or the success or error message for the statement. Use **Next page**
-   when more results are available.
-5. The line under the results shows when the query was sent and how long the request took.
+4. Read the returned rows in the results table and the outcome of each statement in the execution report above it.
+   Use **Next page** when more results are available.
+5. The line under the results shows when the run started and how long it took.
 
 ![Executing queries in the CQL Editor](3.cql-editor.gif)
+
+#### Running multiple statements
+
+The editor content is split on `;` and the statements run one by one, in order:
+
+```sql
+INSERT INTO demo_shop.users (id, name)
+VALUES (uuid(), 'Ada');
+DELETE
+FROM demo_shop.users
+WHERE id = 4b2c1f10 - 0000 - 4000 - 8000 - 000000000001;
+SELECT *
+FROM demo_shop.users LIMIT 25;
+```
+
+Semicolons inside string literals, quoted identifiers, and comments do not split, and a `BEGIN BATCH ... APPLY BATCH`
+block counts as a single statement. Each execution may contain **at most one `SELECT`**; with more, nothing runs and
+the message names the offending statements.
+
+The **execution report** has one line per statement, numbered by its position in the editor and labelled with its
+command (`#2 DELETE`):
+
+| Color            | State                                           |
+|------------------|-------------------------------------------------|
+| Grey, spinning   | Queued                                          |
+| Blue, spinning   | Running                                         |
+| Green            | Succeeded                                       |
+| Red              | Failed (the error message is shown on the line) |
+| Grey, no spinner | Skipped because an earlier statement failed     |
+
+Execution stops at the first failure. A successful line reports what happened:
+
+- **SELECT**: the number of rows returned (the rows appear in the results table; **Next page** re-runs only the
+  `SELECT`, never the other statements).
+- **INSERT**: the number of rows inserted (one per statement).
+- **DELETE**: the number of rows deleted, or cells when the statement names columns (`DELETE a, b FROM ...`).
+  Cassandra does not report this, so Kassandra counts the rows matching the `WHERE` clause just before running the
+  delete. If that count is unavailable the line just says "Deleted".
+- Statements with an `IF` condition that was not met are reported as "Not applied".
 
 #### Parameters
 
@@ -300,7 +339,7 @@ Press **/** anywhere outside a text field to open the shortcut list; **Esc** clo
 | Shortcut               | Action                                                      |
 |------------------------|-------------------------------------------------------------|
 | `/`                    | Show the list of shortcuts                                  |
-| `Cmd`/`Ctrl` + `Enter` | Execute the query in the CQL editor                         |
+| `Cmd`/`Ctrl` + `Enter` | Execute the statements in the CQL editor                    |
 | `Option`/`Ctrl` + `D`  | Delete the row open in the details dialog (asks to confirm) |
 | `Enter`                | Confirm the open dialog (OK, Create, Save, Delete, Import)  |
 | `Esc`                  | Close the shortcut list                                     |

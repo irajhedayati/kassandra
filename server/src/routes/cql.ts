@@ -10,7 +10,13 @@
  */
 import { Router } from 'express';
 import { z } from 'zod';
-import { toPositional, type QueryResponse, type Row } from '@kassandra/shared';
+import {
+  buildDeleteCountQuery,
+  splitCqlStatements,
+  toPositional,
+  type QueryResponse,
+  type Row,
+} from '@kassandra/shared';
 import { requireSession } from '../cassandra/state.js';
 import { coerceByType } from '../cassandra/repository.js';
 
@@ -76,6 +82,15 @@ cqlRouter.post('/', async (req, res, next) => {
       options.pageState = Buffer.from(body.pagingState, 'base64');
     }
 
+    const command = splitCqlStatements(cql)[0]?.command;
+    // Cassandra doesn't report how many rows a DELETE removed, so count what
+    // its WHERE clause matches first. Best effort: a failed count must not
+    // stop the delete itself.
+    let deleteCount: { count: number; unit: 'row' | 'cell' } | undefined;
+    if (command === 'DELETE') {
+      deleteCount = await countDeleteTargets(ctx.client, cql, bound);
+    }
+
     try {
       // cassandra-driver's `execute` accepts (query, params, options).
       // Raw CQL carries no bind values unless `:name` parameters were used.
@@ -102,6 +117,13 @@ cqlRouter.post('/', async (req, res, next) => {
         pagingState: pagingStateB64,
         hasMorePages: pagingStateB64 !== null,
       };
+      // Lightweight transactions (IF ...) answer with a single [applied] row.
+      const applied = rows.length === 1 ? rows[0]?.['[applied]'] : undefined;
+      if (typeof applied === 'boolean') payload.applied = applied;
+      if (payload.applied !== false) {
+        if (command === 'INSERT') payload.affected = { count: 1, unit: 'row' };
+        else if (deleteCount) payload.affected = deleteCount;
+      }
       res.json(payload);
     } catch (execErr) {
       const message = execErr instanceof Error ? execErr.message : String(execErr);
@@ -112,6 +134,27 @@ cqlRouter.post('/', async (req, res, next) => {
     next(err);
   }
 });
+
+async function countDeleteTargets(
+  client: { execute: (q: string, p: unknown[], o: { prepare: boolean }) => Promise<{ rows?: unknown[] }> },
+  cql: string,
+  bound: unknown[],
+): Promise<{ count: number; unit: 'row' | 'cell' } | undefined> {
+  const plan = buildDeleteCountQuery(cql);
+  if (!plan) return undefined;
+  try {
+    const params = bound.slice(plan.skipParams, plan.skipParams + plan.takeParams);
+    const res = await client.execute(plan.cql, params, { prepare: params.length > 0 });
+    const raw = (res.rows?.[0] as { count?: { toString(): string } } | undefined)?.count;
+    const rowCount = Number(raw?.toString());
+    if (!Number.isFinite(rowCount)) return undefined;
+    return plan.cells === null
+      ? { count: rowCount, unit: 'row' }
+      : { count: rowCount * plan.cells, unit: 'cell' };
+  } catch {
+    return undefined;
+  }
+}
 
 /**
  * cassandra-driver returns rows as objects keyed by column name. Normalize

@@ -65,7 +65,7 @@ Explore keyspaces and tables, inspect and modify data, run CQL, and manage Cassa
 | **Data Browser**                 | Inspect table data; filter, sort, and copy rows (MD/CSV/TSV/JSON).       |
 | **Create Keyspaces & Tables**    | Guided dialogs with a live CQL preview and built-in help.                |
 | **Schema-aware CRUD**            | Insert, update, and delete rows through schema-driven forms.             |
-| **CQL Editor**                   | Run raw CQL, with `:param` binding and saved, shareable queries.         |
+| **CQL Editor**                   | Run one or many CQL statements, with `:param` binding and saved queries. |
 | **Keyboard Shortcuts**           | Run queries, delete rows, and confirm dialogs from the keyboard (`/`).   |
 | **Connection Profiles**          | Save and switch between Cassandra cluster connections.                   |
 | **Datacenter-aware Routing**     | Prefer a selected local DC and fall back to remote DCs when necessary.   |

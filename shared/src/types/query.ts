@@ -24,6 +24,14 @@ export interface QueryResult {
   hasMorePages: boolean;
   /** Optional informational message (e.g. for non-SELECT statements). */
   message?: string;
+  /**
+   * Raw CQL only. Rows/cells a write touched, when the server can tell:
+   * INSERT counts the row it writes; DELETE counts what its WHERE clause
+   * matched just before it ran (Cassandra itself doesn't report this).
+   */
+  affected?: { count: number; unit: 'row' | 'cell' };
+  /** Raw CQL only. False when a lightweight transaction (IF ...) was not applied. */
+  applied?: boolean;
 }
 
 export interface QueryError {
