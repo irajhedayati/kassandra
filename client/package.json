@@ -19,7 +19,7 @@
     "@kassandra/shared": "*",
     "@monaco-editor/react": "^4.6.0",
     "@tanstack/react-query": "^5.104.0",
-    "@tanstack/react-table": "^9.2.4",
+    "@tanstack/react-table": "^9.3.1",
     "monaco-editor": "^0.57.0",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
