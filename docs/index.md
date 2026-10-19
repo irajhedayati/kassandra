@@ -2,20 +2,27 @@
 
 ## Overview
 
-Kassandra is a web-based graphical client for Apache Cassandra clusters. The current application uses a React and TypeScript frontend with a Node.js, Express, and TypeScript backend. It lets you browse data and schemas, manage connection profiles, generate CQL from forms, and execute queries.
+Kassandra is a web-based graphical client for Apache Cassandra clusters. The current application uses a React and
+TypeScript frontend with a Node.js, Express, and TypeScript backend. It lets you browse data and schemas, manage
+connection profiles, generate CQL from forms, and execute queries.
 
-The previous Python/Streamlit implementation is kept in [`../legacy`](../legacy) for reference. Python, uv, and Streamlit are no longer needed to run the current application.
+The previous Python/Streamlit implementation is kept in [`../legacy`](../legacy) for reference. Python, uv, and
+Streamlit are no longer needed to run the current application.
 
 ## Features
 
-- **Connection management**: Create, edit, delete, and import profiles with authentication, SSL, and optional local datacenter selection.
+- **Connection management**: Create, edit, delete, and import profiles with authentication, SSL, and optional local
+  datacenter selection.
 - **Schema explorer**: Search keyspaces and tables, refresh schema lists, and favorite keyspaces.
 - **Keyspace and table creation**: Create keyspaces and tables from guided dialogs with a live CQL preview.
-- **Data browser**: Browse paginated rows, apply column filters (including map keys and values), sort and filter the loaded page, copy rows as MD, CSV, TSV, or JSON, and inspect individual records in an inline row detail panel.
+- **Data browser**: Browse paginated rows, apply column filters (including map keys and values), sort and filter the
+  loaded page, copy rows as MD, CSV, TSV, or JSON, and inspect individual records in an inline row detail panel.
 - **Schema-driven forms**: Generate INSERT and UPDATE statements for review and execution in the CQL editor.
 - **Record deletion**: Delete a selected row after confirmation.
-- **CQL editor**: Write queries with syntax highlighting and completion, execute them, page through results, and see when each query ran and how long it took.
-- **Saved parametrized queries**: Use `:name` placeholders bound as typed parameters, and save, reopen, import, and export queries.
+- **CQL editor**: Write queries with syntax highlighting and completion, execute them, page through results, and see
+  when each query ran and how long it took.
+- **Saved parametrized queries**: Use `:name` placeholders bound as typed parameters, and save, reopen, import, and
+  export queries.
 - **Keyboard shortcuts**: Run queries, delete rows, and confirm dialogs from the keyboard; press `/` for the list.
 - **Column customization**: Configure hidden columns, JSON and enum fields, and rich per-key schemas for map columns.
 
@@ -44,9 +51,11 @@ The previous Python/Streamlit implementation is kept in [`../legacy`](../legacy)
    npm start
    ```
 
-3. Open [http://127.0.0.1:8501](http://127.0.0.1:8501). Express serves both the API and the built React application on this port.
+3. Open [http://127.0.0.1:8501](http://127.0.0.1:8501). Express serves both the API and the built React application on
+   this port.
 
-For development, run `npm run dev` instead and open [http://localhost:5173](http://localhost:5173). This starts the Vite frontend on port 5173 and the API server on port 8501; Vite proxies `/api` requests to the server.
+For development, run `npm run dev` instead and open [http://localhost:5173](http://localhost:5173). This starts the Vite
+frontend on port 5173 and the API server on port 8501; Vite proxies `/api` requests to the server.
 
 ### Docker
 
@@ -60,9 +69,25 @@ docker run --name kassandra --rm \
   -p 8501:8501 kassandra
 ```
 
-Replace `/path/to/local/.kassandra` with the host directory where you want to persist settings, then open [http://localhost:8501](http://localhost:8501).
+Replace `/path/to/local/.kassandra` with the host directory where you want to persist settings, then
+open [http://localhost:8501](http://localhost:8501).
 
-Connection hosts must be reachable from inside the container. For Cassandra running on your host with Docker Desktop, use `host.docker.internal`; for another container on the same Docker network, use its container name. Certificate paths must also be accessible inside the Kassandra container.
+### Docker Compose
+
+To launch Kassandra together with a local single-node Cassandra:
+
+```bash
+docker compose up --build
+```
+
+Open [http://localhost:8501](http://localhost:8501) and create a connection with host `cassandra` and port `9042` (the
+service name resolves inside the Compose network; no authentication or SSL). Cassandra can take a minute to become
+healthy before Kassandra starts. Settings and Cassandra data are kept in the `kassandra-data` and `cassandra-data`
+volumes; `docker compose down -v` removes them.
+
+Connection hosts must be reachable from inside the container. For Cassandra running on your host with Docker Desktop,
+use `host.docker.internal`; for another container on the same Docker network, use its container name. Certificate paths
+must also be accessible inside the Kassandra container.
 
 ## User Guide
 
@@ -72,14 +97,16 @@ Connection hosts must be reachable from inside the container. For Cassandra runn
 
 1. Expand **Manage connections** in the sidebar and click **+ New profile**.
 2. Fill in the connection details:
-   - **Name**: A friendly name for the profile.
-   - **Hosts (comma-separated)**: Node IP addresses or hostnames, such as `127.0.0.1`.
-   - **Port**: Cassandra native protocol port, usually `9042`.
-   - **Default keyspace**: Optional initial keyspace.
-   - **Username / Password**: Credentials if authentication is required.
-   - **Enable SSL**: Enable this for encrypted connections, then choose an **SSL protocol** and optionally provide an **SSL cert path** on the server filesystem.
-   - **Consistency**, **Timeout (s)**, and **Protocol version**: Adjust to match your cluster.
-   - **Local datacenter (optional)**: Enter a cluster datacenter name to prefer nodes in that datacenter. Leave empty for no datacenter preference. An unknown name produces a connection error listing available datacenters.
+    - **Name**: A friendly name for the profile.
+    - **Hosts (comma-separated)**: Node IP addresses or hostnames, such as `127.0.0.1`.
+    - **Port**: Cassandra native protocol port, usually `9042`.
+    - **Default keyspace**: Optional initial keyspace.
+    - **Username / Password**: Credentials if authentication is required.
+    - **Enable SSL**: Enable this for encrypted connections, then choose an **SSL protocol** and optionally provide an
+      **SSL cert path** on the server filesystem.
+    - **Consistency**, **Timeout (s)**, and **Protocol version**: Adjust to match your cluster.
+    - **Local datacenter (optional)**: Enter a cluster datacenter name to prefer nodes in that datacenter. Leave empty
+      for no datacenter preference. An unknown name produces a connection error listing available datacenters.
 3. Click **Create**.
 
 ![Connection profile dialog](1.create-connection.png)
@@ -87,17 +114,21 @@ Connection hosts must be reachable from inside the container. For Cassandra runn
 #### Connecting and managing profiles
 
 1. Select a saved profile from **Connection profile** in the sidebar.
-2. Click **Connect**. The connection status and **Schema** section appear when connected. While a connection attempt is running, the button becomes **Stop**; click it to cancel the attempt.
-3. Click **Reconnect** at any time to disconnect and reconnect to the current profile, for example after the cluster or your credentials change. It also becomes **Stop** while it runs; stopping a reconnect leaves you disconnected.
+2. Click **Connect**. The connection status and **Schema** section appear when connected. While a connection attempt is
+   running, the button becomes **Stop**; click it to cancel the attempt.
+3. Click **Reconnect** at any time to disconnect and reconnect to the current profile, for example after the cluster or
+   your credentials change. It also becomes **Stop** while it runs; stopping a reconnect leaves you disconnected.
 4. To switch profiles or edit the selected profile, click **Disconnect** first.
-5. Under **Manage connections**, click **Edit selected** to change settings and **Save changes** to persist them. The dialog also provides **Delete**, with confirmation, to remove the profile.
+5. Under **Manage connections**, click **Edit selected** to change settings and **Save changes** to persist them. The
+   dialog also provides **Delete**, with confirmation, to remove the profile.
 
 #### Importing connection profiles
 
 If you already have connection profiles from a teammate or a previous install, you don't need to re-enter them by hand.
 
 1. Expand **Manage connections** and click **Import configuration**.
-2. Either drag and drop a `.json` file, click to browse for one, or switch to the **Paste JSON** tab and paste the configuration directly.
+2. Either drag and drop a `.json` file, click to browse for one, or switch to the **Paste JSON** tab and paste the
+   configuration directly.
 3. The file can contain a single profile, an array of profiles, or an object with a `connections` array.
 4. Click **Import**. Each profile is imported individually, and the dialog lists which ones succeeded or failed.
 
@@ -109,27 +140,38 @@ If you already have connection profiles from a teammate or a previous install, y
 2. Open the **Data Browser** tab to view rows.
 3. Use the sidebar's **Refresh** button to reload schema lists after schema changes.
 
-Click the star beside the selected keyspace in the top bar to add or remove it from favorites. Favorites are saved per connection profile and appear first in the keyspace selector.
+Click the star beside the selected keyspace in the top bar to add or remove it from favorites. Favorites are saved per
+connection profile and appear first in the keyspace selector.
 
 ![Data Browser with column filters and pagination](data_browser.png)
 
 #### Data grid controls
 
-- **Filtering**: Enter values in the column fields above the grid, then click **Apply**. Click **Clear** to remove filters. Most columns use equality filters; map columns also offer *Key = value*, *Contains key*, and *Contains value*. The generated query uses `ALLOW FILTERING`, which can scan substantial data for non-key columns.
-- **Sort and filter the loaded page**: Click a column header to sort ascending, click again for descending, and a third time to clear. Type in the box under a header to filter that column. These apply only to the rows already loaded on the current page, do not query Cassandra, and reset when you switch tables. Use the filters above the grid to search the whole table.
+- **Filtering**: Enter values in the column fields above the grid, then click **Apply**. Click **Clear** to remove
+  filters. Most columns use equality filters; map columns also offer *Key = value*, *Contains key*, and *Contains
+  value*. The generated query uses `ALLOW FILTERING`, which can scan substantial data for non-key columns.
+- **Sort and filter the loaded page**: Click a column header to sort ascending, click again for descending, and a third
+  time to clear. Type in the box under a header to filter that column. These apply only to the rows already loaded on
+  the current page, do not query Cassandra, and reset when you switch tables. Use the filters above the grid to search
+  the whole table.
 - **Copy**: **MD**, **CSV**, **TSV**, and **JSON** above the grid copy the rows to the clipboard.
-- **Pagination**: Choose 10, 25, or 50 **Rows per page**. Use **Next page** to continue and **Reset** to return to the first page.
+- **Pagination**: Choose 10, 25, or 50 **Rows per page**. Use **Next page** to continue and **Reset** to return to the
+  first page.
 - **Refresh**: The button above the grid reloads the current page and its schema and metadata.
-- **Selection**: Click a row to open its details dialog. Primary and clustering key columns are marked `(pk)` and `(ck)` in the grid.
+- **Selection**: Click a row to open its details dialog. Primary and clustering key columns are marked `(pk)` and `(ck)`
+  in the grid.
 
 #### Creating keyspaces and tables
 
-Use the **+** buttons in the sidebar's **Schema** section. Each dialog has a **?** button with an inline guide to the options, and a **CQL preview** showing the statement that will run. Names are created exactly as typed (case-sensitive).
+Use the **+** buttons in the sidebar's **Schema** section. Each dialog has a **?** button with an inline guide to the
+options, and a **CQL preview** showing the statement that will run. Names are created exactly as typed (case-sensitive).
 
 **Create a keyspace** (the **+** beside **Keyspace**):
 
 1. Enter a name: it must start with a letter, use only letters, digits, and underscores, and be at most 48 characters.
-2. Choose a **Replication strategy**: *SimpleStrategy* takes one replication factor for the whole cluster (development or a single datacenter); *NetworkTopologyStrategy* takes replicas per datacenter and is recommended for production. Datacenter names from the connected cluster are suggested as you type.
+2. Choose a **Replication strategy**: *SimpleStrategy* takes one replication factor for the whole cluster (development
+   or a single datacenter); *NetworkTopologyStrategy* takes replicas per datacenter and is recommended for production.
+   Datacenter names from the connected cluster are suggested as you type.
 3. Optionally turn off **Durable writes** (not recommended) or tick **IF NOT EXISTS**.
 4. Click **Create**. The keyspace list refreshes and the new keyspace is selected.
 
@@ -137,10 +179,15 @@ Use the **+** buttons in the sidebar's **Schema** section. Each dialog has a **?
 
 **Create a table** (the **+** beside **Table**, enabled once a keyspace is selected):
 
-1. Enter a table name and add columns. For each, choose its kind (*Partition key*, *Clustering*, *Regular*, or *Static*) and its type; `list`, `set`, and `map` columns also take element types and an optional `frozen`.
-2. Columns are listed in key order: partition key columns form the partition key in the order shown, and clustering columns are sorted in the order shown, each ASC or DESC.
-3. Optionally expand **Table options** to set a comment, default TTL, GC grace seconds, compaction, and compression. Blank fields use the server defaults.
-4. The preview explains anything invalid, for example no partition key, duplicate column names, a collection in a key that is not frozen, or a static column without a clustering column. **Create** is enabled once the definition is valid.
+1. Enter a table name and add columns. For each, choose its kind (*Partition key*, *Clustering*, *Regular*, or *Static*)
+   and its type; `list`, `set`, and `map` columns also take element types and an optional `frozen`.
+2. Columns are listed in key order: partition key columns form the partition key in the order shown, and clustering
+   columns are sorted in the order shown, each ASC or DESC.
+3. Optionally expand **Table options** to set a comment, default TTL, GC grace seconds, compaction, and compression.
+   Blank fields use the server defaults.
+4. The preview explains anything invalid, for example no partition key, duplicate column names, a collection in a key
+   that is not frozen, or a static column without a clustering column. **Create** is enabled once the definition is
+   valid.
 
 ![Creating a table](images/create-table.gif)
 
@@ -149,8 +196,10 @@ Use the **+** buttons in the sidebar's **Schema** section. Each dialog has a **?
 #### Inserting records
 
 1. Open the **Insert Record** tab.
-2. Fill in the form generated from the table schema. It provides type-specific fields, including collection editors for maps, lists, and sets.
-3. Provide the primary key values. Empty fields are omitted from the generated INSERT; for generated identifiers, you can use `uuid()` or `now()` in the CQL editor for UUID or TIMEUUID columns respectively.
+2. Fill in the form generated from the table schema. It provides type-specific fields, including collection editors for
+   maps, lists, and sets.
+3. Provide the primary key values. Empty fields are omitted from the generated INSERT; for generated identifiers, you
+   can use `uuid()` or `now()` in the CQL editor for UUID or TIMEUUID columns respectively.
 4. Click **Generate CQL** to send the INSERT statement to the editor below.
 5. Review or edit the statement, then click **Execute Query** to insert the record.
 6. Return to **Data Browser** and click **Refresh** to see the result.
@@ -159,8 +208,11 @@ Use the **+** buttons in the sidebar's **Schema** section. Each dialog has a **?
 
 **Map columns.** A map column shows its entries as key/value rows. Click **+ Add entry** to add one:
 
-- If the column has a map schema (see [Table Info](#6-table-info)), a searchable **Select a key…** dropdown lists the defined keys. Choosing one switches the value field to that key's type: text, JSON, enum, number, date or time, checkbox, and so on. Keys already used are not offered again.
-- To use a key that is not defined, type it in the search box and choose **Use "…" as a custom key**, or choose **Custom key…** and type it.
+- If the column has a map schema (see [Table Info](#6-table-info)), a searchable **Select a key…** dropdown lists the
+  defined keys. Choosing one switches the value field to that key's type: text, JSON, enum, number, date or time,
+  checkbox, and so on. Keys already used are not offered again.
+- To use a key that is not defined, type it in the search box and choose **Use "…" as a custom key**, or choose **Custom
+  key…** and type it.
 - Without a map schema, type the key and value directly.
 - Entries with an empty key or value are left out of the generated statement.
 
@@ -184,11 +236,13 @@ Generating CQL does not write to Cassandra; inserts and updates take effect when
 
 1. Click a row in **Data Browser**.
 2. Click **Delete** in the details dialog.
-3. Confirm the deletion. This deletes the record directly and refreshes the data browser. You can also press **Option+D** (macOS) or **Ctrl+D** while the details dialog is open, then confirm.
+3. Confirm the deletion. This deletes the record directly and refreshes the data browser. You can also press
+   **Option+D** (macOS) or **Ctrl+D** while the details dialog is open, then confirm.
 
 ### 4. CQL Editor
 
-The **CQL Editor** is a collapsible panel at the bottom of the application, available whenever a connection is active. You can use it before selecting a table, including to create keyspaces or tables.
+The **CQL Editor** is a collapsible panel at the bottom of the application, available whenever a connection is active.
+You can use it before selecting a table, including to create keyspaces or tables.
 
 1. Click the **CQL Editor** heading to expand it if collapsed.
 2. Enter a query, using a fully qualified table name when needed:
@@ -198,7 +252,8 @@ The **CQL Editor** is a collapsible panel at the bottom of the application, avai
    ```
 
 3. Click **Execute Query**, or press **Cmd+Enter** on macOS / **Ctrl+Enter** on Windows and Linux.
-4. Read the returned rows in the results table, or the success or error message for the statement. Use **Next page** when more results are available.
+4. Read the returned rows in the results table, or the success or error message for the statement. Use **Next page**
+   when more results are available.
 5. The line under the results shows when the query was sent and how long the request took.
 
 ![Executing queries in the CQL Editor](3.cql-editor.gif)
@@ -208,17 +263,25 @@ The **CQL Editor** is a collapsible panel at the bottom of the application, avai
 Write named placeholders as `:name` instead of pasting values into the query:
 
 ```sql
-SELECT * FROM ks.table1 WHERE c1 = :filter_value;
+SELECT *
+FROM ks.table1
+WHERE c1 = :filter_value;
 ```
 
-A **Parameters** panel appears under the editor with one row per placeholder. Pick the CQL **type** (`text` by default; also `int`, `bigint`, `smallint`, `tinyint`, `varint`, `float`, `double`, `decimal`, `boolean`, `uuid`, `timeuuid`, `timestamp`, `date`, `time`, `inet`, and `blob`), enter a value, and execute. Press **Enter** in a value field to run the query. Values are bound as prepared-statement parameters, so they are never inserted into the CQL text. Placeholders inside string literals, quoted identifiers, and comments are ignored.
+A **Parameters** panel appears under the editor with one row per placeholder. Pick the CQL **type** (`text` by default;
+also `int`, `bigint`, `smallint`, `tinyint`, `varint`, `float`, `double`, `decimal`, `boolean`, `uuid`, `timeuuid`,
+`timestamp`, `date`, `time`, `inet`, and `blob`), enter a value, and execute. Press **Enter** in a value field to run
+the query. Values are bound as prepared-statement parameters, so they are never inserted into the CQL text. Placeholders
+inside string literals, quoted identifiers, and comments are ignored.
 
 ![Running a parametrized query](images/parametrized-query.gif)
 
 #### Saved queries
 
-- **Save query** (enabled when the editor has text) asks for a **Name**, an optional **Description**, and the **Query**, and stores them with the parameter types.
-- **Saved queries** lists them. **Open** loads a query and its parameter types into the editor, **Edit** changes it, and **Delete** removes it after confirmation.
+- **Save query** (enabled when the editor has text) asks for a **Name**, an optional **Description**, and the **Query**,
+  and stores them with the parameter types.
+- **Saved queries** lists them. **Open** loads a query and its parameter types into the editor, **Edit** changes it, and
+  **Delete** removes it after confirmation.
 - **Export** downloads all saved queries as JSON and **Import** loads a JSON file, for sharing with teammates.
 
 Saved queries are kept in `config.json` under `saved_queries`.
@@ -227,38 +290,47 @@ Saved queries are kept in `config.json` under `saved_queries`.
 
 #### Copying results
 
-The **Copy** buttons above the results table (**MD**, **CSV**, **TSV**, **JSON**) copy the displayed rows to the clipboard.
+The **Copy** buttons above the results table (**MD**, **CSV**, **TSV**, **JSON**) copy the displayed rows to the
+clipboard.
 
 ### 5. Keyboard Shortcuts
 
 Press **/** anywhere outside a text field to open the shortcut list; **Esc** closes it.
 
-| Shortcut | Action |
-|---|---|
-| `/` | Show the list of shortcuts |
-| `Cmd`/`Ctrl` + `Enter` | Execute the query in the CQL editor |
-| `Option`/`Ctrl` + `D` | Delete the row open in the details dialog (asks to confirm) |
-| `Enter` | Confirm the open dialog (OK, Create, Save, Delete, Import) |
-| `Esc` | Close the shortcut list |
+| Shortcut               | Action                                                      |
+|------------------------|-------------------------------------------------------------|
+| `/`                    | Show the list of shortcuts                                  |
+| `Cmd`/`Ctrl` + `Enter` | Execute the query in the CQL editor                         |
+| `Option`/`Ctrl` + `D`  | Delete the row open in the details dialog (asks to confirm) |
+| `Enter`                | Confirm the open dialog (OK, Create, Save, Delete, Import)  |
+| `Esc`                  | Close the shortcut list                                     |
 
 ![Keyboard shortcuts](images/keyboard-shortcuts.png)
 
 ### 6. Table Info
 
-The **Table Info** tab displays column names, CQL types, and partition and clustering key information. It also lets you customize how Kassandra displays and edits columns:
+The **Table Info** tab displays column names, CQL types, and partition and clustering key information. It also lets you
+customize how Kassandra displays and edits columns:
 
 - **Hide**: Exclude a column from the data browser.
-- **Text fields**: Choose `text`, `JSON`, or `enum` presentation from the **Type** dropdown. For enums, enter the allowed values as a comma-separated list.
-- **Map Schema**: Click **Edit Schema** on a map column to define its known keys. Each row has a **Key**, a **Label** shown in the forms, and a value **Type** (text, JSON, enum, or a scalar CQL type). The defined keys are offered when adding map entries in the forms.
+- **Text fields**: Choose `text`, `JSON`, or `enum` presentation from the **Type** dropdown. For enums, enter the
+  allowed values as a comma-separated list.
+- **Map Schema**: Click **Edit Schema** on a map column to define its known keys. Each row has a **Key**, a **Label**
+  shown in the forms, and a value **Type** (text, JSON, enum, or a scalar CQL type). The defined keys are offered when
+  adding map entries in the forms.
 
 ![Editing a map schema](images/edit-map-schema.png)
 
-Click **Save** to persist these settings, or **Cancel** to discard pending changes. These settings customize Kassandra's interface; they do not alter the Cassandra table schema.
+Click **Save** to persist these settings, or **Cancel** to discard pending changes. These settings customize Kassandra's
+interface; they do not alter the Cassandra table schema.
 
 ## Configuration
 
-Connection profiles, column metadata, saved queries, and favorite keyspaces are stored on the server in `~/.kassandra/config.json`. Set `KASSANDRA_HOME` to use a different directory. The Node.js application reads the existing configuration format and fills missing profile fields with defaults.
+Connection profiles, column metadata, saved queries, and favorite keyspaces are stored on the server in
+`~/.kassandra/config.json`. Set `KASSANDRA_HOME` to use a different directory. The Node.js application reads the
+existing configuration format and fills missing profile fields with defaults.
 
-For source installations, `HOST` and `PORT` control the server's listening address and port; defaults are `127.0.0.1` and `8501`. The Docker image sets `HOST=0.0.0.0` so the published port is reachable.
+For source installations, `HOST` and `PORT` control the server's listening address and port; defaults are `127.0.0.1`
+and `8501`. The Docker image sets `HOST=0.0.0.0` so the published port is reachable.
 
 See the [demo walkthrough](demo.md) for sample keyspaces, tables, and CQL data used in the screenshots.
