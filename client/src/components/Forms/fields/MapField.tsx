@@ -254,7 +254,10 @@ export function MapField(props: FieldProps) {
                     )}
                     onPick={(key) => {
                       const next = entries.slice();
-                      next[i] = { key, value: entry.value };
+                      // A boolean shows as unchecked ("false") but would stay '' and be dropped
+                      // on serialize, so the new entry would never register as a change.
+                      const isBoolean = widgetFor(schemaByKey.get(key)?.display_type ?? 'text') === 'checkbox';
+                      next[i] = { key, value: entry.value === '' && isBoolean ? 'false' : entry.value };
                       update(next);
                     }}
                   />
