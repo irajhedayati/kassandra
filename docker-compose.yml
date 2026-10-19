@@ -1,0 +1,37 @@
+# Kassandra + a single-node Cassandra for local use.
+#
+#   docker compose up --build
+#
+# Then open http://localhost:8501 and create a connection with host
+# "cassandra" and port 9042 (no authentication, no SSL).
+services:
+  cassandra:
+    image: cassandra:5
+    container_name: cassandra
+    ports:
+      - "9042:9042"
+    volumes:
+      - cassandra-data:/var/lib/cassandra
+    healthcheck:
+      test: ["CMD-SHELL", "cqlsh -e 'describe keyspaces' >/dev/null 2>&1"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 60s
+
+  kassandra:
+    build: .
+    container_name: kassandra
+    environment:
+      KASSANDRA_HOME: /etc/kassandra
+    ports:
+      - "8501:8501"
+    volumes:
+      - kassandra-data:/etc/kassandra
+    depends_on:
+      cassandra:
+        condition: service_healthy
+
+volumes:
+  cassandra-data:
+  kassandra-data:

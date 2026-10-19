@@ -1,8 +1,8 @@
-
 <div align="center">
   <img src="logo.png" alt="Kassandra; GUI for Cassandra databases" width="360">
 
 # Kassandra
+
 ### See inside Cassandra.
 
 Kassandra is an open-source web GUI for Apache Cassandra.
@@ -72,6 +72,7 @@ Explore keyspaces and tables, inspect and modify data, run CQL, and manage Cassa
 | **DC Validation & Autocomplete** | Discover available datacenters and prevent invalid DC configuration.     |
 | **Docker Ready**                 | Run Kassandra locally or as a self-hosted container.                     |
 | **Open Source**                  | MIT licensed and built for community contribution.                       |
+
 ---
 
 ## Quick Start
@@ -89,7 +90,7 @@ docker run --rm \
 
 `cqlsh` is excellent when you know the exact query you want to run.
 
-Kassandra is for the other moments: exploring an unfamiliar schema, checking a row, editing data, switching between 
+Kassandra is for the other moments: exploring an unfamiliar schema, checking a row, editing data, switching between
 clusters, or simply seeing what's inside Cassandra without writing a query first.
 
 ---
@@ -97,7 +98,7 @@ clusters, or simply seeing what's inside Cassandra without writing a query first
 ## Stack
 
 - **Server:** Node.js + Express + TypeScript, using the official DataStax `cassandra-driver`.
-- **Client:** React 19 + TypeScript + Vite + Tailwind CSS, with TanStack Query for server state and Zustand for 
+- **Client:** React 19 + TypeScript + Vite + Tailwind CSS, with TanStack Query for server state and Zustand for
   client state.
 - **Single process:** Express serves the API and the built React SPA on one port.
 
@@ -131,13 +132,19 @@ docker build -t kassandra .
 docker run -p 8501:8501 kassandra
 ```
 
+To launch Kassandra together with a local Cassandra, run `docker compose up --build`
+(see [docs/index.md](docs/index.md#docker-compose)).
+
 ## Configuration
 
-Connection profiles and per-column metadata are persisted to `~/.kassandra/config.json`. Override the directory with `KASSANDRA_HOME`.
+Connection profiles and per-column metadata are persisted to `~/.kassandra/config.json`. Override the directory with
+`KASSANDRA_HOME`.
 
 ### Datacenter selection
 
-Each connection profile has an optional **Local datacenter** field. When set, the driver uses a DC-aware load-balancing policy: queries route to nodes in the named DC first, and only fall back to remote DCs if the local one becomes unreachable.
+Each connection profile has an optional **Local datacenter** field. When set, the driver uses a DC-aware load-balancing
+policy: queries route to nodes in the named DC first, and only fall back to remote DCs if the local one becomes
+unreachable.
 
 Useful for:
 
@@ -145,9 +152,13 @@ Useful for:
 - **Compliance / data residency** requirements that pin reads to a specific region.
 - **Failover testing** of how the app behaves when a DC is down.
 
-If you set a DC that doesn't exist in the cluster, the app refuses to connect and shows the list of available DC names; no silent fallback. Leaving the field empty preserves the prior behavior (plain round-robin over the configured contact points, no DC preference).
+If you set a DC that doesn't exist in the cluster, the app refuses to connect and shows the list of available DC names;
+no silent fallback. Leaving the field empty preserves the prior behavior (plain round-robin over the configured contact
+points, no DC preference).
 
-The form auto-completes the field from the currently-connected cluster's DC list (visible while editing if you're already connected to a cluster), so you don't have to memorize names. Programmatically, the list is also exposed at `GET /api/profiles/datacenters` while connected.
+The form auto-completes the field from the currently-connected cluster's DC list (visible while editing if you're
+already connected to a cluster), so you don't have to memorize names. Programmatically, the list is also exposed at
+`GET /api/profiles/datacenters` while connected.
 
 See [docs/index.md](docs/index.md) for the user guide.
 
