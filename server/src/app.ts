@@ -9,6 +9,7 @@ import { cqlRouter } from './routes/cql.js';
 import { metadataRouter } from './routes/metadata.js';
 import { savedQueriesRouter } from './routes/savedQueries.js';
 import { errorHandler } from './middleware/error.js';
+import { sessionMiddleware } from './cassandra/state.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,6 +19,8 @@ export function createApp(): Express {
 
   app.use(cors());
   app.use(express.json({ limit: '4mb' }));
+  // Each browser tab has its own Cassandra connection, keyed by its session header.
+  app.use('/api', sessionMiddleware);
 
   // API
   app.use('/api/profiles', connectionRouter);

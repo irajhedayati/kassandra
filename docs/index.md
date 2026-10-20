@@ -122,6 +122,12 @@ must also be accessible inside the Kassandra container.
 5. Under **Manage connections**, click **Edit selected** to change settings and **Save changes** to persist them. The
    dialog also provides **Delete**, with confirmation, to remove the profile.
 
+Each browser tab or window has its own connection, so you can be connected to different clusters at the same time.
+Reloading a tab keeps its connection; opening a new tab starts disconnected. Profiles, column metadata, and saved
+queries are shared by all tabs. A connection that has been idle for two hours is closed by the server (set
+`KASSANDRA_SESSION_IDLE_MINUTES` to change this), after which you need to connect again. Duplicating a tab in the
+browser copies its connection identity, so use a new tab or window instead.
+
 #### Importing connection profiles
 
 If you already have connection profiles from a teammate or a previous install, you don't need to re-enter them by hand.
