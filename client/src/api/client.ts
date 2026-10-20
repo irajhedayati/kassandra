@@ -5,6 +5,27 @@ import type { ApiResponse, QueryResponse } from '@kassandra/shared';
  * (for non-query endpoints) or QueryResponse (for data/cql endpoints).
  */
 
+const SESSION_KEY = 'kassandra.session';
+const SESSION_HEADER = 'X-Kassandra-Session';
+
+/**
+ * Identifies this browser tab to the server, which keeps one Cassandra
+ * connection per id. sessionStorage is per tab and survives reloads, so a
+ * reload stays connected while other tabs/windows get their own connection.
+ */
+function sessionId(): string {
+  try {
+    let id = sessionStorage.getItem(SESSION_KEY);
+    if (!id) {
+      id = crypto.randomUUID();
+      sessionStorage.setItem(SESSION_KEY, id);
+    }
+    return id;
+  } catch {
+    return 'default';
+  }
+}
+
 export class ApiError extends Error {
   constructor(message: string, public readonly status: number) {
     super(message);
@@ -12,7 +33,7 @@ export class ApiError extends Error {
 }
 
 export async function apiGet<T>(path: string): Promise<T> {
-  const res = await fetch(path);
+  const res = await fetch(path, { headers: { [SESSION_HEADER]: sessionId() } });
   return unwrap<T>(res);
 }
 
@@ -24,7 +45,7 @@ export async function apiSend<T>(
 ): Promise<T> {
   const res = await fetch(path, {
     method,
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', [SESSION_HEADER]: sessionId() },
     body: body === undefined ? undefined : JSON.stringify(body),
     signal,
   });
