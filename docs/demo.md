@@ -6,17 +6,29 @@ of the tool.
 
 # Quick Introduction
 
-## 1. Launch Cassandra Using Docker
+## 1. Launch Cassandra & Kassandra
+### Vanilla Containers
+
+**Cassandra**
 ```bash
 docker run -d --name cassandra --hostname cassandra --network cassandra -p 9042:9042 cassandra
 ```
 
-## 2. Launch kassandra
+**Kassandra**
 
 ```bash
 docker run --name kassandra --rm \
-  --env KASSANDRA_HOME=/etc/kassandra --volume "/path/to/local/.kassandra:/etc/kassandra" \
+  --env KASSANDRA_HOME=/etc/kassandra --volume "~/.kassandra:/etc/kassandra" \
   -p 8501:8501 kassandra:latest
+```
+### Docker Compose
+In the root of the project
+```shell
+docker compose up
+```
+or
+```shell
+docker compose -f oci://docker.io/hedayati/kassandra:1.4 up -d
 ```
 ---
 
@@ -27,7 +39,7 @@ Before you can query data, you need to tell kassandra where your cluster lives.
 1. Open the **Manage Connections** section in the sidebar.
 2. Click to edit or create a new connection.
 3. **Fill in the details:**
-   * **Hosts:** Enter your node IPs (e.g., `127.0.0.1`).
+   * **Hosts:** Enter your node IPs (e.g., `127.0.0.1` or `cassandra` if using Docker Compose).
    * **Port:** Default is usually `9042`.
    * **Authentication:** Provide your `Username` and `Password` (_cassandra_ and _cassandra_).
    * **SSL:** If your cluster requires encryption, check **SSL Enabled** and select your protocol 
@@ -51,11 +63,12 @@ Once saved, your connection will appear in the **Select Connection** dropdown.
 
 ## 5. Using the CQL Editor
 
-For heavy lifting like schema creation or complex joins, use the built-in **CQL Editor**.
+For schema creation and data changes, use the built-in **CQL Editor**.
 
 * **Executing Queries:** Type your commands (e.g., `CREATE KEYSPACE` or `INSERT INTO`) and click **Execute Query**.
-* **Feedback:** The UI provides a green success alert for valid commands and a blue notification specifying if rows 
-were returned or if it was a schema-only change.
+* **Multiple statements:** Separate commands with `;` to run them in order. Each run allows at most one `SELECT`.
+* **Feedback:** A numbered execution report shows each statement’s outcome. Execution stops at the first failure;
+earlier successful statements are not rolled back.
 
 ```sql
 -- noinspection SqlNoDataSourceInspectionForFile
@@ -110,14 +123,14 @@ Good for:
 
 CREATE TABLE demo_shop.users
 (
-   user_id    UUID,
-   email      TEXT,
-   full_name  TEXT,
-   country    TEXT,
-   created_at TIMESTAMP,
-   profile    MAP<TEXT,
-   TEXT>,
-   PRIMARY KEY (user_id)
+    user_id    UUID,
+    email      TEXT,
+    full_name  TEXT,
+    country    TEXT,
+    created_at TIMESTAMP,
+    profile    MAP<TEXT,TEXT>,
+    phone_numbers LIST<TEXT>,
+    PRIMARY KEY (user_id)
 );
 ```
 
@@ -130,34 +143,37 @@ CREATE TABLE demo_shop.users
 ### Sample Data
 
 ```sql
-INSERT INTO demo_shop.users (user_id, email, full_name, country, created_at, profile)
+INSERT INTO demo_shop.users (user_id, email, full_name, country, created_at, profile, phone_numbers)
 VALUES (
-  uuid(),
-  'john@example.com',
-  'John Carter',
-  'USA',
-  toTimestamp(now()),
-  {'role': 'admin', 'tier': 'gold'}
+        uuid(),
+        'john@example.com',
+        'John Carter',
+        'USA',
+        toTimestamp(now()),
+        {'role': 'admin', 'tier': 'gold'},
+        ['(514) 123-4567', '(438) 123-4567']
 );
 
-INSERT INTO demo_shop.users (user_id, email, full_name, country, created_at, profile)
+INSERT INTO demo_shop.users (user_id, email, full_name, country, created_at, profile, phone_numbers)
 VALUES (
-  uuid(),
-  'sara@example.com',
-  'Sara Smith',
-  'Canada',
-  toTimestamp(now()),
-  {'role': 'user', 'tier': 'silver'}
+        uuid(),
+        'sara@example.com',
+        'Sara Smith',
+        'Canada',
+        toTimestamp(now()),
+        {'role': 'user', 'tier': 'silver'},
+        ['(514) 456-7890', '(438) 456-7890']
 );
 
-INSERT INTO demo_shop.users (user_id, email, full_name, country, created_at, profile)
+INSERT INTO demo_shop.users (user_id, email, full_name, country, created_at, profile, phone_numbers)
 VALUES (
-  uuid(),
-  'ali@example.com',
-  'Ali Reza',
-  'Germany',
-  toTimestamp(now()),
-  {'role': 'user', 'tier': 'bronze'}
+        uuid(),
+        'ali@example.com',
+        'Ali Reza',
+        'Germany',
+        toTimestamp(now()),
+        {'role': 'user', 'tier': 'bronze'},
+        ['(514) 789-0123']
 );
 ```
 
@@ -173,6 +189,40 @@ Great for:
 * Showing map schema editor (`profile`)
 * Filtering by `country`
 * Extended result mode
+
+### Edit phone numbers
+
+If you created `demo_shop.users` with an earlier demo, add the new column before using these examples:
+
+```sql
+ALTER TABLE demo_shop.users ADD phone_numbers LIST<TEXT>;
+```
+
+Open a user row in **Data Browser**, click **Edit**, and change the `phone_numbers` items. Use **+ Add item**
+to add a number or **×** to remove one. Click **Generate CQL**, review the query, and click **Execute Query**.
+Refresh the data browser to see the result.
+
+![Editing phone numbers as list items](images/list-editor.gif)
+
+### Run several statements together
+
+Paste this into the CQL editor. Set the `user_id` parameter type to `uuid` and its value to an existing user's ID:
+
+```sql
+UPDATE demo_shop.users
+SET profile = profile + {'new_key': 'new_value'}
+WHERE user_id = :user_id;
+
+DELETE profile['tier'] FROM demo_shop.users
+WHERE user_id = :user_id;
+
+SELECT profile FROM demo_shop.users;
+```
+
+Click **Execute Query** to run all three statements in order. The report shows the update, deletion, and returned
+rows separately. Paging the results runs only the SELECT again.
+
+![Multi-statement CQL execution](images/multi-statement.png)
 
 ### Table 2: products
 

@@ -39,6 +39,9 @@ export function App() {
             </>
           )}
         </div>
+        <div className="shrink-0 border-t border-cyan-400/20 px-4 py-3 text-xs text-slate-400">
+          Kassandra v{import.meta.env.VITE_APP_VERSION}
+        </div>
       </aside>
 
       <main className="flex flex-1 flex-col overflow-hidden">

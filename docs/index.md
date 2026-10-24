@@ -26,6 +26,8 @@ Streamlit are no longer needed to run the current application.
 - **Keyboard shortcuts**: Run queries, delete rows, and confirm dialogs from the keyboard; press `/` for the list.
 - **Column customization**: Configure hidden columns, JSON and enum fields, and rich per-key schemas for map columns.
 
+The bottom of the application sidebar shows the version of the running frontend build.
+
 ## Installation
 
 ### Prerequisites
@@ -226,6 +228,13 @@ options, and a **CQL preview** showing the statement that will run. Names are cr
 
 ![Picking a map key from the defined keys](images/map-schema.gif)
 
+**List columns.** Lists of primitive types show one input per item. Use **+ Add item** to append an item and **×**
+to remove one. Inputs match the element type (such as numbers, dates, or booleans); configured enums use dropdowns.
+Nested collections, sets, and tuples use a JSON-array field. When editing an existing row, click **Generate CQL**,
+review the statements, and execute them to save the changes.
+
+![Editing a list of phone numbers](images/list-editor.gif)
+
 #### Updating records
 
 1. Click a row in **Data Browser** to open its details dialog.
@@ -269,14 +278,19 @@ You can use it before selecting a table, including to create keyspaces or tables
 The editor content is split on `;` and the statements run one by one, in order:
 
 ```sql
-INSERT INTO demo_shop.users (id, name)
-VALUES (uuid(), 'Ada');
-DELETE
-FROM demo_shop.users
-WHERE id = 4b2c1f10 - 0000 - 4000 - 8000 - 000000000001;
-SELECT *
-FROM demo_shop.users LIMIT 25;
+UPDATE demo_shop.users
+SET profile = profile + {'new_key': 'new_value'}
+WHERE user_id = :user_id;
+
+DELETE profile['tier'] FROM demo_shop.users
+WHERE user_id = :user_id;
+
+SELECT profile FROM demo_shop.users;
 ```
+
+Set the `user_id` parameter type to `uuid` and enter the ID of an existing demo user.
+
+![Multi-statement execution report](images/multi-statement.png)
 
 Semicolons inside string literals, quoted identifiers, and comments do not split, and a `BEGIN BATCH ... APPLY BATCH`
 block counts as a single statement. Each execution may contain **at most one `SELECT`**; with more, nothing runs and
@@ -293,7 +307,7 @@ command (`#2 DELETE`):
 | Red              | Failed (the error message is shown on the line) |
 | Grey, no spinner | Skipped because an earlier statement failed     |
 
-Execution stops at the first failure. A successful line reports what happened:
+Execution stops at the first failure; earlier successful statements are not rolled back. A successful line reports what happened:
 
 - **SELECT**: the number of rows returned (the rows appear in the results table; **Next page** re-runs only the
   `SELECT`, never the other statements).

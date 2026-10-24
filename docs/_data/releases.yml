@@ -1,6 +1,9 @@
 # Releases listed in the docs side panel, newest first.
 # Add an entry per release; the notes live in docs/release-notes/<version>.md.
 # Set `released: true` once the GitHub release exists so the GitHub link appears.
+- version: v1.5.0
+  date: Upcoming
+  released: false
 - version: v1.4.0
   date: 2026-10-15
   released: true

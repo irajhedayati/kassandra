@@ -37,6 +37,14 @@ Explore keyspaces and tables, inspect and modify data, run CQL, and manage Cassa
 
 ![CQL Editor](docs/insert.gif)
 
+### Edit list items
+
+<img src="docs/images/list-editor.gif" alt="Editing a list of phone numbers" width="640" />
+
+### Execute multiple CQL statements
+
+<img src="docs/images/multi-statement.png" alt="Multi-statement CQL execution report" width="640" />
+
 ### Create keyspaces and tables
 
 <img src="docs/images/create-table.gif" alt="Create table" width="640" />
@@ -160,7 +168,7 @@ The form auto-completes the field from the currently-connected cluster's DC list
 already connected to a cluster), so you don't have to memorize names. Programmatically, the list is also exposed at
 `GET /api/profiles/datacenters` while connected.
 
-See [docs/index.md](docs/index.md) for the user guide.
+See [docs/index.md](docs/index.md) for the user guide and the [v1.5.0 release notes](docs/release-notes/v1.5.0.md) for the latest changes.
 
 ## Contributing
 
