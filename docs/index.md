@@ -140,8 +140,8 @@ helm upgrade kassandra ./charts/kassandra
 helm uninstall kassandra
 ```
 
-`helm uninstall` keeps nothing the chart created, including the PersistentVolumeClaim, so saved profiles are deleted
-with it.
+`helm uninstall` also deletes the PersistentVolumeClaim the chart created, and with it your saved profiles. A claim
+supplied through `persistence.existingClaim` is left alone.
 
 ## User Guide
 
