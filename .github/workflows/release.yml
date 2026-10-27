@@ -22,6 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      packages: write
 
     steps:
       - name: Checkout repository
@@ -52,12 +53,20 @@ jobs:
           version=$(node -p "require('./package.json').version")
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
+      # Keep the Helm chart in lock-step with the app version.
+      - name: Bump Helm chart version
+        run: |
+          sed -i -E \
+            -e 's/^version: .*/version: ${{ steps.version.outputs.version }}/' \
+            -e 's/^appVersion: .*/appVersion: "${{ steps.version.outputs.version }}"/' \
+            charts/kassandra/Chart.yaml
+
       # 2. Commit and tag
       - name: Commit and tag
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add package.json package-lock.json shared/package.json server/package.json client/package.json
+          git add package.json package-lock.json shared/package.json server/package.json client/package.json charts/kassandra/Chart.yaml
           git commit -m "chore: release v${{ steps.version.outputs.version }}"
           git tag "v${{ steps.version.outputs.version }}"
           git push origin HEAD
@@ -85,7 +94,18 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # 4. Create the GitHub Release. Prefer handwritten notes checked in at
+      # 4. Package the Helm chart and push it to GHCR as an OCI artifact
+      # (helm install oci://ghcr.io/<owner>/charts/kassandra --version <v>).
+      - name: Push Helm chart to GHCR
+        run: |
+          owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "${{ secrets.GITHUB_TOKEN }}" | helm registry login ghcr.io \
+            --username "${{ github.actor }}" --password-stdin
+          helm package charts/kassandra --destination .helm-out
+          helm push .helm-out/kassandra-${{ steps.version.outputs.version }}.tgz \
+            "oci://ghcr.io/${owner}/charts"
+
+      # 5. Create the GitHub Release. Prefer handwritten notes checked in at
       # docs/release-notes/v<version>.md; fall back to GitHub's generated notes.
       - name: Create GitHub Release
         env:

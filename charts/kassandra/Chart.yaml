@@ -1,0 +1,7 @@
+apiVersion: v2
+name: kassandra
+description: Web-based GUI client for Apache Cassandra
+type: application
+version: 0.1.0
+appVersion: "1.5.0"
+home: https://github.com/irajhedayati/kassandra
