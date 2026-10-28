@@ -91,6 +91,58 @@ Connection hosts must be reachable from inside the container. For Cassandra runn
 use `host.docker.internal`; for another container on the same Docker network, use its container name. Certificate paths
 must also be accessible inside the Kassandra container.
 
+### Kubernetes (Helm)
+
+A Helm chart lives in [`charts/kassandra`](https://github.com/irajhedayati/kassandra/tree/main/charts/kassandra). From
+the cloned repository:
+
+```bash
+helm install kassandra ./charts/kassandra
+```
+
+Each release also publishes the chart to GitHub Container Registry, so you can install it without cloning the
+repository:
+
+```bash
+helm install kassandra oci://ghcr.io/irajhedayati/charts/kassandra --version <version>
+```
+
+The service is a `ClusterIP`, so it isn't reachable from outside the cluster by default. To open it locally, forward the
+port and leave the command running:
+
+```bash
+kubectl port-forward svc/kassandra 8501:8501
+```
+
+Then open [http://localhost:8501](http://localhost:8501). To use a different local port, such as when 8501 is taken,
+run `kubectl port-forward svc/kassandra 9000:8501` and open `localhost:9000`.
+
+Kassandra keeps one active Cassandra session in memory, so the chart always runs a single replica. Connection hosts must
+be reachable from inside the cluster.
+
+Common values (set with `--set key=value` or `-f my-values.yaml`):
+
+| Value                           | Default               | Description                                                              |
+|---------------------------------|-----------------------|--------------------------------------------------------------------------|
+| `image.tag`                     | chart `appVersion`    | Kassandra image tag.                                                     |
+| `persistence.enabled`           | `true`                | Store connection profiles on a PersistentVolumeClaim. If `false`, an `emptyDir` is used and profiles are lost when the pod restarts. |
+| `persistence.size`              | `100Mi`               | Size of the claim.                                                       |
+| `persistence.storageClass`      | cluster default       | Storage class for the claim.                                             |
+| `persistence.existingClaim`     | none                  | Use an existing PVC instead of creating one.                             |
+| `sessionIdleMinutes`            | `120`                 | Idle minutes before the Cassandra session is closed.                     |
+| `ingress.enabled`               | `false`               | Expose Kassandra through an Ingress instead of port-forwarding.          |
+| `env`                           | `[]`                  | Extra environment variables for the container.                           |
+
+To upgrade or remove the release:
+
+```bash
+helm upgrade kassandra ./charts/kassandra
+helm uninstall kassandra
+```
+
+`helm uninstall` also deletes the PersistentVolumeClaim the chart created, and with it your saved profiles. A claim
+supplied through `persistence.existingClaim` is left alone.
+
 ## User Guide
 
 ### 1. Connection Management

@@ -1,0 +1,44 @@
+# Kassandra keeps one active Cassandra session in process memory, so it must
+# run as a single replica (the Deployment uses the Recreate strategy).
+image:
+  repository: hedayati/kassandra
+  tag: ""            # defaults to .Chart.AppVersion
+  pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+service:
+  type: ClusterIP
+  port: 8501
+
+# Idle minutes before the Cassandra session is closed (KASSANDRA_SESSION_IDLE_MINUTES).
+sessionIdleMinutes: 120
+
+# Saved connection profiles live in ${KASSANDRA_HOME}/config.json.
+persistence:
+  enabled: true      # false: emptyDir, profiles are lost on pod restart
+  mountPath: /etc/kassandra
+  size: 100Mi
+  storageClass: ""
+  existingClaim: ""
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: kassandra.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+env: []              # extra environment variables
+
+resources: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+podAnnotations: {}

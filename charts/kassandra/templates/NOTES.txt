@@ -1,0 +1,7 @@
+Kassandra is deployed. Reach it with:
+{{- if .Values.ingress.enabled }}
+  http{{ if .Values.ingress.tls }}s{{ end }}://{{ (first .Values.ingress.hosts).host }}
+{{- else }}
+  kubectl port-forward svc/{{ include "kassandra.fullname" . }} {{ .Values.service.port }}:{{ .Values.service.port }}
+  then open http://localhost:{{ .Values.service.port }}
+{{- end }}
