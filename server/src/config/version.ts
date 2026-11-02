@@ -40,7 +40,11 @@ export function writeConfigVersion(dir: string, version: string): void {
   fs.writeFileSync(path.join(dir, VERSION_FILE_NAME), `${version}\n`, 'utf-8');
 }
 
-/** Stamp a brand-new config directory with the running version; leaves existing ones alone. */
+/**
+ * Ensure `dir` has a VERSION file: a brand-new directory is stamped with the
+ * running version, a pre-versioning one with the baseline so migrations run.
+ */
 export function initConfigVersion(dir: string): void {
-  if (readConfigVersion(dir) === null) writeConfigVersion(dir, getAppVersion());
+  if (fs.existsSync(path.join(dir, VERSION_FILE_NAME))) return;
+  writeConfigVersion(dir, readConfigVersion(dir) ?? getAppVersion());
 }

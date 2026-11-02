@@ -27,12 +27,11 @@ describe('config VERSION file', () => {
     expect(getAppVersion()).toMatch(/^\d+\.\d+\.\d+/);
   });
 
-  it('treats an existing config without VERSION as the baseline and does not stamp it', () => {
+  it('stamps an existing config without VERSION as the baseline', () => {
     fs.writeFileSync(path.join(dir, 'config.json'), '{}');
     expect(readConfigVersion(dir)).toBe(BASELINE_VERSION);
-    saveSettings(loadSettings());
-    expect(fs.existsSync(path.join(dir, 'VERSION'))).toBe(false);
-    expect(readConfigVersion(dir)).toBe(BASELINE_VERSION);
+    loadSettings();
+    expect(fs.readFileSync(path.join(dir, 'VERSION'), 'utf-8')).toBe(`${BASELINE_VERSION}\n`);
   });
 
   it('reads back a written version and returns null for an empty directory', () => {

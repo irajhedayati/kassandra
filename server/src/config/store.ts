@@ -96,6 +96,7 @@ function normalizeSettings(raw: unknown): AppSettings {
 
 export function loadSettings(): AppSettings {
   const file = getConfigFile();
+  initConfigVersion(getConfigDir());
   if (!fs.existsSync(file)) {
     const settings = defaultSettings();
     saveSettings(settings);
