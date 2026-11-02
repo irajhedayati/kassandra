@@ -55,6 +55,7 @@ legacy/  ; original Python/Streamlit app (reference only)
 - `cassandra/schema.ts`; `system_schema` introspection (keyspaces, tables, columns).
 - `cassandra/repository.ts`; row CRUD using prepared statements; paging-state is base64-encoded for the wire.
 - `config/store.ts`; JSON persistence at `${KASSANDRA_HOME ?? ~/.kassandra}/config.json`.
+- `config/version.ts`; `VERSION` file next to `config.json` recording the Kassandra version that wrote the config (legacy configs without it count as `0.0.0`).
 - `routes/*`; one file per feature (`connection`, `schema`, `data`, `cql`, `metadata`).
 
 ### Client (`client/src/`)
