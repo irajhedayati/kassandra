@@ -21,7 +21,7 @@
     "clean": "npm run clean --ws --if-present && rm -rf node_modules"
   },
   "devDependencies": {
-    "concurrently": "^10.0.5",
+    "concurrently": "^10.0.6",
     "typescript": "^7.0.2",
     "vitest": "^5.0.4"
   },
@@ -34,7 +34,7 @@
     "@tanstack/react-table": "^9.3.1",
     "@types/node": "^26.6.5",
     "@vitejs/plugin-react": "^6.1.2",
-    "postcss": "^8.5.31",
+    "postcss": "^8.5.32",
     "vite": "^8.3.5"
   }
 }
