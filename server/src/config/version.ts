@@ -7,9 +7,6 @@ import path from 'node:path';
 
 export const VERSION_FILE_NAME = 'VERSION';
 
-/** Version assumed for config directories created before VERSION existed. */
-export const BASELINE_VERSION = '0.0.0';
-
 let appVersion: string | undefined;
 
 /** Version of the running server, read from server/package.json (present in dev, dist and Docker). */
@@ -21,18 +18,13 @@ export function getAppVersion(): string {
   return appVersion;
 }
 
-/**
- * Version that wrote the config in `dir`; null when the directory holds no
- * config at all. An existing config without a VERSION file predates versioning.
- */
+/** Version recorded in `dir`, or null when there is no VERSION file. */
 export function readConfigVersion(dir: string): string | null {
   try {
-    const value = fs.readFileSync(path.join(dir, VERSION_FILE_NAME), 'utf-8').trim();
-    if (value !== '') return value;
+    return fs.readFileSync(path.join(dir, VERSION_FILE_NAME), 'utf-8').trim() || null;
   } catch {
-    // fall through to the legacy check
+    return null;
   }
-  return fs.existsSync(path.join(dir, 'config.json')) ? BASELINE_VERSION : null;
 }
 
 export function writeConfigVersion(dir: string, version: string): void {
@@ -40,11 +32,7 @@ export function writeConfigVersion(dir: string, version: string): void {
   fs.writeFileSync(path.join(dir, VERSION_FILE_NAME), `${version}\n`, 'utf-8');
 }
 
-/**
- * Ensure `dir` has a VERSION file: a brand-new directory is stamped with the
- * running version, a pre-versioning one with the baseline so migrations run.
- */
+/** Stamp a config directory that has no VERSION file (new or pre-versioning) with the running version. */
 export function initConfigVersion(dir: string): void {
-  if (fs.existsSync(path.join(dir, VERSION_FILE_NAME))) return;
-  writeConfigVersion(dir, readConfigVersion(dir) ?? getAppVersion());
+  if (readConfigVersion(dir) === null) writeConfigVersion(dir, getAppVersion());
 }
