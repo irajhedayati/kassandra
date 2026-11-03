@@ -86,11 +86,8 @@ Explore keyspaces and tables, inspect and modify data, run CQL, and manage Cassa
 ## Quick Start
 
 ```bash
-docker run --rm \
-  -p 8501:8501 \
-  -v ~/.kassandra:/root/.kassandra \
-  hedayati/kassandra
-```  
+docker run --rm --name kassandra --publish 8501:8501 --volume /Users/iraj/.kassandra:/root/.kassandra hedayati/kassandra
+```
 
 ---
 
