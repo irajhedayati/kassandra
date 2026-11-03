@@ -77,7 +77,11 @@ export interface MapSchemaEntry {
 export interface AppSettings {
   connections: ConnectionProfile[];
   last_connection_name: string;
-  table_metadata: TableMetadata;
+  /**
+   * @deprecated Legacy global column metadata keyed by `keyspace.table`. Now stored in
+   * per-connection table files; only present until it has been migrated out.
+   */
+  table_metadata?: TableMetadata;
   /** Favorite keyspace names, keyed by connection profile name. */
   favorite_keyspaces: Record<string, string[]>;
   saved_queries: SavedQuery[];

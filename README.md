@@ -142,8 +142,9 @@ To launch Kassandra together with a local Cassandra, run `docker compose up --bu
 
 ## Configuration
 
-Connection profiles and per-column metadata are persisted to `~/.kassandra/config.json`. Override the directory with
-`KASSANDRA_HOME`.
+Connection profiles are persisted to `~/.kassandra/config.json`. Per-column metadata is kept separately, one file per
+connection and table, in `~/.kassandra/tables/` (`<connection>-<keyspace>.<table>.json`; characters other than letters,
+digits and `_` are percent-encoded). Override the directory with `KASSANDRA_HOME`.
 
 ### Datacenter selection
 

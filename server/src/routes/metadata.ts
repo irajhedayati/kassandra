@@ -1,7 +1,7 @@
 /**
  * Per-column metadata (display_type, hide, map_schema).
  *
- * Persisted to ~/.kassandra/config.json under settings.table_metadata.
+ * Persisted per connection + table in ~/.kassandra/tables/ (see config/tables.ts).
  *
  * Routes (mounted at /api/metadata):
  *
@@ -33,22 +33,22 @@ const columnMetadataSchema = z
   .strict();
 
 metadataRouter.get('/:keyspace/:table', (req, res) => {
-  requireSession();
+  const { profile } = requireSession();
   const { keyspace, table } = req.params as { keyspace: string; table: string };
-  const data = getTableMetadata(keyspace, table);
+  const data = getTableMetadata(profile.name, keyspace, table);
   const body: ApiOk<Record<string, ColumnMetadata>> = { ok: true, data };
   res.json(body);
 });
 
 metadataRouter.put('/:keyspace/:table/:column', (req, res) => {
-  requireSession();
+  const { profile } = requireSession();
   const { keyspace, table, column } = req.params as {
     keyspace: string;
     table: string;
     column: string;
   };
   const parsed = columnMetadataSchema.parse(req.body);
-  const saved = setColumnMetadata(keyspace, table, column, parsed);
+  const saved = setColumnMetadata(profile.name, keyspace, table, column, parsed);
   const body: ApiOk<ColumnMetadata> = { ok: true, data: saved };
   res.json(body);
 });
