@@ -20,6 +20,12 @@ import type {
   TableMetadata,
 } from '@kassandra/shared';
 import { DEFAULT_PROFILE } from '@kassandra/shared';
+import {
+  deleteConnectionTables,
+  readTableMetadata,
+  tableMetadataExists,
+  writeTableMetadata,
+} from './tables.js';
 import { initConfigVersion } from './version.js';
 
 const DEFAULT_DIR_NAME = '.kassandra';
@@ -39,7 +45,6 @@ function defaultSettings(): AppSettings {
   return {
     connections: [],
     last_connection_name: '',
-    table_metadata: {},
     favorite_keyspaces: {},
     saved_queries: [],
   };
@@ -72,7 +77,7 @@ function normalizeSettings(raw: unknown): AppSettings {
     .map((c) => normalizeProfile(c as Partial<ConnectionProfile>));
   const last =
     typeof data.last_connection_name === 'string' ? data.last_connection_name : '';
-  const tableMeta =
+  const legacyTableMeta =
     data.table_metadata && typeof data.table_metadata === 'object'
       ? (data.table_metadata as TableMetadata)
       : {};
@@ -88,10 +93,35 @@ function normalizeSettings(raw: unknown): AppSettings {
   return {
     connections,
     last_connection_name: last,
-    table_metadata: tableMeta,
+    ...(Object.keys(legacyTableMeta).length > 0 ? { table_metadata: legacyTableMeta } : {}),
     favorite_keyspaces: favoriteKeyspaces,
     saved_queries: savedQueries,
   };
+}
+
+/**
+ * Column metadata used to be global (keyed by `keyspace.table`) and live in
+ * config.json. Copy it into per-table files for every existing connection,
+ * keeping any file already there, then drop it from config.json. With no
+ * connections it stays put until one exists.
+ */
+function migrateLegacyTableMetadata(settings: AppSettings): void {
+  const legacy = settings.table_metadata;
+  if (!legacy || settings.connections.length === 0) return;
+  const dir = getConfigDir();
+  for (const [key, columns] of Object.entries(legacy)) {
+    const dot = key.indexOf('.');
+    if (dot === -1) continue;
+    const keyspace = key.slice(0, dot);
+    const table = key.slice(dot + 1);
+    for (const { name } of settings.connections) {
+      if (!tableMetadataExists(dir, name, keyspace, table)) {
+        writeTableMetadata(dir, name, keyspace, table, columns);
+      }
+    }
+  }
+  delete settings.table_metadata;
+  saveSettings(settings);
 }
 
 export function loadSettings(): AppSettings {
@@ -105,7 +135,9 @@ export function loadSettings(): AppSettings {
   try {
     const raw = fs.readFileSync(file, 'utf-8');
     const parsed = JSON.parse(raw) as unknown;
-    return normalizeSettings(parsed);
+    const settings = normalizeSettings(parsed);
+    migrateLegacyTableMetadata(settings);
+    return settings;
   } catch (err) {
     console.warn('[kassandra] could not parse config file:', err);
     return defaultSettings();
@@ -145,6 +177,7 @@ export function deleteProfile(name: string): void {
     settings.last_connection_name = '';
   }
   saveSettings(settings);
+  deleteConnectionTables(getConfigDir(), name);
 }
 
 export function setLastConnection(name: string): void {
@@ -153,44 +186,36 @@ export function setLastConnection(name: string): void {
   saveSettings(settings);
 }
 
-function tableKey(keyspace: string, table: string): string {
-  return `${keyspace}.${table}`;
-}
-
 export function getColumnMetadata(
+  connection: string,
   keyspace: string,
   table: string,
   column: string,
 ): ColumnMetadata {
-  const settings = loadSettings();
-  const tableMeta = settings.table_metadata[tableKey(keyspace, table)];
-  if (!tableMeta) return {};
-  return tableMeta[column] ?? {};
+  return getTableMetadata(connection, keyspace, table)[column] ?? {};
 }
 
 export function setColumnMetadata(
+  connection: string,
   keyspace: string,
   table: string,
   column: string,
   metadata: ColumnMetadata,
 ): ColumnMetadata {
-  const settings = loadSettings();
-  const key = tableKey(keyspace, table);
-  const tableMeta = settings.table_metadata[key] ?? {};
-  const existing = tableMeta[column] ?? {};
-  const merged: ColumnMetadata = { ...existing, ...metadata };
+  const dir = getConfigDir();
+  const tableMeta = readTableMetadata(dir, connection, keyspace, table);
+  const merged: ColumnMetadata = { ...(tableMeta[column] ?? {}), ...metadata };
   tableMeta[column] = merged;
-  settings.table_metadata[key] = tableMeta;
-  saveSettings(settings);
+  writeTableMetadata(dir, connection, keyspace, table, tableMeta);
   return merged;
 }
 
 export function getTableMetadata(
+  connection: string,
   keyspace: string,
   table: string,
 ): Record<string, ColumnMetadata> {
-  const settings = loadSettings();
-  return settings.table_metadata[tableKey(keyspace, table)] ?? {};
+  return readTableMetadata(getConfigDir(), connection, keyspace, table);
 }
 
 export function getFavoriteKeyspaces(profileName: string): string[] {
