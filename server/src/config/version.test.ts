@@ -4,7 +4,9 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { loadSettings, saveSettings } from './store.js';
 import {
+  compareVersions,
   getAppVersion,
+  LEGACY_VERSION,
   readConfigVersion,
   writeConfigVersion,
 } from './version.js';
@@ -26,10 +28,17 @@ describe('config VERSION file', () => {
     expect(getAppVersion()).toMatch(/^\d+\.\d+\.\d+/);
   });
 
-  it('stamps an existing config without VERSION with the app version', () => {
+  it('stamps an existing config without VERSION with the last pre-versioning release', () => {
     fs.writeFileSync(path.join(dir, 'config.json'), '{}');
     loadSettings();
-    expect(readConfigVersion(dir)).toBe(getAppVersion());
+    expect(readConfigVersion(dir)).toBe(LEGACY_VERSION);
+  });
+
+  it('compares versions numerically', () => {
+    expect(compareVersions('1.10.0', '1.9.9')).toBeGreaterThan(0);
+    expect(compareVersions('1.5.0', '1.6.0')).toBeLessThan(0);
+    expect(compareVersions('1.6', '1.6.0')).toBe(0);
+    expect(compareVersions('1.6.0-rc.1', '1.6.0')).toBe(0);
   });
 
   it('reads back a written version and returns null for an empty directory', () => {

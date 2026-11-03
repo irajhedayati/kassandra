@@ -17,13 +17,11 @@ import type {
   ConnectionProfile,
   SavedQuery,
   SavedQueryInput,
-  TableMetadata,
 } from '@kassandra/shared';
 import { DEFAULT_PROFILE } from '@kassandra/shared';
 import {
   deleteConnectionTables,
   readTableMetadata,
-  tableMetadataExists,
   writeTableMetadata,
 } from './tables.js';
 import { initConfigVersion } from './version.js';
@@ -31,7 +29,7 @@ import { initConfigVersion } from './version.js';
 const DEFAULT_DIR_NAME = '.kassandra';
 const CONFIG_FILE_NAME = 'config.json';
 
-function getConfigDir(): string {
+export function getConfigDir(): string {
   const env = process.env.KASSANDRA_HOME;
   if (env && env.trim() !== '') return env;
   return path.join(os.homedir(), DEFAULT_DIR_NAME);
@@ -77,10 +75,6 @@ function normalizeSettings(raw: unknown): AppSettings {
     .map((c) => normalizeProfile(c as Partial<ConnectionProfile>));
   const last =
     typeof data.last_connection_name === 'string' ? data.last_connection_name : '';
-  const legacyTableMeta =
-    data.table_metadata && typeof data.table_metadata === 'object'
-      ? (data.table_metadata as TableMetadata)
-      : {};
   const favoriteKeyspaces =
     data.favorite_keyspaces && typeof data.favorite_keyspaces === 'object'
       ? (data.favorite_keyspaces as Record<string, string[]>)
@@ -93,35 +87,9 @@ function normalizeSettings(raw: unknown): AppSettings {
   return {
     connections,
     last_connection_name: last,
-    ...(Object.keys(legacyTableMeta).length > 0 ? { table_metadata: legacyTableMeta } : {}),
     favorite_keyspaces: favoriteKeyspaces,
     saved_queries: savedQueries,
   };
-}
-
-/**
- * Column metadata used to be global (keyed by `keyspace.table`) and live in
- * config.json. Copy it into per-table files for every existing connection,
- * keeping any file already there, then drop it from config.json. With no
- * connections it stays put until one exists.
- */
-function migrateLegacyTableMetadata(settings: AppSettings): void {
-  const legacy = settings.table_metadata;
-  if (!legacy || settings.connections.length === 0) return;
-  const dir = getConfigDir();
-  for (const [key, columns] of Object.entries(legacy)) {
-    const dot = key.indexOf('.');
-    if (dot === -1) continue;
-    const keyspace = key.slice(0, dot);
-    const table = key.slice(dot + 1);
-    for (const { name } of settings.connections) {
-      if (!tableMetadataExists(dir, name, keyspace, table)) {
-        writeTableMetadata(dir, name, keyspace, table, columns);
-      }
-    }
-  }
-  delete settings.table_metadata;
-  saveSettings(settings);
 }
 
 export function loadSettings(): AppSettings {
@@ -135,9 +103,7 @@ export function loadSettings(): AppSettings {
   try {
     const raw = fs.readFileSync(file, 'utf-8');
     const parsed = JSON.parse(raw) as unknown;
-    const settings = normalizeSettings(parsed);
-    migrateLegacyTableMetadata(settings);
-    return settings;
+    return normalizeSettings(parsed);
   } catch (err) {
     console.warn('[kassandra] could not parse config file:', err);
     return defaultSettings();
