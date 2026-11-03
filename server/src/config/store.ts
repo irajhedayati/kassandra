@@ -20,6 +20,7 @@ import type {
   TableMetadata,
 } from '@kassandra/shared';
 import { DEFAULT_PROFILE } from '@kassandra/shared';
+import { initConfigVersion } from './version.js';
 
 const DEFAULT_DIR_NAME = '.kassandra';
 const CONFIG_FILE_NAME = 'config.json';
@@ -95,6 +96,7 @@ function normalizeSettings(raw: unknown): AppSettings {
 
 export function loadSettings(): AppSettings {
   const file = getConfigFile();
+  initConfigVersion(getConfigDir());
   if (!fs.existsSync(file)) {
     const settings = defaultSettings();
     saveSettings(settings);
@@ -112,6 +114,8 @@ export function loadSettings(): AppSettings {
 
 export function saveSettings(settings: AppSettings): void {
   ensureConfigDir();
+  // Must run before config.json is first written so a fresh directory is told apart from a legacy one.
+  initConfigVersion(getConfigDir());
   const file = getConfigFile();
   fs.writeFileSync(file, JSON.stringify(settings, null, 2), 'utf-8');
 }
