@@ -56,7 +56,7 @@ legacy/  ; original Python/Streamlit app (reference only)
 - `cassandra/repository.ts`; row CRUD using prepared statements; paging-state is base64-encoded for the wire.
 - `config/store.ts`; JSON persistence at `${KASSANDRA_HOME ?? ~/.kassandra}/config.json`.
 - `config/version.ts`; `VERSION` file next to `config.json` recording the Kassandra version that wrote the config (stamped with the running version when missing).
-- `config/migrations/`; one `vX_Y_Z.ts` per config-shape change, registered in `index.ts`; `runMigrations()` runs at startup and applies those newer than the config dir's `VERSION`, in order. Any change to the config layout must add a migration.
+- `config/migrations/`; one `vX_Y_Z.ts` per config-shape change, registered in `index.ts`; `runMigrations()` runs at startup and applies those newer than the config dir's `VERSION`, in order. Any change to the config layout must add a migration (see CONTRIBUTING.md); it backs up the dir to `backups/<version>/` and holds `.migrate.lock` while running.
 - `routes/*`; one file per feature (`connection`, `schema`, `data`, `cql`, `metadata`).
 
 ### Client (`client/src/`)

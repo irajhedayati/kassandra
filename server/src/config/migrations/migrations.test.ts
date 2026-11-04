@@ -52,12 +52,17 @@ describe('config migrations', () => {
       expect(readConfigVersion(dir)).toBe('1.6.0');
     });
 
-    it('backs up config.json before changing it', () => {
+    it('backs up config.json and tables/ before changing them', () => {
       writeConfig(legacyConfig(['c1']));
       writeConfigVersion(dir, '1.5.0');
+      writeTableMetadata(dir, 'c1', 'ks', 'old', { a: { hide: true } });
       runMigrations(dir, MIGRATIONS, '1.6.0');
-      const backup = JSON.parse(fs.readFileSync(`${configFile()}.bak-1.5.0`, 'utf-8'));
-      expect(backup.table_metadata).toHaveProperty(['ks.t']);
+      const backup = path.join(dir, 'backups', '1.5.0');
+      const saved = JSON.parse(fs.readFileSync(path.join(backup, 'config.json'), 'utf-8'));
+      expect(saved.table_metadata).toHaveProperty(['ks.t']);
+      expect(fs.readFileSync(path.join(backup, 'VERSION'), 'utf-8').trim()).toBe('1.5.0');
+      expect(fs.readdirSync(path.join(backup, 'tables'))).toEqual(['c1-ks.old.json']);
+      expect(fs.existsSync(path.join(backup, 'backups'))).toBe(false);
     });
 
     it('keeps per-table files that already exist', () => {
@@ -75,7 +80,7 @@ describe('config migrations', () => {
       runMigrations(dir, MIGRATIONS, '1.6.0');
       expect(warn).toHaveBeenCalled();
       expect(readConfig()).not.toHaveProperty('table_metadata');
-      expect(fs.existsSync(`${configFile()}.bak-1.5.0`)).toBe(true);
+      expect(fs.existsSync(path.join(dir, 'backups', '1.5.0', 'config.json'))).toBe(true);
     });
 
     it('treats a config without VERSION as 1.5.0', () => {
@@ -88,7 +93,7 @@ describe('config migrations', () => {
       writeConfig({ ...legacyConfig(['c1']), table_metadata: undefined });
       writeConfigVersion(dir, '1.6.0');
       expect(runMigrations(dir, MIGRATIONS, '1.6.0')).toEqual([]);
-      expect(fs.existsSync(`${configFile()}.bak-1.6.0`)).toBe(false);
+      expect(fs.existsSync(path.join(dir, 'backups'))).toBe(false);
     });
   });
 
@@ -127,6 +132,52 @@ describe('config migrations', () => {
       expect(() => runMigrations(dir, all, '1.7.0')).toThrow(/migration to 1\.7\.0 failed.*boom/);
       expect(readConfigVersion(dir)).toBe('1.6.0');
       expect(calls).toEqual(['1.6.0']);
+    });
+
+    describe('locking', () => {
+      const lockFile = () => path.join(dir, '.migrate.lock');
+
+      it('removes its lock when done and when a migration fails', () => {
+        const calls: string[] = [];
+        writeConfig({});
+        writeConfigVersion(dir, '1.5.0');
+        runMigrations(dir, [step('1.6.0', calls)], '1.6.0');
+        expect(fs.existsSync(lockFile())).toBe(false);
+        writeConfigVersion(dir, '1.6.0');
+        expect(() => runMigrations(dir, [step('1.7.0', calls, true)], '1.7.0')).toThrow();
+        expect(fs.existsSync(lockFile())).toBe(false);
+      });
+
+      it('does not take a lock when nothing is pending', () => {
+        writeConfig({});
+        writeConfigVersion(dir, '1.6.0');
+        fs.writeFileSync(lockFile(), 'someone else');
+        expect(runMigrations(dir, [step('1.6.0', [])], '1.6.0')).toEqual([]);
+        expect(fs.readFileSync(lockFile(), 'utf-8')).toBe('someone else');
+      });
+
+      it('times out while another process holds a fresh lock', () => {
+        writeConfig({});
+        writeConfigVersion(dir, '1.5.0');
+        fs.writeFileSync(lockFile(), 'someone else');
+        const calls: string[] = [];
+        expect(() =>
+          runMigrations(dir, [step('1.6.0', calls)], '1.6.0', { lockTimeoutMs: 300 }),
+        ).toThrow(/Timed out waiting/);
+        expect(calls).toEqual([]);
+        expect(fs.readFileSync(lockFile(), 'utf-8')).toBe('someone else');
+      });
+
+      it('takes over a stale lock', () => {
+        vi.spyOn(console, 'warn').mockImplementation(() => {});
+        writeConfig({});
+        writeConfigVersion(dir, '1.5.0');
+        fs.writeFileSync(lockFile(), 'crashed');
+        const old = new Date(Date.now() - 10 * 60_000);
+        fs.utimesSync(lockFile(), old, old);
+        expect(runMigrations(dir, [step('1.6.0', [])], '1.6.0')).toEqual(['1.6.0']);
+        expect(fs.existsSync(lockFile())).toBe(false);
+      });
     });
 
     it('advances VERSION to the app version when no migration is pending', () => {

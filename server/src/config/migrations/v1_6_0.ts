@@ -32,7 +32,7 @@ export const migration: Migration = {
       if (entries.length > 0 && connections.length === 0) {
         console.warn(
           '[kassandra] table metadata was not migrated because there are no connections; ' +
-            'it is kept in the config.json backup created before migrating',
+            'it is kept in the backup created before migrating (backups/1.5.0/)',
         );
       }
       for (const [key, columns] of entries) {
