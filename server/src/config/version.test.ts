@@ -2,36 +2,39 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { FileStorage } from './fileStorage.js';
 import { loadSettings, saveSettings } from './store.js';
-import {
-  compareVersions,
-  getAppVersion,
-  LEGACY_VERSION,
-  readConfigVersion,
-  writeConfigVersion,
-} from './version.js';
+import { compareVersions, getAppVersion, initConfigVersion, LEGACY_VERSION } from './version.js';
 
-describe('config VERSION file', () => {
+describe('config version', () => {
   let dir: string;
+  let storage: FileStorage;
   beforeEach(() => {
     dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kassandra-'));
     process.env.KASSANDRA_HOME = dir;
+    storage = new FileStorage(dir);
   });
   afterEach(() => {
     delete process.env.KASSANDRA_HOME;
     fs.rmSync(dir, { recursive: true, force: true });
   });
 
-  it('is created with the app version on first run', () => {
-    loadSettings();
+  it('is created with the app version on first run', async () => {
+    await loadSettings();
     expect(fs.readFileSync(path.join(dir, 'VERSION'), 'utf-8')).toBe(`${getAppVersion()}\n`);
     expect(getAppVersion()).toMatch(/^\d+\.\d+\.\d+/);
   });
 
-  it('stamps an existing config without VERSION with the last pre-versioning release', () => {
+  it('stamps an existing config without VERSION with the last pre-versioning release', async () => {
     fs.writeFileSync(path.join(dir, 'config.json'), '{}');
-    loadSettings();
-    expect(readConfigVersion(dir)).toBe(LEGACY_VERSION);
+    await loadSettings();
+    expect(await storage.getVersion()).toBe(LEGACY_VERSION);
+  });
+
+  it('stamps even when the existing config cannot be parsed', async () => {
+    fs.writeFileSync(path.join(dir, 'config.json'), '{nope');
+    await initConfigVersion(storage, '9.9.9');
+    expect(await storage.getVersion()).toBe(LEGACY_VERSION);
   });
 
   it('compares versions numerically', () => {
@@ -41,15 +44,9 @@ describe('config VERSION file', () => {
     expect(compareVersions('1.6.0-rc.1', '1.6.0')).toBe(0);
   });
 
-  it('reads back a written version and returns null for an empty directory', () => {
-    expect(readConfigVersion(dir)).toBeNull();
-    writeConfigVersion(dir, '1.2.3');
-    expect(readConfigVersion(dir)).toBe('1.2.3');
-  });
-
-  it('does not overwrite an existing VERSION on save', () => {
-    writeConfigVersion(dir, '0.9.0');
-    saveSettings(loadSettings());
-    expect(readConfigVersion(dir)).toBe('0.9.0');
+  it('does not overwrite an existing version on save', async () => {
+    await storage.setVersion('0.9.0');
+    await saveSettings(await loadSettings());
+    expect(await storage.getVersion()).toBe('0.9.0');
   });
 });

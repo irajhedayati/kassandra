@@ -13,7 +13,7 @@ const PORT = Number(process.env.PORT ?? 8501);
 const HOST = process.env.HOST ?? '127.0.0.1';
 
 try {
-  runMigrations();
+  await runMigrations();
 } catch (err) {
   console.error(`[kassandra] ${err instanceof Error ? err.message : err}`);
   process.exit(1);

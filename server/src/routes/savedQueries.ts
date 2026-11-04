@@ -32,18 +32,18 @@ const inputSchema = z.object({
   paramTypes: z.record(z.string(), z.string()).default({}),
 });
 
-savedQueriesRouter.get('/', (_req, res) => {
-  const body: ApiOk<SavedQuery[]> = { ok: true, data: listSavedQueries() };
+savedQueriesRouter.get('/', async (_req, res) => {
+  const body: ApiOk<SavedQuery[]> = { ok: true, data: await listSavedQueries() };
   res.json(body);
 });
 
-savedQueriesRouter.post('/', (req, res) => {
-  const saved = createSavedQuery(inputSchema.parse(req.body));
+savedQueriesRouter.post('/', async (req, res) => {
+  const saved = await createSavedQuery(inputSchema.parse(req.body));
   const body: ApiOk<SavedQuery> = { ok: true, data: saved };
   res.json(body);
 });
 
-savedQueriesRouter.post('/import', (req, res) => {
+savedQueriesRouter.post('/import', async (req, res) => {
   const { queries } = z.object({ queries: z.array(z.unknown()) }).parse(req.body);
   const valid: z.infer<typeof inputSchema>[] = [];
   const skipped: ImportSavedQueriesResult['skipped'] = [];
@@ -59,19 +59,19 @@ savedQueriesRouter.post('/import', (req, res) => {
       skipped.push({ name, message: parsed.error.issues.map((i) => i.message).join('; ') });
     }
   }
-  const { created, updated } = importSavedQueries(valid);
+  const { created, updated } = await importSavedQueries(valid);
   const body: ApiOk<ImportSavedQueriesResult> = { ok: true, data: { created, updated, skipped } };
   res.json(body);
 });
 
-savedQueriesRouter.put('/:id', (req, res) => {
-  const saved = updateSavedQuery(req.params.id as string, inputSchema.parse(req.body));
+savedQueriesRouter.put('/:id', async (req, res) => {
+  const saved = await updateSavedQuery(req.params.id as string, inputSchema.parse(req.body));
   const body: ApiOk<SavedQuery> = { ok: true, data: saved };
   res.json(body);
 });
 
-savedQueriesRouter.delete('/:id', (req, res) => {
-  deleteSavedQuery(req.params.id as string);
+savedQueriesRouter.delete('/:id', async (req, res) => {
+  await deleteSavedQuery(req.params.id as string);
   const body: ApiOk<null> = { ok: true, data: null };
   res.json(body);
 });
