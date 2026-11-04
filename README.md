@@ -146,6 +146,10 @@ Connection profiles are persisted to `~/.kassandra/config.json`. Per-column meta
 connection and table, in `~/.kassandra/tables/` (`<connection>-<keyspace>.<table>.json`; characters other than letters,
 digits and `_` are percent-encoded). Override the directory with `KASSANDRA_HOME`.
 
+On the **Table Schema** tab, **Import schema** copies one of those files onto the current table (for example the same
+table of another connection). The file must be valid metadata whose columns all exist in the table; existing metadata is
+only replaced after you confirm.
+
 ### Datacenter selection
 
 Each connection profile has an optional **Local datacenter** field. When set, the driver uses a DC-aware load-balancing

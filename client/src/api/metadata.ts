@@ -1,4 +1,4 @@
-import type { ColumnMetadata } from '@kassandra/shared';
+import type { ColumnMetadata, ImportTableMetadataRequest, TableMetadataFile } from '@kassandra/shared';
 import { apiGet, apiSend } from './client.js';
 
 /**
@@ -24,5 +24,21 @@ export function setColumnMetadata(
     'PUT',
     `/api/metadata/${encodeURIComponent(keyspace)}/${encodeURIComponent(table)}/${encodeURIComponent(column)}`,
     metadata,
+  );
+}
+
+export function listMetadataFiles(): Promise<TableMetadataFile[]> {
+  return apiGet<TableMetadataFile[]>('/api/metadata/files');
+}
+
+export function importMetadata(
+  keyspace: string,
+  table: string,
+  request: ImportTableMetadataRequest,
+): Promise<Record<string, ColumnMetadata>> {
+  return apiSend<Record<string, ColumnMetadata>>(
+    'POST',
+    `/api/metadata/${encodeURIComponent(keyspace)}/${encodeURIComponent(table)}/import`,
+    request,
   );
 }

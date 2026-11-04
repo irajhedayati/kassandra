@@ -19,9 +19,11 @@ import { isTextLikeOrTextList, primitiveListElementType, rootCqlType } from '@ka
 import { apiGet } from '../../api/client.js';
 import {
   getMetadata,
+  importMetadata,
   setColumnMetadata as apiSetColumnMetadata,
 } from '../../api/metadata.js';
 import { MapSchemaEditor } from '../Dialogs/MapSchemaEditor.js';
+import { ImportSchemaDialog } from '../Dialogs/ImportSchemaDialog.js';
 import { OptionDropdown, type DropdownOption } from '../OptionDropdown.js';
 
 interface Props {
@@ -75,6 +77,7 @@ function parseEnumValuesText(text: string): string[] {
 export function TableInfo({ keyspace, table }: Props) {
   const queryClient = useQueryClient();
   const [mapEditor, setMapEditor] = useState<MapEditorTarget | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
   const [enumDrafts, setEnumDrafts] = useState<Record<string, string>>({});
   const [draft, setDraft] = useState<Record<string, ColumnMetadata>>({});
   const draftKeyRef = useRef<string | null>(null);
@@ -120,6 +123,17 @@ export function TableInfo({ keyspace, table }: Props) {
     mutationFn: (args: { column: string; metadata: ColumnMetadata }) =>
       apiSetColumnMetadata(keyspace, table, args.column, args.metadata),
     onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['metadata', keyspace, table] });
+    },
+  });
+
+  const importMutation = useMutation({
+    mutationFn: (args: { file: string; overwrite: boolean }) =>
+      importMetadata(keyspace, table, args),
+    onSuccess: (imported) => {
+      setDraft(imported);
+      setEnumDrafts({});
+      setImportOpen(false);
       void queryClient.invalidateQueries({ queryKey: ['metadata', keyspace, table] });
     },
   });
@@ -209,6 +223,17 @@ export function TableInfo({ keyspace, table }: Props) {
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-lg font-semibold">Table Schema</h2>
         <div className="flex gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              importMutation.reset();
+              setImportOpen(true);
+            }}
+            disabled={saveMutation.isPending}
+            className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            Import schema
+          </button>
           <button
             type="button"
             onClick={handleCancel}
@@ -340,6 +365,22 @@ export function TableInfo({ keyspace, table }: Props) {
           }
         />
       ) : null}
+
+      <ImportSchemaDialog
+        open={importOpen}
+        keyspace={keyspace}
+        table={table}
+        willOverwrite={isDirty || Object.keys(metadata).length > 0}
+        loading={importMutation.isPending}
+        errorMessage={importMutation.isError ? (importMutation.error as Error).message : null}
+        onCancel={() => setImportOpen(false)}
+        onImport={(file) =>
+          importMutation.mutate({
+            file,
+            overwrite: isDirty || Object.keys(metadata).length > 0,
+          })
+        }
+      />
     </div>
   );
 }

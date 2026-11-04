@@ -59,6 +59,23 @@ export interface ColumnMetadata {
   enum_values?: string[];
 }
 
+/** A per-table metadata file in the config directory (`<connection>-<keyspace>.<table>.json`). */
+export interface TableMetadataFile {
+  file: string;
+  connection: string;
+  keyspace: string;
+  table: string;
+  /** Number of columns that have metadata in the file. */
+  columns: number;
+}
+
+export interface ImportTableMetadataRequest {
+  /** Name of a file as returned by the file listing. */
+  file: string;
+  /** Replace existing metadata for the table; without it an existing non-empty one is a 409. */
+  overwrite?: boolean;
+}
+
 export interface MapSchemaEntry {
   key: string;
   label: string;
