@@ -1,43 +1,29 @@
 /**
  * Configuration migrations.
  *
- * Any change to the shape of the configuration directory must ship with a
- * migration file `vX_Y_Z.ts` here, registered in MIGRATIONS below. On startup
- * runMigrations() compares the config directory's VERSION with the migrations
- * and applies the pending ones in version order, recording each in VERSION as
- * it completes so a failed run resumes where it stopped.
+ * Any change to the shape of the configuration must ship with a migration file
+ * `vX_Y_Z.ts` here, registered in MIGRATIONS below. On startup runMigrations()
+ * compares the storage's version with the migrations and applies the pending
+ * ones in version order, recording each as it completes so a failed run
+ * resumes where it stopped. Migrations only talk to ConfigStorage, so they
+ * work with every backend.
  */
-import fs from 'node:fs';
-import path from 'node:path';
-import { getConfigDir } from '../store.js';
-import {
-  compareVersions,
-  getAppVersion,
-  initConfigVersion,
-  readConfigVersion,
-  writeConfigVersion,
-} from '../version.js';
+import type { ConfigStorage, LockOptions } from '../storage.js';
+import { getStorage } from '../storage.js';
+import { compareVersions, getAppVersion, initConfigVersion } from '../version.js';
 import { migration as v1_6_0 } from './v1_6_0.js';
 
 export interface Migration {
   /** Version the configuration is at after `up` has run. */
   version: string;
   description: string;
-  up(ctx: { dir: string }): void;
+  up(ctx: { storage: ConfigStorage }): Promise<void>;
 }
 
 /** Oldest first. */
 export const MIGRATIONS: Migration[] = [v1_6_0];
 
-const BACKUPS_DIR_NAME = 'backups';
-const LOCK_FILE_NAME = '.migrate.lock';
-
-export interface RunOptions {
-  /** How long to wait for another process's migration to finish. */
-  lockTimeoutMs?: number;
-  /** A lock older than this is assumed to belong to a crashed process. */
-  lockStaleMs?: number;
-}
+const BACKUPS_PREFIX = 'backups/';
 
 function pendingFor(migrations: Migration[], current: string): Migration[] {
   return migrations
@@ -46,100 +32,68 @@ function pendingFor(migrations: Migration[], current: string): Migration[] {
 }
 
 /** Returns the versions that were applied. */
-export function runMigrations(
-  dir: string = getConfigDir(),
+export async function runMigrations(
+  storage: ConfigStorage = getStorage(),
   migrations: Migration[] = MIGRATIONS,
   appVersion: string = getAppVersion(),
-  options: RunOptions = {},
-): string[] {
-  initConfigVersion(dir, appVersion);
-  let current = readConfigVersion(dir)!;
+  lockOptions: LockOptions = {},
+): Promise<string[]> {
+  await initConfigVersion(storage, appVersion);
+  let current = (await storage.getVersion())!;
   if (compareVersions(current, appVersion) > 0) {
     console.warn(
-      `[kassandra] config in ${dir} was written by ${current}, newer than this version (${appVersion})`,
+      `[kassandra] config in ${storage.description} was written by ${current}, newer than this version (${appVersion})`,
     );
     return [];
   }
 
   const applied: string[] = [];
   if (pendingFor(migrations, current).length > 0) {
-    const release = acquireLock(dir, options);
+    const release = await storage.lock(lockOptions);
     try {
       // Another process may have migrated while we waited for the lock.
-      current = readConfigVersion(dir) ?? current;
+      current = (await storage.getVersion()) ?? current;
       const pending = pendingFor(migrations, current);
-      if (pending.length > 0) backupConfig(dir, current);
+      if (pending.length > 0) await backup(storage, current);
       for (const m of pending) {
         console.log(`[kassandra] migrating config ${current} -> ${m.version}: ${m.description}`);
         try {
-          m.up({ dir });
+          await m.up({ storage });
         } catch (err) {
           throw new Error(
-            `Config migration to ${m.version} failed (config stays at ${current}; a backup was kept in ${path.join(dir, BACKUPS_DIR_NAME, current)}): ${
+            `Config migration to ${m.version} failed (config stays at ${current}; a backup was kept under ${BACKUPS_PREFIX}${current}/): ${
               err instanceof Error ? err.message : String(err)
             }`,
             { cause: err },
           );
         }
-        writeConfigVersion(dir, m.version);
+        await storage.setVersion(m.version);
         current = m.version;
         applied.push(m.version);
       }
     } finally {
-      release();
+      await release();
     }
   }
 
-  if (compareVersions(current, appVersion) < 0) writeConfigVersion(dir, appVersion);
+  if (compareVersions(current, appVersion) < 0) await storage.setVersion(appVersion);
   return applied;
 }
 
-/**
- * Copy everything in the config directory (config.json, tables/, ...) except
- * earlier backups into backups/<version>/ before migrating away from it.
- */
-function backupConfig(dir: string, version: string): void {
-  const target = path.join(dir, BACKUPS_DIR_NAME, version);
-  if (fs.existsSync(target)) return;
-  fs.mkdirSync(target, { recursive: true });
-  for (const name of fs.readdirSync(dir)) {
-    if (name === BACKUPS_DIR_NAME || name === LOCK_FILE_NAME) continue;
-    fs.cpSync(path.join(dir, name), path.join(target, name), { recursive: true });
-  }
-}
-
-function sleep(ms: number): void {
-  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
-}
-
-/**
- * Cross-process lock so replicas sharing one config directory (e.g. a mounted
- * volume) do not migrate at the same time. Waits for a holder to finish and
- * takes over a lock older than `lockStaleMs`. Returns the release function.
- */
-function acquireLock(dir: string, { lockTimeoutMs = 60_000, lockStaleMs = 300_000 }: RunOptions): () => void {
-  fs.mkdirSync(dir, { recursive: true });
-  const lock = path.join(dir, LOCK_FILE_NAME);
-  const deadline = Date.now() + lockTimeoutMs;
-  for (;;) {
-    try {
-      fs.writeFileSync(lock, `${process.pid} ${new Date().toISOString()}\n`, { flag: 'wx' });
-      return () => fs.rmSync(lock, { force: true });
-    } catch (err) {
-      if ((err as NodeJS.ErrnoException).code !== 'EEXIST') throw err;
+/** Copy every document (config, tables/, ...) except earlier backups to backups/<version>/. */
+async function backup(storage: ConfigStorage, version: string): Promise<void> {
+  const prefix = `${BACKUPS_PREFIX}${version}/`;
+  if ((await storage.list(prefix)).length > 0) return;
+  try {
+    for (const key of await storage.list('')) {
+      if (key.startsWith(BACKUPS_PREFIX)) continue;
+      const value = await storage.get(key);
+      if (value !== undefined) await storage.put(`${prefix}${key}`, value);
     }
-    try {
-      if (Date.now() - fs.statSync(lock).mtimeMs > lockStaleMs) {
-        console.warn('[kassandra] removing stale migration lock');
-        fs.rmSync(lock, { force: true });
-        continue;
-      }
-    } catch {
-      continue; // released between the open and the stat
-    }
-    if (Date.now() > deadline) {
-      throw new Error(`Timed out waiting for another process to finish migrating ${dir} (lock: ${lock})`);
-    }
-    sleep(200);
+  } catch (err) {
+    throw new Error(
+      `Could not back up the config before migrating: ${err instanceof Error ? err.message : String(err)}`,
+      { cause: err },
+    );
   }
 }

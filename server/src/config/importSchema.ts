@@ -1,13 +1,13 @@
 /**
- * Import a per-table metadata file from the config directory as the metadata
- * of another table (typically the same table of another connection).
+ * Import a per-table metadata document from the config storage as the
+ * metadata of another table (typically the same table of another connection).
  */
-import fs from 'node:fs';
 import type { ColumnMetadata } from '@kassandra/shared';
+import type { ConfigStorage } from './storage.js';
 import {
   readTableMetadata,
   TableFileError,
-  tableFilePath,
+  tableKeyForFile,
   tableMetadataSchema,
   writeTableMetadata,
 } from './tables.js';
@@ -22,22 +22,22 @@ export interface ImportTarget {
 
 /**
  * Validates `file` (JSON shape, and every column must exist on the target) and
- * writes it as the target's metadata, replacing what was there. Throws
+ * writes it as the target's metadata, replacing what was there. Rejects with
  * TableFileError: 400 invalid file, 404 missing file, 409 target already has
  * metadata and `overwrite` is not set.
  */
-export function importTableMetadata(
-  configDir: string,
+export async function importTableMetadata(
+  storage: ConfigStorage,
   file: string,
   target: ImportTarget,
   overwrite: boolean,
-): Record<string, ColumnMetadata> {
-  const source = tableFilePath(configDir, file);
-  if (!fs.existsSync(source)) throw new TableFileError(`File not found: ${file}`, 404);
+): Promise<Record<string, ColumnMetadata>> {
+  const key = tableKeyForFile(file);
+  if (!(await storage.list(key)).includes(key)) throw new TableFileError(`File not found: ${file}`, 404);
 
   let json: unknown;
   try {
-    json = JSON.parse(fs.readFileSync(source, 'utf-8'));
+    json = await storage.get(key);
   } catch (err) {
     throw new TableFileError(
       `${file} is not valid JSON: ${err instanceof Error ? err.message : String(err)}`,
@@ -63,7 +63,7 @@ export function importTableMetadata(
     );
   }
 
-  const existing = readTableMetadata(configDir, target.connection, target.keyspace, target.table);
+  const existing = await readTableMetadata(storage, target.connection, target.keyspace, target.table);
   if (!overwrite && Object.keys(existing).length > 0) {
     throw new TableFileError(
       `Metadata for ${target.keyspace}.${target.table} already exists; confirm to overwrite it`,
@@ -71,6 +71,6 @@ export function importTableMetadata(
     );
   }
 
-  writeTableMetadata(configDir, target.connection, target.keyspace, target.table, parsed.data);
+  await writeTableMetadata(storage, target.connection, target.keyspace, target.table, parsed.data);
   return parsed.data;
 }

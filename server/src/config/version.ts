@@ -1,11 +1,10 @@
 /**
- * The VERSION file records which Kassandra version wrote the configuration
- * directory. The migration framework compares it with the running version.
+ * The storage's version records which Kassandra version wrote the configuration
+ * (the VERSION file for file storage). The migration runner compares it with
+ * the running version.
  */
 import fs from 'node:fs';
-import path from 'node:path';
-
-export const VERSION_FILE_NAME = 'VERSION';
+import type { ConfigStorage } from './storage.js';
 
 let appVersion: string | undefined;
 
@@ -16,20 +15,6 @@ export function getAppVersion(): string {
     appVersion = (JSON.parse(fs.readFileSync(pkg, 'utf-8')) as { version: string }).version;
   }
   return appVersion;
-}
-
-/** Version recorded in `dir`, or null when there is no VERSION file. */
-export function readConfigVersion(dir: string): string | null {
-  try {
-    return fs.readFileSync(path.join(dir, VERSION_FILE_NAME), 'utf-8').trim() || null;
-  } catch {
-    return null;
-  }
-}
-
-export function writeConfigVersion(dir: string, version: string): void {
-  fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, VERSION_FILE_NAME), `${version}\n`, 'utf-8');
 }
 
 /**
@@ -50,12 +35,15 @@ export function compareVersions(a: string, b: string): number {
 }
 
 /**
- * Give a config directory without a VERSION file one: a brand-new directory is
- * stamped with the running version, a pre-versioning one with LEGACY_VERSION so
- * that migrations know to upgrade it.
+ * Give storage without a recorded version one: brand-new storage is stamped
+ * with the running version, pre-versioning data with LEGACY_VERSION so that
+ * migrations know to upgrade it.
  */
-export function initConfigVersion(dir: string, appVersion: string = getAppVersion()): void {
-  if (readConfigVersion(dir) !== null) return;
-  const hasConfig = fs.existsSync(path.join(dir, 'config.json'));
-  writeConfigVersion(dir, hasConfig ? LEGACY_VERSION : appVersion);
+export async function initConfigVersion(
+  storage: ConfigStorage,
+  appVersion: string = getAppVersion(),
+): Promise<void> {
+  if ((await storage.getVersion()) !== null) return;
+  const hasConfig = (await storage.list('config')).includes('config');
+  await storage.setVersion(hasConfig ? LEGACY_VERSION : appVersion);
 }

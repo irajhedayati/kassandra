@@ -21,25 +21,27 @@ import type {
 import { getTableSchema } from '../cassandra/schema.js';
 import { requireSession } from '../cassandra/state.js';
 import { importTableMetadata } from '../config/importSchema.js';
-import { getConfigDir, getTableMetadata, setColumnMetadata } from '../config/store.js';
+import { serialize } from '../config/serial.js';
+import { getTableMetadata, setColumnMetadata } from '../config/store.js';
+import { getStorage } from '../config/storage.js';
 import { columnMetadataSchema, listTableFiles, TableFileError } from '../config/tables.js';
 
 export const metadataRouter = Router();
 
-metadataRouter.get('/files', (_req, res) => {
-  const body: ApiOk<TableMetadataFile[]> = { ok: true, data: listTableFiles(getConfigDir()) };
+metadataRouter.get('/files', async (_req, res) => {
+  const body: ApiOk<TableMetadataFile[]> = { ok: true, data: await listTableFiles(getStorage()) };
   res.json(body);
 });
 
-metadataRouter.get('/:keyspace/:table', (req, res) => {
+metadataRouter.get('/:keyspace/:table', async (req, res) => {
   const { profile } = requireSession();
   const { keyspace, table } = req.params as { keyspace: string; table: string };
-  const data = getTableMetadata(profile.name, keyspace, table);
+  const data = await getTableMetadata(profile.name, keyspace, table);
   const body: ApiOk<Record<string, ColumnMetadata>> = { ok: true, data };
   res.json(body);
 });
 
-metadataRouter.put('/:keyspace/:table/:column', (req, res) => {
+metadataRouter.put('/:keyspace/:table/:column', async (req, res) => {
   const { profile } = requireSession();
   const { keyspace, table, column } = req.params as {
     keyspace: string;
@@ -47,7 +49,7 @@ metadataRouter.put('/:keyspace/:table/:column', (req, res) => {
     column: string;
   };
   const parsed = columnMetadataSchema.parse(req.body);
-  const saved = setColumnMetadata(profile.name, keyspace, table, column, parsed);
+  const saved = await setColumnMetadata(profile.name, keyspace, table, column, parsed);
   const body: ApiOk<ColumnMetadata> = { ok: true, data: saved };
   res.json(body);
 });
@@ -64,16 +66,14 @@ metadataRouter.post(
       if (!request.success) throw new TableFileError('Body must be { file: string, overwrite?: boolean }', 400);
       const { file, overwrite }: ImportTableMetadataRequest = request.data;
       const schema = await getTableSchema(client, keyspace, table);
-      const data = importTableMetadata(
-        getConfigDir(),
-        file,
-        {
-          connection: profile.name,
-          keyspace,
-          table,
-          columns: schema.columns.map((c) => c.name),
-        },
-        overwrite === true,
+      const columns = schema.columns.map((c) => c.name);
+      const data = await serialize(() =>
+        importTableMetadata(
+          getStorage(),
+          file,
+          { connection: profile.name, keyspace, table, columns },
+          overwrite === true,
+        ),
       );
       const body: ApiOk<Record<string, ColumnMetadata>> = { ok: true, data };
       res.json(body);
