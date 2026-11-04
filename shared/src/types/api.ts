@@ -16,3 +16,9 @@ export interface ApiErr {
 }
 
 export type ApiResponse<T> = ApiOk<T> | ApiErr;
+
+/** Payload of GET /api/about. */
+export interface AboutInfo {
+  /** Version of the running server (semver, e.g. "1.6.0"). */
+  version: string;
+}

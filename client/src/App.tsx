@@ -4,6 +4,7 @@ import { useSelection } from './state/selection.js';
 import { useFavoriteKeyspaces } from './state/favorites.js';
 import { ConnectionPanel } from './components/Sidebar/ConnectionPanel.js';
 import { SchemaNavigator } from './components/Sidebar/SchemaNavigator.js';
+import { SidebarFooter } from './components/Sidebar/SidebarFooter.js';
 import { DataGrid } from './components/DataGrid/DataGrid.js';
 import { InsertForm } from './components/Forms/InsertForm.js';
 import { TableInfo } from './components/TableInfo/TableInfo.js';
@@ -39,9 +40,7 @@ export function App() {
             </>
           )}
         </div>
-        <div className="shrink-0 border-t border-cyan-400/20 px-4 py-3 text-xs text-slate-400">
-          Kassandra v{import.meta.env.VITE_APP_VERSION}
-        </div>
+        <SidebarFooter />
       </aside>
 
       <main className="flex flex-1 flex-col overflow-hidden">
