@@ -52,8 +52,6 @@ export interface ConnectionProfile {
   local_datacenter: string;
 }
 
-export type TableMetadata = Record<string, Record<string, ColumnMetadata>>;
-
 export interface ColumnMetadata {
   hide?: boolean;
   display_type?: string;
@@ -77,11 +75,6 @@ export interface MapSchemaEntry {
 export interface AppSettings {
   connections: ConnectionProfile[];
   last_connection_name: string;
-  /**
-   * @deprecated Legacy global column metadata keyed by `keyspace.table`. Now stored in
-   * per-connection table files; only present until it has been migrated out.
-   */
-  table_metadata?: TableMetadata;
   /** Favorite keyspace names, keyed by connection profile name. */
   favorite_keyspaces: Record<string, string[]>;
   saved_queries: SavedQuery[];

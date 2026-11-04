@@ -32,7 +32,30 @@ export function writeConfigVersion(dir: string, version: string): void {
   fs.writeFileSync(path.join(dir, VERSION_FILE_NAME), `${version}\n`, 'utf-8');
 }
 
-/** Stamp a config directory that has no VERSION file (new or pre-versioning) with the running version. */
-export function initConfigVersion(dir: string): void {
-  if (readConfigVersion(dir) === null) writeConfigVersion(dir, getAppVersion());
+/**
+ * Last release before the VERSION file existed. A config directory that has a
+ * config.json but no VERSION was written by it (or an older, same-shaped one).
+ */
+export const LEGACY_VERSION = '1.5.0';
+
+/** Numeric semver comparison (prerelease/build suffixes ignored): negative if a < b, 0 if equal, positive if a > b. */
+export function compareVersions(a: string, b: string): number {
+  const parts = (v: string) => v.split(/[-+]/)[0]!.split('.').map((n) => Number.parseInt(n, 10) || 0);
+  const [pa, pb] = [parts(a), parts(b)];
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const diff = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
+/**
+ * Give a config directory without a VERSION file one: a brand-new directory is
+ * stamped with the running version, a pre-versioning one with LEGACY_VERSION so
+ * that migrations know to upgrade it.
+ */
+export function initConfigVersion(dir: string, appVersion: string = getAppVersion()): void {
+  if (readConfigVersion(dir) !== null) return;
+  const hasConfig = fs.existsSync(path.join(dir, 'config.json'));
+  writeConfigVersion(dir, hasConfig ? LEGACY_VERSION : appVersion);
 }

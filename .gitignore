@@ -31,3 +31,5 @@ legacy/**/*.pyc
 legacy/**/*.egg-info/
 
 **/*.swp
+
+.kassandra
