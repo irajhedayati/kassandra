@@ -5,32 +5,31 @@
  *
  * Routes (mounted at /api/metadata):
  *
+ *   GET /files                  → ApiOk<TableMetadataFile[]>  (files in the config directory)
  *   GET /:ks/:t                 → ApiOk<Record<string, ColumnMetadata>>
  *   PUT /:ks/:t/:column         → body: ColumnMetadata → ApiOk<ColumnMetadata>
+ *   POST /:ks/:t/import         → body: ImportTableMetadataRequest → ApiOk<Record<string, ColumnMetadata>>
  */
-import { Router } from 'express';
+import { Router, type NextFunction, type Request, type Response } from 'express';
 import { z } from 'zod';
-import type { ApiOk, ColumnMetadata } from '@kassandra/shared';
+import type {
+  ApiOk,
+  ColumnMetadata,
+  ImportTableMetadataRequest,
+  TableMetadataFile,
+} from '@kassandra/shared';
+import { getTableSchema } from '../cassandra/schema.js';
 import { requireSession } from '../cassandra/state.js';
-import { getTableMetadata, setColumnMetadata } from '../config/store.js';
+import { importTableMetadata } from '../config/importSchema.js';
+import { getConfigDir, getTableMetadata, setColumnMetadata } from '../config/store.js';
+import { columnMetadataSchema, listTableFiles, TableFileError } from '../config/tables.js';
 
 export const metadataRouter = Router();
 
-const mapSchemaEntrySchema = z.object({
-  key: z.string(),
-  label: z.string(),
-  display_type: z.string().optional(),
-  enum_values: z.array(z.string()).optional(),
+metadataRouter.get('/files', (_req, res) => {
+  const body: ApiOk<TableMetadataFile[]> = { ok: true, data: listTableFiles(getConfigDir()) };
+  res.json(body);
 });
-
-const columnMetadataSchema = z
-  .object({
-    hide: z.boolean().optional(),
-    display_type: z.string().optional(),
-    map_schema: z.array(mapSchemaEntrySchema).optional(),
-    enum_values: z.array(z.string()).optional(),
-  })
-  .strict();
 
 metadataRouter.get('/:keyspace/:table', (req, res) => {
   const { profile } = requireSession();
@@ -52,3 +51,34 @@ metadataRouter.put('/:keyspace/:table/:column', (req, res) => {
   const body: ApiOk<ColumnMetadata> = { ok: true, data: saved };
   res.json(body);
 });
+
+const importRequestSchema = z.object({ file: z.string().min(1), overwrite: z.boolean().optional() });
+
+metadataRouter.post(
+  '/:keyspace/:table/import',
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const { client, profile } = requireSession();
+      const { keyspace, table } = req.params as { keyspace: string; table: string };
+      const request = importRequestSchema.safeParse(req.body);
+      if (!request.success) throw new TableFileError('Body must be { file: string, overwrite?: boolean }', 400);
+      const { file, overwrite }: ImportTableMetadataRequest = request.data;
+      const schema = await getTableSchema(client, keyspace, table);
+      const data = importTableMetadata(
+        getConfigDir(),
+        file,
+        {
+          connection: profile.name,
+          keyspace,
+          table,
+          columns: schema.columns.map((c) => c.name),
+        },
+        overwrite === true,
+      );
+      const body: ApiOk<Record<string, ColumnMetadata>> = { ok: true, data };
+      res.json(body);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
