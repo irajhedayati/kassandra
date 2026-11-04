@@ -144,7 +144,12 @@ To launch Kassandra together with a local Cassandra, run `docker compose up --bu
 
 Connection profiles are persisted to `~/.kassandra/config.json`. Per-column metadata is kept separately, one file per
 connection and table, in `~/.kassandra/tables/` (`<connection>-<keyspace>.<table>.json`; characters other than letters,
-digits and `_` are percent-encoded). Override the directory with `KASSANDRA_HOME`.
+digits and `_` are percent-encoded).
+
+The first time Kassandra starts it asks where to keep these files (default `~/.kassandra`); the gear icon at the bottom of
+the sidebar reopens that page. Choosing an empty location copies the current configuration there (the old files are left
+in place); a location that already holds a configuration is used as is. Setting the `KASSANDRA_HOME` environment variable
+fixes the location, skips the first-run page and disables the setting in the UI (the Docker image and Helm chart do this).
 
 On the **Table Schema** tab, **Import schema** copies one of those files onto the current table (for example the same
 table of another connection). The file must be valid metadata whose columns all exist in the table; existing metadata is

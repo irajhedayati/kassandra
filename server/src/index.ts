@@ -8,9 +8,12 @@ import { networkInterfaces } from 'node:os';
 import { createApp } from './app.js';
 import { closeAllSessions } from './cassandra/state.js';
 import { runMigrations } from './config/migrations/index.js';
+import { initSetupState } from './config/setup.js';
 
 const PORT = Number(process.env.PORT ?? 8501);
 const HOST = process.env.HOST ?? '127.0.0.1';
+
+initSetupState();
 
 try {
   await runMigrations();

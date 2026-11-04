@@ -9,6 +9,7 @@ import { cqlRouter } from './routes/cql.js';
 import { metadataRouter } from './routes/metadata.js';
 import { savedQueriesRouter } from './routes/savedQueries.js';
 import { aboutRouter } from './routes/about.js';
+import { setupRouter } from './routes/setup.js';
 import { errorHandler } from './middleware/error.js';
 import { sessionMiddleware } from './cassandra/state.js';
 
@@ -31,6 +32,7 @@ export function createApp(): Express {
   app.use('/api/metadata', metadataRouter);
   app.use('/api/saved-queries', savedQueriesRouter);
   app.use('/api/about', aboutRouter);
+  app.use('/api/setup', setupRouter);
 
   app.get('/api/health', (_req, res) => {
     res.json({ ok: true });
