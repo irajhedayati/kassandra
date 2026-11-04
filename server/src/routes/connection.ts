@@ -105,32 +105,32 @@ function parseConnectBody(body: unknown): { name: string } {
   return result.data;
 }
 
-connectionRouter.get('/', (_req, res) => {
-  res.json({ ok: true, data: listProfiles() });
+connectionRouter.get('/', async (_req, res) => {
+  res.json({ ok: true, data: await listProfiles() });
 });
 
-connectionRouter.post('/', (req, res) => {
+connectionRouter.post('/', async (req, res) => {
   const profile = parseProfile(req.body);
-  const saved = upsertProfile(profile);
+  const saved = await upsertProfile(profile);
   res.json({ ok: true, data: saved });
 });
 
-connectionRouter.put('/:name', (req, res) => {
+connectionRouter.put('/:name', async (req, res) => {
   const profile = parseProfile(req.body);
   const paramName = req.params.name;
   if (!paramName) throw badRequest('Profile name is required');
   if (paramName !== profile.name) {
     // Renames: remove the old, insert the new.
-    deleteProfileFromStore(paramName);
+    await deleteProfileFromStore(paramName);
   }
-  const saved = upsertProfile(profile);
+  const saved = await upsertProfile(profile);
   res.json({ ok: true, data: saved });
 });
 
-connectionRouter.delete('/:name', (req, res) => {
+connectionRouter.delete('/:name', async (req, res) => {
   const name = req.params.name;
   if (!name) throw badRequest('Profile name is required');
-  deleteProfileFromStore(name);
+  await deleteProfileFromStore(name);
   res.json({ ok: true, data: { deleted: name } });
 });
 
@@ -160,7 +160,7 @@ connectionRouter.post(
   '/connect',
   asyncHandler(async (req, res) => {
     const { name } = parseConnectBody(req.body);
-    const profile = getProfile(name);
+    const profile = await getProfile(name);
     if (!profile) {
       throw badRequest(`Profile not found: ${name}`);
     }
@@ -175,31 +175,31 @@ connectionRouter.post(
       res.status(502).json({ ok: false, message: result.message });
       return;
     }
-    setLastConnection(name);
+    await setLastConnection(name);
     res.json({ ok: true, data: result.status });
   }),
 );
 
 // Favorite keyspaces, scoped per connection profile.
-connectionRouter.get('/:name/favorites', (req, res) => {
+connectionRouter.get('/:name/favorites', async (req, res) => {
   const name = req.params.name;
   if (!name) throw badRequest('Profile name is required');
-  res.json({ ok: true, data: getFavoriteKeyspaces(name) });
+  res.json({ ok: true, data: await getFavoriteKeyspaces(name) });
 });
 
-connectionRouter.post('/:name/favorites', (req, res) => {
+connectionRouter.post('/:name/favorites', async (req, res) => {
   const name = req.params.name;
   if (!name) throw badRequest('Profile name is required');
   const keyspace = typeof req.body?.keyspace === 'string' ? req.body.keyspace : '';
   if (!keyspace) throw badRequest('keyspace is required');
-  res.json({ ok: true, data: addFavoriteKeyspace(name, keyspace) });
+  res.json({ ok: true, data: await addFavoriteKeyspace(name, keyspace) });
 });
 
-connectionRouter.delete('/:name/favorites/:keyspace', (req, res) => {
+connectionRouter.delete('/:name/favorites/:keyspace', async (req, res) => {
   const name = req.params.name;
   const keyspace = req.params.keyspace;
   if (!name || !keyspace) throw badRequest('Profile name and keyspace are required');
-  res.json({ ok: true, data: removeFavoriteKeyspace(name, keyspace) });
+  res.json({ ok: true, data: await removeFavoriteKeyspace(name, keyspace) });
 });
 
 connectionRouter.post(

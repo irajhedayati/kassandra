@@ -54,9 +54,12 @@ legacy/  ; original Python/Streamlit app (reference only)
 - `cassandra/connection.ts`; connect/disconnect lifecycle, SSL, auth, execution profile.
 - `cassandra/schema.ts`; `system_schema` introspection (keyspaces, tables, columns).
 - `cassandra/repository.ts`; row CRUD using prepared statements; paging-state is base64-encoded for the wire.
-- `config/store.ts`; JSON persistence at `${KASSANDRA_HOME ?? ~/.kassandra}/config.json`.
-- `config/version.ts`; `VERSION` file next to `config.json` recording the Kassandra version that wrote the config (stamped with the running version when missing).
-- `config/migrations/`; one `vX_Y_Z.ts` per config-shape change, registered in `index.ts`; `runMigrations()` runs at startup and applies those newer than the config dir's `VERSION`, in order. Any change to the config layout must add a migration (see CONTRIBUTING.md); it backs up the dir to `backups/<version>/` and holds `.migrate.lock` while running.
+- `config/storage.ts`; `ConfigStorage` interface, a key -> JSON-document store (plus version and cross-process lock) that every config backend implements; `getStorage()` returns the active one. `config/storage.contract.ts` is the test suite each backend must pass.
+- `config/fileStorage.ts`; default backend: `${KASSANDRA_HOME ?? ~/.kassandra}/<key>.json` (`config.json`, `tables/*.json`) plus a plain-text `VERSION` file.
+- `config/store.ts`; settings (profiles, favorites, saved queries) and column metadata on top of `ConfigStorage`. All functions are async and run one at a time (`config/serial.ts`) so concurrent requests cannot overwrite each other.
+- `config/tables.ts`; per-table metadata documents (`tables/<connection>-<keyspace>.<table>`), naming and validation.
+- `config/version.ts`; the running version, version comparison, and stamping storage that has no version (legacy data counts as `1.5.0`).
+- `config/migrations/`; one `vX_Y_Z.ts` per config-shape change, registered in `index.ts`; `runMigrations()` runs at startup, takes the storage lock, backs everything up to `backups/<version>/` and applies those newer than the stored version, in order. Migrations only use `ConfigStorage`. Any change to the config layout must add a migration (see CONTRIBUTING.md).
 - `routes/*`; one file per feature (`connection`, `schema`, `data`, `cql`, `metadata`).
 
 ### Client (`client/src/`)

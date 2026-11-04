@@ -1,17 +1,17 @@
 /**
- * Per-table column metadata, one file per connection + table:
+ * Per-table column metadata, one document per connection + table:
  *
- *   {config dir}/tables/{connection}-{keyspace}.{table}.json
+ *   key  tables/{connection}-{keyspace}.{table}
+ *   (file storage: {config dir}/tables/{connection}-{keyspace}.{table}.json)
  *
  * Each part is percent-encoded down to [A-Za-z0-9_], so `-` and `.` only ever
  * appear as separators and the name maps back to its parts unambiguously.
  */
-import fs from 'node:fs';
-import path from 'node:path';
 import { z } from 'zod';
 import type { ColumnMetadata, TableMetadataFile } from '@kassandra/shared';
+import type { ConfigStorage } from './storage.js';
 
-export const TABLES_DIR_NAME = 'tables';
+export const TABLES_PREFIX = 'tables/';
 
 const mapSchemaEntrySchema = z.object({
   key: z.string(),
@@ -29,8 +29,14 @@ export const columnMetadataSchema = z
   })
   .strict();
 
-/** Shape of a whole per-table file: column name -> metadata. */
+/** Shape of a whole per-table document: column name -> metadata. */
 export const tableMetadataSchema = z.record(z.string(), columnMetadataSchema);
+
+export class TableFileError extends Error {
+  constructor(message: string, public readonly status: number) {
+    super(message);
+  }
+}
 
 function encodePart(value: string): string {
   return value.replace(/[^A-Za-z0-9_]/gu, (c) =>
@@ -38,75 +44,22 @@ function encodePart(value: string): string {
   );
 }
 
-function tablesDir(configDir: string): string {
-  return path.join(configDir, TABLES_DIR_NAME);
+/** Name of the file for a table, e.g. `prod-ks.users.json`. */
+export function tableFileName(connection: string, keyspace: string, table: string): string {
+  return `${encodePart(connection)}-${encodePart(keyspace)}.${encodePart(table)}.json`;
 }
 
-export function tableMetadataFile(
-  configDir: string,
-  connection: string,
-  keyspace: string,
-  table: string,
-): string {
-  const name = `${encodePart(connection)}-${encodePart(keyspace)}.${encodePart(table)}.json`;
-  return path.join(tablesDir(configDir), name);
+/** Storage key for a file name as returned by tableFileName / listTableFiles. */
+export function tableKeyForFile(file: string): string {
+  if (parseTableFileName(file) === null) throw new TableFileError(`Not a table metadata file: ${file}`, 400);
+  return `${TABLES_PREFIX}${file.slice(0, -'.json'.length)}`;
 }
 
-export function readTableMetadata(
-  configDir: string,
-  connection: string,
-  keyspace: string,
-  table: string,
-): Record<string, ColumnMetadata> {
-  const file = tableMetadataFile(configDir, connection, keyspace, table);
-  if (!fs.existsSync(file)) return {};
-  try {
-    const parsed = JSON.parse(fs.readFileSync(file, 'utf-8')) as unknown;
-    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      ? (parsed as Record<string, ColumnMetadata>)
-      : {};
-  } catch (err) {
-    console.warn(`[kassandra] could not parse table metadata ${file}:`, err);
-    return {};
-  }
+function tableKey(connection: string, keyspace: string, table: string): string {
+  return tableKeyForFile(tableFileName(connection, keyspace, table));
 }
 
-export function writeTableMetadata(
-  configDir: string,
-  connection: string,
-  keyspace: string,
-  table: string,
-  metadata: Record<string, ColumnMetadata>,
-): void {
-  fs.mkdirSync(tablesDir(configDir), { recursive: true });
-  const file = tableMetadataFile(configDir, connection, keyspace, table);
-  fs.writeFileSync(file, JSON.stringify(metadata, null, 2), 'utf-8');
-}
-
-export function tableMetadataExists(
-  configDir: string,
-  connection: string,
-  keyspace: string,
-  table: string,
-): boolean {
-  return fs.existsSync(tableMetadataFile(configDir, connection, keyspace, table));
-}
-
-/** Remove every table file belonging to `connection`. */
-export function deleteConnectionTables(configDir: string, connection: string): void {
-  const dir = tablesDir(configDir);
-  if (!fs.existsSync(dir)) return;
-  const prefix = `${encodePart(connection)}-`;
-  for (const name of fs.readdirSync(dir)) {
-    if (name.startsWith(prefix) && name.endsWith('.json')) fs.rmSync(path.join(dir, name));
-  }
-}
-
-function decodePart(value: string): string {
-  return decodeURIComponent(value);
-}
-
-/** Inverse of tableMetadataFile's naming; null if `name` is not a per-table metadata file name. */
+/** Inverse of tableFileName; null if `name` is not a per-table metadata file name. */
 export function parseTableFileName(
   name: string,
 ): { connection: string; keyspace: string; table: string } | null {
@@ -114,45 +67,75 @@ export function parseTableFileName(
   if (!match) return null;
   try {
     return {
-      connection: decodePart(match[1]!),
-      keyspace: decodePart(match[2]!),
-      table: decodePart(match[3]!),
+      connection: decodeURIComponent(match[1]!),
+      keyspace: decodeURIComponent(match[2]!),
+      table: decodeURIComponent(match[3]!),
     };
   } catch {
     return null;
   }
 }
 
-/** Every per-table metadata file in the config directory, sorted by name. */
-export function listTableFiles(configDir: string): TableMetadataFile[] {
-  const dir = tablesDir(configDir);
-  if (!fs.existsSync(dir)) return [];
+export async function readTableMetadata(
+  storage: ConfigStorage,
+  connection: string,
+  keyspace: string,
+  table: string,
+): Promise<Record<string, ColumnMetadata>> {
+  const key = tableKey(connection, keyspace, table);
+  try {
+    const parsed = await storage.get(key);
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? (parsed as Record<string, ColumnMetadata>)
+      : {};
+  } catch (err) {
+    console.warn(`[kassandra] could not read table metadata ${key}:`, err);
+    return {};
+  }
+}
+
+export function writeTableMetadata(
+  storage: ConfigStorage,
+  connection: string,
+  keyspace: string,
+  table: string,
+  metadata: Record<string, ColumnMetadata>,
+): Promise<void> {
+  return storage.put(tableKey(connection, keyspace, table), metadata);
+}
+
+export async function tableMetadataExists(
+  storage: ConfigStorage,
+  connection: string,
+  keyspace: string,
+  table: string,
+): Promise<boolean> {
+  return (await storage.list(tableKey(connection, keyspace, table))).includes(
+    tableKey(connection, keyspace, table),
+  );
+}
+
+/** Remove every table document belonging to `connection`. */
+export async function deleteConnectionTables(storage: ConfigStorage, connection: string): Promise<void> {
+  const prefix = `${TABLES_PREFIX}${encodePart(connection)}-`;
+  for (const key of await storage.list(prefix)) await storage.delete(key);
+}
+
+/** Every per-table metadata document, sorted by name. */
+export async function listTableFiles(storage: ConfigStorage): Promise<TableMetadataFile[]> {
   const files: TableMetadataFile[] = [];
-  for (const file of fs.readdirSync(dir).sort()) {
+  for (const key of await storage.list(TABLES_PREFIX)) {
+    const file = `${key.slice(TABLES_PREFIX.length)}.json`;
     const parts = parseTableFileName(file);
     if (!parts) continue;
     let columns = 0;
     try {
-      const parsed = JSON.parse(fs.readFileSync(path.join(dir, file), 'utf-8')) as unknown;
+      const parsed = await storage.get(key);
       if (parsed && typeof parsed === 'object') columns = Object.keys(parsed).length;
     } catch {
-      // unreadable files are still listed; importing them reports the problem
+      // unreadable documents are still listed; importing them reports the problem
     }
     files.push({ file, ...parts, columns });
   }
   return files;
-}
-
-/** Absolute path of a listed file; rejects anything that is not a plain per-table file name. */
-export function tableFilePath(configDir: string, file: string): string {
-  if (file !== path.basename(file) || parseTableFileName(file) === null) {
-    throw new TableFileError(`Not a table metadata file: ${file}`, 400);
-  }
-  return path.join(tablesDir(configDir), file);
-}
-
-export class TableFileError extends Error {
-  constructor(message: string, public readonly status: number) {
-    super(message);
-  }
 }
