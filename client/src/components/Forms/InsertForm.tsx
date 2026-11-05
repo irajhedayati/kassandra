@@ -43,7 +43,7 @@ export function InsertForm(props: Props) {
         ? schemaQuery.error.message
         : 'Failed to load schema.';
     return (
-      <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+      <div className="rounded border border-red-200 dark:border-red-900 bg-red-50 px-3 py-2 text-sm text-red-700 dark:text-red-300">
         {msg}
       </div>
     );
@@ -54,7 +54,7 @@ export function InsertForm(props: Props) {
   return (
     <div className="max-w-4xl space-y-3">
       {infoMessage && (
-        <div className="rounded border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-700">
+        <div className="rounded border border-blue-200 dark:border-blue-800 bg-blue-50 px-3 py-2 text-sm text-blue-700 dark:text-blue-300">
           {infoMessage}
         </div>
       )}

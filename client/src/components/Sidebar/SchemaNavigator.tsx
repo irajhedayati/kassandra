@@ -53,13 +53,13 @@ export function SchemaNavigator() {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+        <h2 className="text-xs font-semibold uppercase tracking-wide text-ink-400">
           Schema
         </h2>
         <button
           type="button"
           onClick={handleRefresh}
-          className="rounded-md border border-slate-700 px-2 py-1 text-xs text-slate-300 transition hover:bg-slate-800 disabled:opacity-50"
+          className="rounded-md border border-ink-700 px-2 py-1 text-xs text-ink-300 transition hover:bg-ink-800 disabled:opacity-50"
           disabled={keyspacesQuery.isFetching || tablesQuery.isFetching}
         >
           Refresh
@@ -67,7 +67,7 @@ export function SchemaNavigator() {
       </div>
 
       <div className="space-y-1">
-        <label className="block text-xs font-medium text-slate-400">Keyspace</label>
+        <label className="block text-xs font-medium text-ink-400">Keyspace</label>
         <div className="flex items-center gap-2">
           <div className="min-w-0 flex-1">
             <SearchableSelect
@@ -89,7 +89,7 @@ export function SchemaNavigator() {
             onClick={() => setCreateOpen(true)}
             aria-label="Create keyspace"
             title="Create keyspace"
-            className="rounded-md border border-slate-700 px-2.5 py-2 text-xs text-slate-300 transition hover:bg-slate-800"
+            className="rounded-md border border-ink-700 px-2.5 py-2 text-xs text-ink-300 transition hover:bg-ink-800"
           >
             <FontAwesomeIcon icon={faPlus} />
           </button>
@@ -102,7 +102,7 @@ export function SchemaNavigator() {
       </div>
 
       <div className="space-y-1">
-        <label className="block text-xs font-medium text-slate-400">Table</label>
+        <label className="block text-xs font-medium text-ink-400">Table</label>
         <div className="flex items-center gap-2">
           <div className="min-w-0 flex-1">
             <SearchableSelect
@@ -127,7 +127,7 @@ export function SchemaNavigator() {
             disabled={!keyspace}
             aria-label="Create table"
             title={keyspace ? 'Create table' : 'Select a keyspace first'}
-            className="rounded-md border border-slate-700 px-2.5 py-2 text-xs text-slate-300 transition hover:bg-slate-800 disabled:opacity-50"
+            className="rounded-md border border-ink-700 px-2.5 py-2 text-xs text-ink-300 transition hover:bg-ink-800 disabled:opacity-50"
           >
             <FontAwesomeIcon icon={faPlus} />
           </button>

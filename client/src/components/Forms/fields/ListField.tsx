@@ -93,7 +93,7 @@ function ItemInput({ widget, value, onChange, disabled, label, enumValues }: Ite
       <label className="flex flex-1 items-center gap-2">
         <input
           type="checkbox"
-          className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+          className="h-4 w-4 rounded border-slate-300 text-blue-600 dark:text-blue-400 focus:ring-blue-500"
           checked={value === 'true' || value === '1'}
           disabled={disabled}
           onChange={(e) => onChange(e.target.checked ? 'true' : 'false')}

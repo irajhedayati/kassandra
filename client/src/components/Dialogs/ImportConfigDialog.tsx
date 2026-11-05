@@ -138,7 +138,7 @@ export function ImportConfigDialog({ open, onClose }: Props) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0d243a]/40 dark:bg-black/60 p-4">
       <div className="w-full max-w-lg rounded bg-white p-6 shadow-lg">
         <h2 className="text-lg font-semibold text-slate-900">Import configuration</h2>
         <p className="mt-1 text-sm text-slate-600">
@@ -153,7 +153,7 @@ export function ImportConfigDialog({ open, onClose }: Props) {
               onClick={() => setTab(t)}
               className={`px-3 py-2 text-sm font-medium ${
                 tab === t
-                  ? 'border-b-2 border-blue-600 text-blue-600'
+                  ? 'border-b-2 border-blue-600 text-blue-600 dark:text-blue-400'
                   : 'text-slate-500 hover:text-slate-700'
               }`}
             >
@@ -174,7 +174,7 @@ export function ImportConfigDialog({ open, onClose }: Props) {
               onClick={() => fileInputRef.current?.click()}
               className={`flex flex-col items-center justify-center gap-2 rounded border-2 border-dashed px-4 py-10 text-center text-sm transition ${
                 dragOver
-                  ? 'border-blue-500 bg-blue-50 text-blue-700'
+                  ? 'border-blue-500 bg-blue-50 text-blue-700 dark:text-blue-300'
                   : 'border-slate-300 text-slate-500 hover:border-slate-400 hover:bg-slate-50'
               }`}
             >
@@ -208,7 +208,7 @@ export function ImportConfigDialog({ open, onClose }: Props) {
         </div>
 
         {parseError && (
-          <div className="mt-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <div className="mt-3 rounded border border-red-200 dark:border-red-900 bg-red-50 px-3 py-2 text-sm text-red-700 dark:text-red-300">
             {parseError}
           </div>
         )}
@@ -216,13 +216,13 @@ export function ImportConfigDialog({ open, onClose }: Props) {
         {outcome && (
           <div className="mt-3 space-y-1 rounded border border-slate-200 bg-slate-50 px-3 py-2 text-sm">
             {outcome.imported.length > 0 && (
-              <p className="text-green-700">
+              <p className="text-green-700 dark:text-green-300">
                 Imported {outcome.imported.length} profile{outcome.imported.length === 1 ? '' : 's'}:{' '}
                 <span className="font-medium">{outcome.imported.join(', ')}</span>
               </p>
             )}
             {outcome.failed.length > 0 && (
-              <div className="text-red-700">
+              <div className="text-red-700 dark:text-red-300">
                 <p>Failed to import {outcome.failed.length}:</p>
                 <ul className="ml-4 list-disc">
                   {outcome.failed.map((f) => (

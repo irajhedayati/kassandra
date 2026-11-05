@@ -37,7 +37,7 @@ export function App() {
   return (
     <div className="flex h-full bg-slate-100">
       <ShortcutsDialog />
-      <aside className="flex w-72 shrink-0 flex-col overflow-y-auto border-r border-cyan-400/20 bg-gradient-to-b from-blue-950 via-blue-900 to-cyan-950 text-slate-200">
+      <aside className="flex w-72 shrink-0 flex-col overflow-y-auto border-r border-cyan-400/20 bg-gradient-to-b from-blue-950 via-blue-900 to-cyan-950 text-ink-200">
         <div className="border-b border-cyan-400/20 px-6 py-5">
           <img
             src="/logo.png"
@@ -58,7 +58,7 @@ export function App() {
       </aside>
 
       <main className="flex flex-1 flex-col overflow-hidden">
-        <header className="flex h-16 items-center border-b border-blue-200 bg-gradient-to-r from-white via-blue-50 to-cyan-50 px-6 shadow-sm">
+        <header className="flex h-16 items-center border-b border-blue-200 dark:border-blue-800 bg-gradient-to-r from-white via-blue-50 to-cyan-50 px-6 shadow-sm">
           <div className="text-sm text-slate-500">
             {connected ? (
               <>
@@ -160,7 +160,7 @@ function TabButton(props: {
       onClick={props.onClick}
       className={`-mb-px border-b-2 py-3 transition ${
         props.active
-          ? 'border-blue-600 text-blue-600'
+          ? 'border-blue-600 text-blue-600 dark:text-blue-400'
           : 'border-transparent text-slate-500 hover:text-slate-800'
       }`}
     >

@@ -1,6 +1,7 @@
 import { useCallback, useRef } from 'react';
 import Editor, { type OnMount } from '@monaco-editor/react';
 import { fieldLabel, labelClass, type FieldProps } from './index.js';
+import { useMonacoTheme } from '../../../state/appearance.js';
 
 const MIN_HEIGHT = 120;
 const MAX_HEIGHT = 500;
@@ -11,6 +12,7 @@ const MAX_HEIGHT = 500;
  * MAX_HEIGHT, after which the editor scrolls internally.
  */
 export function JsonHighlightField(props: FieldProps) {
+  const monacoTheme = useMonacoTheme();
   const { column, value, onChange, disabled, placeholder } = props;
   const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -53,7 +55,7 @@ export function JsonHighlightField(props: FieldProps) {
           height="100%"
           defaultLanguage="json"
           language="json"
-          theme="vs-light"
+          theme={monacoTheme}
           value={displayValue}
           onChange={(v: string | undefined) => onChange(v ?? '')}
           onMount={handleMount}

@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { loader } from '@monaco-editor/react';
 import '@fontsource-variable/inter';
 import { App } from './App.js';
+import { initAppearance } from './state/appearance.js';
 import './index.css';
 
 // Keep both editors' CDN runtime aligned with the installed Monaco package.
@@ -22,6 +23,8 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+initAppearance();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

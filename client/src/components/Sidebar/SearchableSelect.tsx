@@ -103,9 +103,9 @@ export function SearchableSelect({
         type="button"
         disabled={disabled}
         onClick={() => (open ? setOpen(false) : openMenu())}
-        className="flex w-full items-center justify-between rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-left text-sm text-slate-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:opacity-60"
+        className="flex w-full items-center justify-between rounded-lg border border-ink-700 bg-ink-800 px-3 py-2 text-left text-sm text-ink-100 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:opacity-60"
       >
-        <span className={value ? '' : 'text-slate-400'}>{value ?? placeholder}</span>
+        <span className={value ? '' : 'text-ink-400'}>{value ?? placeholder}</span>
         <span className="ml-2 flex items-center gap-1">
           {value && (
             <span
@@ -115,18 +115,18 @@ export function SearchableSelect({
                 e.stopPropagation();
                 select(null);
               }}
-              className="rounded p-0.5 text-slate-400 hover:bg-slate-700 hover:text-slate-200"
+              className="rounded p-0.5 text-ink-400 hover:bg-ink-700 hover:text-ink-200"
               aria-label="Clear selection"
             >
               ×
             </span>
           )}
-          <span className="text-slate-400">▾</span>
+          <span className="text-ink-400">▾</span>
         </span>
       </button>
 
       {open && (
-        <div className="absolute z-10 mt-1 w-full rounded-lg border border-slate-700 bg-slate-800 shadow-lg">
+        <div className="absolute z-10 mt-1 w-full rounded-lg border border-ink-700 bg-ink-800 shadow-lg">
           <input
             ref={inputRef}
             autoFocus
@@ -138,7 +138,7 @@ export function SearchableSelect({
             }}
             onKeyDown={handleKeyDown}
             placeholder="Search…"
-            className="w-full border-b border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:outline-none"
+            className="w-full border-b border-ink-700 bg-ink-900 px-3 py-2 text-sm text-ink-100 focus:outline-none"
           />
           <ul ref={listRef} className="max-h-56 overflow-auto py-1">
             <li>
@@ -146,15 +146,15 @@ export function SearchableSelect({
                 type="button"
                 onMouseEnter={() => setActiveIndex(0)}
                 onClick={() => select(null)}
-                className={`block w-full px-3 py-1.5 text-left text-sm text-slate-400 ${
-                  activeIndex === 0 ? 'bg-slate-700' : 'hover:bg-slate-700'
+                className={`block w-full px-3 py-1.5 text-left text-sm text-ink-400 ${
+                  activeIndex === 0 ? 'bg-ink-700' : 'hover:bg-ink-700'
                 }`}
               >
                 {placeholder}
               </button>
             </li>
             {filtered.length === 0 && (
-              <li className="px-3 py-1.5 text-sm text-slate-500">No matches</li>
+              <li className="px-3 py-1.5 text-sm text-ink-500">No matches</li>
             )}
             {filtered.map((option, i) => {
               const rowIndex = i + 1;
@@ -166,8 +166,8 @@ export function SearchableSelect({
                     onMouseEnter={() => setActiveIndex(rowIndex)}
                     onClick={() => select(option)}
                     className={`flex w-full items-center justify-between px-3 py-1.5 text-left text-sm ${
-                      rowIndex === activeIndex ? 'bg-slate-700' : 'hover:bg-slate-700'
-                    } ${selected ? 'text-white' : 'text-slate-100'}`}
+                      rowIndex === activeIndex ? 'bg-ink-700' : 'hover:bg-ink-700'
+                    } ${selected ? 'text-white' : 'text-ink-100'}`}
                   >
                     <span>{option}</span>
                     {selected && <span className="ml-2 text-blue-400">✓</span>}

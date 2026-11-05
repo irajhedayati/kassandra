@@ -37,7 +37,7 @@ export function ShortcutsDialog() {
 
   return (
     <div
-      className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 p-4"
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-[#0d243a]/40 dark:bg-black/60 p-4"
       onClick={() => setOpen(false)}
     >
       <div

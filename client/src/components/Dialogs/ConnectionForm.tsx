@@ -205,7 +205,7 @@ export function ConnectionForm({ open, onClose, initial }: Props) {
 
   return (
     <dialog
-      className="fixed inset-0 z-50 flex items-start justify-center bg-slate-900/40 p-6 overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-start justify-center bg-[#0d243a]/40 dark:bg-black/60 p-6 overflow-y-auto"
       aria-modal="true"
       open={open}
       style={{margin: "auto"}}
@@ -227,7 +227,7 @@ export function ConnectionForm({ open, onClose, initial }: Props) {
 
         <form onSubmit={handleSubmit} className="space-y-3 p-5">
           {error && (
-            <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            <div className="rounded border border-red-200 dark:border-red-900 bg-red-50 px-3 py-2 text-sm text-red-700 dark:text-red-300">
               {error}
             </div>
           )}
@@ -420,7 +420,7 @@ export function ConnectionForm({ open, onClose, initial }: Props) {
                     }
                   }}
                   disabled={deleting || saving}
-                  className="rounded border border-red-300 bg-white px-3 py-1.5 text-sm text-red-700 hover:bg-red-50 disabled:opacity-50"
+                  className="rounded border border-red-300 dark:border-red-800 bg-white px-3 py-1.5 text-sm text-red-700 dark:text-red-300 hover:bg-red-50 disabled:opacity-50"
                 >
                   {deleting ? 'Deleting...' : 'Delete'}
                 </button>

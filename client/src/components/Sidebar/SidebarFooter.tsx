@@ -13,7 +13,7 @@ export function SidebarFooter({ onOpenSettings }: { onOpenSettings: () => void }
   const version: string | undefined = data?.version ?? import.meta.env.VITE_APP_VERSION;
 
   return (
-    <div className="flex shrink-0 items-center justify-between gap-2 border-t border-cyan-400/20 px-4 py-3 text-xs text-slate-400">
+    <div className="flex shrink-0 items-center justify-between gap-2 border-t border-cyan-400/20 px-4 py-3 text-xs text-ink-400">
       <span>Kassandra{version ? ` v${version}` : ''}</span>
       <div className="flex items-center gap-3">
         <a
@@ -29,7 +29,7 @@ export function SidebarFooter({ onOpenSettings }: { onOpenSettings: () => void }
           onClick={onOpenSettings}
           title="Configuration"
           aria-label="Configuration"
-          className="text-base leading-none text-slate-300 hover:text-white"
+          className="text-base leading-none text-ink-300 hover:text-white"
         >
           ⚙
         </button>

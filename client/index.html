@@ -6,6 +6,15 @@
     <link rel="icon" href="/favicon.ico" sizes="any" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>kassandra</title>
+    <script>
+      // Apply the saved theme before first paint to avoid a light flash (see src/state/appearance.ts).
+      try {
+        var a = localStorage.getItem('kassandra.appearance');
+        if (a === 'dark' || (a !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark');
+        }
+      } catch (e) {}
+    </script>
   </head>
   <body class="bg-slate-50 text-slate-900 antialiased">
     <div id="root"></div>

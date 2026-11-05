@@ -15,9 +15,9 @@ export interface StatementRun {
 }
 
 const STYLES: Record<StatementStatus, string> = {
-  success: 'border-green-200 bg-green-50 text-green-800',
-  failed: 'border-red-300 bg-red-50 text-red-800',
-  running: 'border-blue-200 bg-blue-50 text-blue-800',
+  success: 'border-green-200 dark:border-green-900 bg-green-50 text-green-800 dark:text-green-200',
+  failed: 'border-red-300 dark:border-red-800 bg-red-50 text-red-800 dark:text-red-200',
+  running: 'border-blue-200 dark:border-blue-800 bg-blue-50 text-blue-800',
   queued: 'border-slate-200 bg-slate-100 text-slate-500',
   skipped: 'border-slate-200 bg-slate-100 text-slate-400',
 };

@@ -58,7 +58,7 @@ export function SaveQueryDialog({ open, onClose, existing, initialQuery, initial
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0d243a]/40 dark:bg-black/60 p-4">
       <div className="max-h-full w-full max-w-lg overflow-y-auto rounded bg-white p-6 shadow-lg">
         <h2 className="text-lg font-semibold text-slate-900">
           {existing ? 'Edit saved query' : 'Save query'}
@@ -101,7 +101,7 @@ export function SaveQueryDialog({ open, onClose, existing, initialQuery, initial
           </div>
         </div>
         {error && (
-          <div className="mt-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <div className="mt-3 rounded border border-red-200 dark:border-red-900 bg-red-50 px-3 py-2 text-sm text-red-700 dark:text-red-300">
             {error}
           </div>
         )}
