@@ -387,6 +387,15 @@ inside string literals, quoted identifiers, and comments are ignored.
 
 ![Running a parametrized query](images/parametrized-query.gif)
 
+#### Formatting
+
+**Format CQL** (next to **Save query**) rewrites the query in the editor for readability: clauses such as `FROM`, `WHERE`
+and `ORDER BY` start new lines, `AND` conditions and long column lists are indented, and `CREATE TABLE` columns go one per
+line. CQL keywords (`SELECT`, `FROM`, `WHERE`, `PRIMARY KEY`, `USING TTL`, `COUNT(*)`, ...) are written in upper case;
+identifiers, data types, function names such as `now()`, quoted names, string literals, comments, `:name` parameters and
+the order of statements are left exactly as written. It does not run or save anything, and **Undo** in the editor brings
+the previous text back.
+
 #### Saved queries
 
 - **Save query** (enabled when the editor has text) asks for a **Name**, an optional **Description**, and the **Query**,

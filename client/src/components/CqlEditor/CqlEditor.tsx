@@ -11,6 +11,7 @@
  * Shortcuts:
  *  - Cmd/Ctrl + Enter executes the current query (mirrors legacy
  *    `legacy/src/view/cql_view.py`).
+ *  - Format CQL reformats the query in place and upper-cases keywords (nothing is run or saved).
  *
  * Owned by the cql lane.
  */
@@ -18,6 +19,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Editor, { type OnMount } from '@monaco-editor/react';
 import {
   extractParamNames,
+  formatCql,
   splitCqlStatements,
   type QueryResponse,
 } from '@kassandra/shared';
@@ -213,6 +215,20 @@ export function CqlEditor() {
     setQuery(v);
   }, []);
 
+  // Layout only: the formatted text goes back into the editor (Undo restores the old one);
+  // nothing is run or saved.
+  const onFormat = () => {
+    try {
+      const formatted = formatCql(queryRef.current);
+      if (formatted === queryRef.current) return;
+      queryRef.current = formatted;
+      setQuery(formatted);
+      setNotice(null);
+    } catch (err) {
+      setNotice({ kind: 'error', text: err instanceof Error ? err.message : 'Could not format this query.' });
+    }
+  };
+
   const onExecute = () => {
     void runAll();
   };
@@ -247,6 +263,15 @@ export function CqlEditor() {
               Next page
             </button>
           )}
+          <button
+            type="button"
+            onClick={onFormat}
+            disabled={!query.trim()}
+            title="Reformat the query without running or saving it"
+            className="rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+          >
+            Format CQL
+          </button>
           <button
             type="button"
             onClick={() => setSaveOpen(true)}

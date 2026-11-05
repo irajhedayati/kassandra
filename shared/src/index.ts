@@ -6,3 +6,4 @@ export * from './types/cql-types.js';
 export * from './create-table.js';
 export * from './saved-query.js';
 export * from './cql-statements.js';
+export * from './cql-format.js';
