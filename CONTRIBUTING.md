@@ -59,6 +59,10 @@ Implement `ConfigStorage` and run `describeStorageContract()` from `storage.cont
 `fileStorage.test.ts` does. The contract covers documents, key listing, the version and the lock; the rest of the
 application and the migrations then work unchanged.
 
+Then make it selectable: call `registerStorageBackend('<name>', () => new YourStorage(...))` (from `storage.ts`) at
+startup. Users choose it with `KASSANDRA_STORAGE=<name>`; without it the `file` backend is used. The factory runs on
+every `getStorage()` call, so return a shared instance.
+
 ---
 
 ## 📜 Code of Conduct

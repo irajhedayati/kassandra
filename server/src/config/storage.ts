@@ -46,14 +46,37 @@ export interface ConfigStorage {
   lock(options?: LockOptions): Promise<() => Promise<void>>;
 }
 
-let override: ConfigStorage | null = null;
+/** Creates a backend. Called on every `getStorage()`, so a non-trivial backend should return a shared instance. */
+export type StorageFactory = () => ConfigStorage;
 
-/** The active storage. Defaults to files in `KASSANDRA_HOME ?? ~/.kassandra`. */
-export function getStorage(): ConfigStorage {
-  return override ?? new FileStorage(getConfigDir());
+export const DEFAULT_BACKEND = 'file';
+
+const backends = new Map<string, StorageFactory>([[DEFAULT_BACKEND, () => new FileStorage(getConfigDir())]]);
+
+/** Make a backend selectable with `KASSANDRA_STORAGE=<name>`. Replaces a backend of the same name. */
+export function registerStorageBackend(name: string, factory: StorageFactory): void {
+  backends.set(name, factory);
 }
 
-/** Use `storage` instead of the default; pass null to go back to it. */
+/** Name of the configured backend: `KASSANDRA_STORAGE`, else `file`. */
+export function getBackendName(): string {
+  return process.env.KASSANDRA_STORAGE?.trim() || DEFAULT_BACKEND;
+}
+
+let override: ConfigStorage | null = null;
+
+/** The active storage: the backend named by `KASSANDRA_STORAGE`, files in `KASSANDRA_HOME ?? ~/.kassandra` by default. */
+export function getStorage(): ConfigStorage {
+  if (override) return override;
+  const name = getBackendName();
+  const factory = backends.get(name);
+  if (!factory) {
+    throw new Error(`Unknown storage backend "${name}". Available: ${[...backends.keys()].sort().join(', ')}`);
+  }
+  return factory();
+}
+
+/** Use `storage` instead of the configured backend; pass null to go back to it. */
 export function setStorage(storage: ConfigStorage | null): void {
   override = storage;
 }
