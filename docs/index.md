@@ -122,16 +122,16 @@ be reachable from inside the cluster.
 
 Common values (set with `--set key=value` or `-f my-values.yaml`):
 
-| Value                           | Default               | Description                                                              |
-|---------------------------------|-----------------------|--------------------------------------------------------------------------|
-| `image.tag`                     | chart `appVersion`    | Kassandra image tag.                                                     |
-| `persistence.enabled`           | `true`                | Store connection profiles on a PersistentVolumeClaim. If `false`, an `emptyDir` is used and profiles are lost when the pod restarts. |
-| `persistence.size`              | `100Mi`               | Size of the claim.                                                       |
-| `persistence.storageClass`      | cluster default       | Storage class for the claim.                                             |
-| `persistence.existingClaim`     | none                  | Use an existing PVC instead of creating one.                             |
-| `sessionIdleMinutes`            | `120`                 | Idle minutes before the Cassandra session is closed.                     |
-| `ingress.enabled`               | `false`               | Expose Kassandra through an Ingress instead of port-forwarding.          |
-| `env`                           | `[]`                  | Extra environment variables for the container.                           |
+| Value                       | Default            | Description                                                                                                                          |
+|-----------------------------|--------------------|--------------------------------------------------------------------------------------------------------------------------------------|
+| `image.tag`                 | chart `appVersion` | Kassandra image tag.                                                                                                                 |
+| `persistence.enabled`       | `true`             | Store connection profiles on a PersistentVolumeClaim. If `false`, an `emptyDir` is used and profiles are lost when the pod restarts. |
+| `persistence.size`          | `100Mi`            | Size of the claim.                                                                                                                   |
+| `persistence.storageClass`  | cluster default    | Storage class for the claim.                                                                                                         |
+| `persistence.existingClaim` | none               | Use an existing PVC instead of creating one.                                                                                         |
+| `sessionIdleMinutes`        | `120`              | Idle minutes before the Cassandra session is closed.                                                                                 |
+| `ingress.enabled`           | `false`            | Expose Kassandra through an Ingress instead of port-forwarding.                                                                      |
+| `env`                       | `[]`               | Extra environment variables for the container.                                                                                       |
 
 To upgrade or remove the release:
 
@@ -210,7 +210,8 @@ connection profile and appear first in the keyspace selector.
 - **Filtering**: Enter values in the column fields above the grid, then click **Apply**. Click **Clear** to remove
   filters. Most columns use equality filters; map columns also offer *Key = value*, *Contains key*, and *Contains
   value*. The generated query uses `ALLOW FILTERING`, which can scan substantial data for non-key columns.
-- **Generate CQL**: Next to **Apply**, sends a `SELECT` with the *applied* filters (not edits you have not applied yet) to
+- **Generate CQL**: Next to **Apply**, sends a `SELECT` with the *applied* filters (not edits you have not applied yet)
+  to
   the CQL editor below, where you can review, change and run it.
 - **Sort and filter the loaded page**: Click a column header to sort ascending, click again for descending, and a third
   time to clear. Type in the box under a header to filter that column. These apply only to the rows already loaded on
@@ -336,10 +337,12 @@ UPDATE demo_shop.users
 SET profile = profile + {'new_key': 'new_value'}
 WHERE user_id = :user_id;
 
-DELETE profile['tier'] FROM demo_shop.users
+DELETE
+profile['tier'] FROM demo_shop.users
 WHERE user_id = :user_id;
 
-SELECT profile FROM demo_shop.users;
+SELECT profile
+FROM demo_shop.users;
 ```
 
 Set the `user_id` parameter type to `uuid` and enter the ID of an existing demo user.
@@ -361,7 +364,8 @@ command (`#2 DELETE`):
 | Red              | Failed (the error message is shown on the line) |
 | Grey, no spinner | Skipped because an earlier statement failed     |
 
-Execution stops at the first failure; earlier successful statements are not rolled back. A successful line reports what happened:
+Execution stops at the first failure; earlier successful statements are not rolled back. A successful line reports what
+happened:
 
 - **SELECT**: the number of rows returned (the rows appear in the results table; **Next page** re-runs only the
   `SELECT`, never the other statements).
@@ -391,8 +395,10 @@ inside string literals, quoted identifiers, and comments are ignored.
 
 #### Formatting
 
-**Format CQL** (next to **Save query**) rewrites the query in the editor for readability: clauses such as `FROM`, `WHERE`
-and `ORDER BY` start new lines, `AND` conditions and long column lists are indented, and `CREATE TABLE` columns go one per
+**Format CQL** (next to **Save query**) rewrites the query in the editor for readability: clauses such as `FROM`,
+`WHERE`
+and `ORDER BY` start new lines, `AND` conditions and long column lists are indented, and `CREATE TABLE` columns go one
+per
 line. CQL keywords (`SELECT`, `FROM`, `WHERE`, `PRIMARY KEY`, `USING TTL`, `COUNT(*)`, ...) are written in upper case;
 identifiers, data types, function names such as `now()`, quoted names, string literals, comments, `:name` parameters and
 the order of statements are left exactly as written. It does not run or save anything, and **Undo** in the editor brings
@@ -451,6 +457,10 @@ interface; they do not alter the Cassandra table schema.
 Connection profiles, column metadata, saved queries, and favorite keyspaces are stored on the server in
 `~/.kassandra/config.json`. Set `KASSANDRA_HOME` to use a different directory. The Node.js application reads the
 existing configuration format and fills missing profile fields with defaults.
+
+By default, the configuration is kept in files (the file backend). KASSANDRA_STORAGE selects a different storage backend
+by name; if the name is unknown, the server fails with an error that lists the available backends. KASSANDRA_HOME and
+the Configuration page's location setting apply only to the file backend.
 
 For source installations, `HOST` and `PORT` control the server's listening address and port; defaults are `127.0.0.1`
 and `8501`. The Docker image sets `HOST=0.0.0.0` so the published port is reachable.

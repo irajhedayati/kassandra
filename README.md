@@ -150,6 +150,9 @@ The first time Kassandra starts it asks where to keep these files (default `~/.k
 the sidebar reopens that page. Choosing an empty location copies the current configuration there (the old files are left
 in place); a location that already holds a configuration is used as is. Setting the `KASSANDRA_HOME` environment variable
 fixes the location, skips the first-run page and disables the setting in the UI (the Docker image and Helm chart do this).
+By default, the configuration is kept in files (the file backend). KASSANDRA_STORAGE selects a different storage backend
+by name; if the name is unknown, the server fails with an error that lists the available backends. KASSANDRA_HOME and
+the Configuration page's location setting apply only to the file backend.
 
 The same page has an **Appearance** setting (Light, Dark or System, which follows the operating system). It is remembered
 per browser.
