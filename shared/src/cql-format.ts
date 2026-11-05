@@ -1,13 +1,16 @@
 /**
  * Layout-only CQL formatter for the raw CQL editor.
  *
- * It only changes whitespace between tokens: clause keywords start new lines,
+ * It changes whitespace between tokens: clause keywords start new lines,
  * continuation lines are indented, long or CREATE TABLE column lists are put
  * one item per line, runs of whitespace collapse, commas and comparison
- * operators get consistent spacing. Identifier and keyword case, literals,
- * comments, parameters and statement order are never touched. As a safety net
- * the result is re-tokenised and must give exactly the original tokens;
- * otherwise formatCql throws and the caller keeps the original text.
+ * operators get consistent spacing. The only other change is that CQL keywords
+ * are written in upper case, which is safe because unquoted words are case
+ * insensitive in CQL; identifiers, data types, function names, named
+ * parameters (:name), quoted identifiers, literals, comments and statement
+ * order are never touched. As a safety net the result is re-tokenised and must
+ * give the original tokens (ignoring the case of words, except parameter
+ * names); otherwise formatCql throws and the caller keeps the original text.
  */
 
 interface Tok {
@@ -79,6 +82,80 @@ function tokenize(cql: string): Tok[] {
 /** Token texts of `cql`, whitespace excluded. Two queries with equal lists differ only in layout. */
 export function cqlTokenTexts(cql: string): string[] {
   return tokenize(cql).map((t) => t.text);
+}
+
+/** Reserved words of CQL: never valid as unquoted identifiers, so always keywords. */
+const RESERVED = new Set([
+  'ADD', 'ALLOW', 'ALTER', 'AND', 'APPLY', 'ASC', 'AUTHORIZE', 'BATCH', 'BEGIN', 'BY', 'COLUMNFAMILY', 'CREATE',
+  'DELETE', 'DESC', 'DESCRIBE', 'DROP', 'ENTRIES', 'EXECUTE', 'FROM', 'FULL', 'GRANT', 'IF', 'IN', 'INDEX',
+  'INFINITY', 'INSERT', 'INTO', 'IS', 'KEYSPACE', 'LIMIT', 'MODIFY', 'NAN', 'NORECURSIVE', 'NOT', 'NULL', 'OF',
+  'ON', 'OR', 'ORDER', 'PRIMARY', 'RENAME', 'REVOKE', 'SCHEMA', 'SELECT', 'SET', 'TABLE', 'TO', 'TOKEN',
+  'TRUNCATE', 'UNLOGGED', 'UPDATE', 'USE', 'USING', 'VIEW', 'WHERE', 'WITH',
+]);
+/** Aggregate / meta functions, upper-cased only when called: COUNT(*), TTL(col). */
+const CALLED_FUNCTIONS = new Set(['COUNT', 'TTL', 'WRITETIME', 'MIN', 'MAX', 'SUM', 'AVG']);
+/** Keywords that end a USING clause (after which TTL / TIMESTAMP are no longer keywords). */
+const USING_ENDERS = new Set(['WHERE', 'SET', 'VALUES', 'IF', 'SELECT', 'INSERT', 'UPDATE', 'DELETE', 'BEGIN', 'APPLY']);
+
+/**
+ * Upper-case the CQL keywords. Unquoted words are case insensitive in CQL, so
+ * this never changes meaning; named parameters (:name) and qualified names
+ * (ks.table) are skipped, and so is anything that could be an identifier.
+ */
+function uppercaseKeywords(toks: Tok[]): Tok[] {
+  let inUsing = false;
+  return toks.map((t, i) => {
+    if (t.text === ';') inUsing = false;
+    if (t.kind !== 'word') return t;
+    const prev = toks[i - 1];
+    const next = toks[i + 1];
+    const attached =
+      (prev && prev.end === t.start && (prev.text === ':' || prev.text === '.')) ||
+      (next && next.start === t.end && next.text === '.');
+    if (attached) return t;
+
+    const up = t.text.toUpperCase();
+    const prevWord = upper(prev);
+    let keyword = RESERVED.has(up);
+    if (!keyword) {
+      switch (up) {
+        case 'EXISTS':
+          keyword = prevWord === 'IF' || prevWord === 'NOT';
+          break;
+        case 'FILTERING':
+          keyword = prevWord === 'ALLOW';
+          break;
+        case 'PER':
+          keyword = upper(next) === 'PARTITION';
+          break;
+        case 'PARTITION':
+          keyword = prevWord === 'PER';
+          break;
+        case 'CLUSTERING':
+          keyword = upper(next) === 'ORDER';
+          break;
+        case 'KEY':
+          keyword = prevWord === 'PRIMARY';
+          break;
+        case 'TYPE':
+          keyword = prevWord === 'CREATE' || prevWord === 'ALTER' || prevWord === 'DROP';
+          break;
+        case 'VALUES':
+          keyword = prev?.text === ')';
+          break;
+        case 'TTL':
+        case 'TIMESTAMP':
+          keyword = inUsing && (prevWord === 'USING' || prevWord === 'AND');
+          break;
+        default:
+          keyword = false;
+      }
+      if (!keyword && CALLED_FUNCTIONS.has(up)) keyword = next?.text === '(' && next.start === t.end;
+    }
+    if (up === 'USING' && keyword) inUsing = true;
+    else if (keyword && USING_ENDERS.has(up)) inUsing = false;
+    return keyword ? { ...t, text: up } : t;
+  });
 }
 
 const isLineComment = (t: Tok) => t.kind === 'comment' && !t.text.startsWith('/*');
@@ -167,6 +244,8 @@ function formatStatement(toks: Tok[], source: string): string[] {
   let clause = '';
   let depth = 0;
   const seen = new Set<string>();
+  /** Words of a multi-word clause (PER PARTITION LIMIT) are not clause starts themselves. */
+  let clauseWordsUntil = 0;
 
   const flush = () => {
     if (cur.trim() !== '') lines.push(' '.repeat(curIndent) + cur);
@@ -194,11 +273,12 @@ function formatStatement(toks: Tok[], source: string): string[] {
 
     if (depth === 0 && t.kind === 'word') {
       const up = t.text.toUpperCase();
-      const rule = started ? clauseAt(toks, i, rules) : undefined;
+      const rule = started && i >= clauseWordsUntil ? clauseAt(toks, i, rules) : undefined;
       const key = rule?.join(' ');
       if (rule && key && !seen.has(key) && !(up === 'FROM' && prevWord === 'DELETE')) {
         seen.add(key);
         clause = rule[0]!;
+        clauseWordsUntil = i + rule.length;
         newline(0);
       } else if (up === 'AND' && AND_CLAUSES.has(clause)) {
         newline(2);
@@ -328,7 +408,7 @@ function formatBatch(toks: Tok[], source: string): string[] | null {
  * tokens, in which case the original should be kept.
  */
 export function formatCql(cql: string): string {
-  const toks = tokenize(cql);
+  const toks = uppercaseKeywords(tokenize(cql));
   if (!toks.some((t) => t.kind !== 'comment')) return cql;
 
   const blocks: string[] = [];
@@ -339,9 +419,15 @@ export function formatCql(cql: string): string {
   }
   const result = blocks.join('\n\n') + (/\n\s*$/.test(cql) ? '\n' : '');
 
-  const before = tokenize(cql).map((t) => t.text);
-  const after = tokenize(result).map((t) => t.text);
-  if (before.length !== after.length || before.some((t, i) => t !== after[i])) {
+  const before = tokenize(cql);
+  const after = tokenize(result);
+  const same = (a: Tok, i: number): boolean => {
+    const b = after[i]!;
+    // Words may differ in case, except named parameters (:name).
+    const caseOnly = a.kind === 'word' && b.kind === 'word' && !(before[i - 1]?.text === ':' && a.start === before[i - 1]!.end);
+    return caseOnly ? a.text.toLowerCase() === b.text.toLowerCase() : a.text === b.text;
+  };
+  if (before.length !== after.length || !before.every(same)) {
     throw new CqlFormatError('Could not format this query safely; it was left unchanged.');
   }
   return result;

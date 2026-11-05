@@ -11,7 +11,7 @@
  * Shortcuts:
  *  - Cmd/Ctrl + Enter executes the current query (mirrors legacy
  *    `legacy/src/view/cql_view.py`).
- *  - Format CQL reformats the query in place (layout only; nothing is run or saved).
+ *  - Format CQL reformats the query in place and upper-cases keywords (nothing is run or saved).
  *
  * Owned by the cql lane.
  */
