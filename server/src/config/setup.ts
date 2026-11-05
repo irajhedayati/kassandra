@@ -2,9 +2,18 @@
  * First-run state and moving the configuration to another directory
  * (the Configuration page).
  */
-import type { ChangeLocationResult, SetupInfo } from '@kassandra/shared';
-import { existsSync } from 'node:fs';
+import type { ChangeLocationResult, ChangeStorageRequest, SetupInfo } from '@kassandra/shared';
+import { existsSync, statSync } from 'node:fs';
 import path from 'node:path';
+import {
+  defaultSqlitePath,
+  getBackendName,
+  getSqlitePath,
+  hasSavedBackend,
+  isBackendLocked,
+  isSqlitePathLocked,
+  saveBackend,
+} from './backend.js';
 import { FileStorage } from './fileStorage.js';
 import {
   defaultConfigDir,
@@ -18,13 +27,17 @@ import {
 } from './location.js';
 import { runMigrations } from './migrations/index.js';
 import { serialize } from './serial.js';
+import { closeSharedSqliteStorage, SqliteStorage } from './sqliteStorage.js';
+import { getStorage, type ConfigStorage } from './storage.js';
 
 let firstRun: boolean | null = null;
 
 function detectFirstRun(): boolean {
   return (
     !isLocationLocked() &&
+    !isBackendLocked() &&
     !hasSavedLocation() &&
+    !hasSavedBackend() &&
     !existsSync(path.join(defaultConfigDir(), 'config.json'))
   );
 }
@@ -45,7 +58,25 @@ export function getSetupInfo(): SetupInfo {
     location: getConfigDir(),
     defaultLocation: defaultConfigDir(),
     locked: isLocationLocked(),
+    backend: getBackendName(),
+    backendLocked: isBackendLocked(),
+    sqlitePath: getSqlitePath(),
+    defaultSqlitePath: defaultSqlitePath(),
+    sqlitePathLocked: isSqlitePathLocked(),
   };
+}
+
+/** Copy every document (earlier backups excluded) and the version; returns how many documents. */
+async function copyConfiguration(from: ConfigStorage, to: ConfigStorage): Promise<number> {
+  let copied = 0;
+  for (const key of (await from.list('')).filter((k) => !k.startsWith('backups/'))) {
+    const value = await from.get(key);
+    if (value !== undefined) await to.put(key, value);
+    copied++;
+  }
+  const version = await from.getVersion();
+  if (version) await to.setVersion(version);
+  return copied;
 }
 
 /**
@@ -59,6 +90,9 @@ export function changeLocation(input: string): Promise<ChangeLocationResult> {
     if (isLocationLocked()) {
       throw new LocationError('The location is set by KASSANDRA_HOME and cannot be changed here', 409);
     }
+    if (getBackendName() !== 'file') {
+      throw new LocationError('The location only applies to the file backend; switch to it first', 409);
+    }
     const target = expandLocation(input);
     await ensureWritableDir(target);
 
@@ -70,13 +104,7 @@ export function changeLocation(input: string): Promise<ChangeLocationResult> {
       const to = new FileStorage(target);
       existing = (await to.list('')).length > 0;
       if (!existing) {
-        for (const key of (await from.list('')).filter((k) => !k.startsWith('backups/'))) {
-          const value = await from.get(key);
-          if (value !== undefined) await to.put(key, value);
-          copied++;
-        }
-        const version = await from.getVersion();
-        if (version) await to.setVersion(version);
+        copied = await copyConfiguration(from, to);
       }
       await runMigrations(to);
     }
@@ -85,4 +113,60 @@ export function changeLocation(input: string): Promise<ChangeLocationResult> {
     firstRun = false;
     return { ...getSetupInfo(), copied, existing };
   });
+}
+
+/**
+ * Switch the storage backend. A target that already holds a configuration is
+ * used as is; an empty one receives a copy of the current configuration
+ * (unless `migrate` is false). The target is migrated to the running version
+ * before it becomes active, and the previous storage is left untouched.
+ */
+export function changeStorage(request: ChangeStorageRequest): Promise<ChangeLocationResult> {
+  return serialize(async () => {
+    if (isBackendLocked()) {
+      throw new LocationError('The storage backend is set by KASSANDRA_STORAGE and cannot be changed here', 409);
+    }
+    const { backend, migrate = true } = request;
+    if (backend !== 'file' && backend !== 'sqlite') {
+      throw new LocationError('Backend must be "file" or "sqlite"', 400);
+    }
+
+    let sqlitePath: string | undefined;
+    let target: ConfigStorage;
+    if (backend === 'sqlite') {
+      sqlitePath = isSqlitePathLocked() ? getSqlitePath() : expandLocation(request.sqlitePath ?? defaultSqlitePath());
+      target = await openSqlite(sqlitePath);
+    } else {
+      target = new FileStorage(getConfigDir());
+    }
+
+    try {
+      const unchanged = backend === getBackendName() && (backend === 'file' || sqlitePath === getSqlitePath());
+      let copied = 0;
+      let existing = false;
+      if (!unchanged) {
+        existing = (await target.list('')).length > 0;
+        if (!existing && migrate) copied = await copyConfiguration(getStorage(), target);
+        await runMigrations(target);
+      }
+      saveBackend({ backend, sqlitePath });
+      firstRun = false;
+      return { ...getSetupInfo(), copied, existing };
+    } finally {
+      if (target instanceof SqliteStorage) target.close();
+      // Let the next request open the database that is now active.
+      closeSharedSqliteStorage();
+    }
+  });
+}
+
+async function openSqlite(file: string): Promise<SqliteStorage> {
+  try {
+    if (existsSync(file) && statSync(file).isDirectory()) throw new Error('is a directory');
+    await ensureWritableDir(path.dirname(file));
+    return new SqliteStorage(file);
+  } catch (err) {
+    if (err instanceof LocationError) throw err;
+    throw new LocationError(`Cannot use ${file}: ${err instanceof Error ? err.message : String(err)}`, 400);
+  }
 }

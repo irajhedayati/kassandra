@@ -14,7 +14,9 @@
  * reject anything else. The version of the data is kept apart from the keys
  * because it is read before anything can be parsed.
  */
+import { DEFAULT_BACKEND, getBackendName, getSqlitePath } from './backend.js';
 import { FileStorage, getConfigDir } from './fileStorage.js';
+import { sharedSqliteStorage } from './sqliteStorage.js';
 
 export interface LockOptions {
   /** How long to wait for another process to release the lock. Default 60 s. */
@@ -49,23 +51,19 @@ export interface ConfigStorage {
 /** Creates a backend. Called on every `getStorage()`, so a non-trivial backend should return a shared instance. */
 export type StorageFactory = () => ConfigStorage;
 
-export const DEFAULT_BACKEND = 'file';
-
-const backends = new Map<string, StorageFactory>([[DEFAULT_BACKEND, () => new FileStorage(getConfigDir())]]);
+const backends = new Map<string, StorageFactory>([
+  [DEFAULT_BACKEND, () => new FileStorage(getConfigDir())],
+  ['sqlite', () => sharedSqliteStorage(getSqlitePath())],
+]);
 
 /** Make a backend selectable with `KASSANDRA_STORAGE=<name>`. Replaces a backend of the same name. */
 export function registerStorageBackend(name: string, factory: StorageFactory): void {
   backends.set(name, factory);
 }
 
-/** Name of the configured backend: `KASSANDRA_STORAGE`, else `file`. */
-export function getBackendName(): string {
-  return process.env.KASSANDRA_STORAGE?.trim() || DEFAULT_BACKEND;
-}
-
 let override: ConfigStorage | null = null;
 
-/** The active storage: the backend named by `KASSANDRA_STORAGE`, files in `KASSANDRA_HOME ?? ~/.kassandra` by default. */
+/** The active storage: the backend chosen with `KASSANDRA_STORAGE` or on the Configuration page (see backend.ts), files in `KASSANDRA_HOME ?? ~/.kassandra` by default. */
 export function getStorage(): ConfigStorage {
   if (override) return override;
   const name = getBackendName();

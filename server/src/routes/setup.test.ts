@@ -6,6 +6,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../app.js';
 import { initSetupState } from '../config/setup.js';
+import { closeSharedSqliteStorage } from '../config/sqliteStorage.js';
 
 describe('/api/setup (first-run flow through the Express app)', () => {
   let home: string;
@@ -36,9 +37,11 @@ describe('/api/setup (first-run flow through the Express app)', () => {
     work = fs.mkdtempSync(path.join(os.tmpdir(), 'kassandra-work-'));
     process.env.HOME = home;
     delete process.env.KASSANDRA_HOME;
+    delete process.env.KASSANDRA_STORAGE;
     initSetupState();
   });
   afterEach(() => {
+    closeSharedSqliteStorage();
     process.env.HOME = savedHome;
     delete process.env.KASSANDRA_HOME;
     fs.rmSync(home, { recursive: true, force: true });
@@ -94,5 +97,23 @@ describe('/api/setup (first-run flow through the Express app)', () => {
     expect(info).toMatchObject({ locked: true, location: path.join(work, 'fixed') });
     const { status } = await call('PUT', '/api/setup/location', { location: path.join(work, 'other') });
     expect(status).toBe(409);
+  });
+
+  it('switches to SQLite over PUT /storage and rejects bad requests', async () => {
+    const bad = await call('PUT', '/api/setup/storage', { backend: 'redis' });
+    expect(bad.status).toBe(400);
+
+    const db = path.join(work, 'k.db');
+    const { status, json } = await call('PUT', '/api/setup/storage', { backend: 'sqlite', sqlitePath: db });
+    expect(status).toBe(200);
+    expect(json.data).toMatchObject({ backend: 'sqlite', sqlitePath: db, firstRun: false });
+    expect(fs.existsSync(db)).toBe(true);
+
+    // The file location no longer applies.
+    const loc = await call('PUT', '/api/setup/location', { location: path.join(work, 'x') });
+    expect(loc.status).toBe(409);
+
+    const back = await call('PUT', '/api/setup/storage', { backend: 'file' });
+    expect(back.json.data.backend).toBe('file');
   });
 });

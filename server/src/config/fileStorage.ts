@@ -4,12 +4,12 @@
  */
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { keySegments } from './keys.js';
 import { getConfigDir } from './location.js';
 import type { ConfigStorage, LockOptions } from './storage.js';
 
 const VERSION_FILE_NAME = 'VERSION';
 const LOCK_FILE_NAME = '.migrate.lock';
-const SEGMENT = /^[A-Za-z0-9_%][A-Za-z0-9_%.-]*$/;
 
 export { getConfigDir };
 
@@ -24,9 +24,7 @@ export class FileStorage implements ConfigStorage {
   }
 
   private file(key: string): string {
-    const segments = key.split('/');
-    if (!segments.every((s) => SEGMENT.test(s))) throw new Error(`Invalid storage key: ${key}`);
-    const parts = [...segments];
+    const parts = keySegments(key);
     parts[parts.length - 1] += '.json';
     return path.join(this.dir, ...parts);
   }

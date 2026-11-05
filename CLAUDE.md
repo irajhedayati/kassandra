@@ -66,6 +66,8 @@ legacy/  ; original Python/Streamlit app (reference only)
 - `config/location.ts`; where the config lives: `KASSANDRA_HOME`, else the path saved by the Configuration page in
   `~/.kassandra/.location`, else `~/.kassandra`. `config/setup.ts` holds the first-run state (decided once at startup)
   and `changeLocation()`, which copies to an empty target, migrates it and then switches.
+- `config/backend.ts`; which backend is active (`KASSANDRA_STORAGE`, else the choice saved in `~/.kassandra/.backend`, else `file`) and the SQLite path (`KASSANDRA_SQLITE_PATH`, else saved, else `<config dir>/kassandra.db`). `setup.ts#changeStorage()` switches backend, copying into an empty target and migrating it first.
+- `config/sqliteStorage.ts`; SQLite backend on `node:sqlite` (no native dependency): `documents`, `meta` and `lock` tables, schema versioned with `PRAGMA user_version` (append to `SCHEMA_STEPS`).
 - `config/fileStorage.ts`; default backend: `${KASSANDRA_HOME ?? ~/.kassandra}/<key>.json` (`config.json`,
   `tables/*.json`) plus a plain-text `VERSION` file.
 - `config/store.ts`; settings (profiles, favorites, saved queries) and column metadata on top of `ConfigStorage`. All

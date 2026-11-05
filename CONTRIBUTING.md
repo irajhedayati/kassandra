@@ -61,7 +61,9 @@ application and the migrations then work unchanged.
 
 Then make it selectable: call `registerStorageBackend('<name>', () => new YourStorage(...))` (from `storage.ts`) at
 startup. Users choose it with `KASSANDRA_STORAGE=<name>`; without it the `file` backend is used. The factory runs on
-every `getStorage()` call, so return a shared instance.
+every `getStorage()` call, so return a shared instance. The built-in `sqlite` backend (`sqliteStorage.ts`) is a worked
+example; a change to its tables is a new entry at the end of `SCHEMA_STEPS`, not an edit of an existing one. To offer a
+backend on the Configuration page it also needs a place in `config/backend.ts` and `changeStorage()` in `setup.ts`.
 
 ---
 

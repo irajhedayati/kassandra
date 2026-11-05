@@ -32,12 +32,30 @@ export interface SetupInfo {
   defaultLocation: string;
   /** KASSANDRA_HOME fixes the location; it cannot be changed from the UI. */
   locked: boolean;
+  /** Storage backend in use: `file` or `sqlite` (or a registered connector). */
+  backend: string;
+  /** KASSANDRA_STORAGE fixes the backend; it cannot be changed from the UI. */
+  backendLocked: boolean;
+  /** SQLite database file in use (or that would be used if `sqlite` were chosen). */
+  sqlitePath: string;
+  defaultSqlitePath: string;
+  /** KASSANDRA_SQLITE_PATH fixes the database file. */
+  sqlitePathLocked: boolean;
 }
 
-/** Payload of PUT /api/setup/location. */
+/** Payload of PUT /api/setup/location and PUT /api/setup/storage. */
 export interface ChangeLocationResult extends SetupInfo {
-  /** Documents copied from the previous location. */
+  /** Documents copied from the previous location or storage. */
   copied: number;
-  /** The new location already held a configuration, which is used as is. */
+  /** The new location or storage already held a configuration, which is used as is. */
   existing: boolean;
+}
+
+/** Body of PUT /api/setup/storage. */
+export interface ChangeStorageRequest {
+  backend: 'file' | 'sqlite';
+  /** Database file for `sqlite`; the default in the config directory when omitted. */
+  sqlitePath?: string;
+  /** Copy the current configuration into an empty target. Default true. */
+  migrate?: boolean;
 }
