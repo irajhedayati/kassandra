@@ -92,6 +92,11 @@ const RESERVED = new Set([
   'ON', 'OR', 'ORDER', 'PRIMARY', 'RENAME', 'REVOKE', 'SCHEMA', 'SELECT', 'SET', 'TABLE', 'TO', 'TOKEN',
   'TRUNCATE', 'UNLOGGED', 'UPDATE', 'USE', 'USING', 'VIEW', 'WHERE', 'WITH',
 ]);
+/** True when `word` is a reserved CQL word, which can only be used as an identifier when quoted. */
+export function isCqlReservedWord(word: string): boolean {
+  return RESERVED.has(word.toUpperCase());
+}
+
 /** Aggregate / meta functions, upper-cased only when called: COUNT(*), TTL(col). */
 const CALLED_FUNCTIONS = new Set(['COUNT', 'TTL', 'WRITETIME', 'MIN', 'MAX', 'SUM', 'AVG']);
 /** Keywords that end a USING clause (after which TTL / TIMESTAMP are no longer keywords). */

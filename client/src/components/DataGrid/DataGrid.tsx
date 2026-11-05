@@ -40,6 +40,8 @@ import { RowDetail } from './RowDetail.js';
 import { CopyBar } from '../CopyBar.js';
 import { OptionDropdown } from '../OptionDropdown.js';
 import { applyGridView, type SortState } from '../../utils/gridView.js';
+import { buildFilterSelectCql } from '../../utils/cqlLiteral.js';
+import { useCqlDraft } from '../../state/cqlDraft.js';
 
 interface Props {
   keyspace: string;
@@ -64,6 +66,8 @@ export function DataGrid({ keyspace, table }: Props) {
   const [pageStack, setPageStack] = useState<(string | null)[]>([null]);
   const [filterDraft, setFilterDraft] = useState<Record<string, FilterDraftEntry>>({});
   const [filters, setFilters] = useState<FilterCondition[]>([]);
+  const pushQuery = useCqlDraft((s) => s.pushQuery);
+  const [cqlSent, setCqlSent] = useState(false);
   const [selectedRow, setSelectedRow] = useState<Row | null>(null);
   // Client-side view over the loaded page only; not sent to the server.
   const [sort, setSort] = useState<SortState | null>(null);
@@ -193,11 +197,20 @@ export function DataGrid({ keyspace, table }: Props) {
       });
     }
     setFilters(next);
+    setCqlSent(false);
   };
 
   const onClearFilters = () => {
     setFilterDraft({});
     setFilters([]);
+    setCqlSent(false);
+  };
+
+  // Uses the applied filters (`filters`), not the unapplied edits in `filterDraft`.
+  const onGenerateCql = () => {
+    if (!schema) return;
+    pushQuery(buildFilterSelectCql(schema.keyspace, schema.table_name, schema.columns, filters));
+    setCqlSent(true);
   };
 
   const onNext = () => {
@@ -339,6 +352,14 @@ export function DataGrid({ keyspace, table }: Props) {
             </button>
             <button
               type="button"
+              onClick={onGenerateCql}
+              title="Send the CQL for the applied filters to the CQL editor"
+              className="rounded border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-100"
+            >
+              Generate CQL
+            </button>
+            <button
+              type="button"
               onClick={onClearFilters}
               className="rounded border border-slate-300 bg-white px-3 py-1 text-sm text-slate-700 hover:bg-slate-100"
             >
@@ -346,6 +367,12 @@ export function DataGrid({ keyspace, table }: Props) {
             </button>
           </div>
         </form>
+      )}
+      {cqlSent && (
+        <div className="rounded border border-blue-200 dark:border-blue-800 bg-blue-50 px-3 py-2 text-sm text-blue-700 dark:text-blue-300">
+          {filters.length > 0 ? 'The CQL for the applied filters' : 'A SELECT for the whole table'} was sent to the CQL editor
+          below; review and execute it there.
+        </div>
       )}
 
       <div className="overflow-hidden rounded border border-slate-200 bg-white">
