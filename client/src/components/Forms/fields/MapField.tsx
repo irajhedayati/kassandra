@@ -9,6 +9,7 @@ import {
   textareaClass,
   type FieldProps,
 } from './index.js';
+import { useMonacoTheme } from '../../../state/appearance.js';
 
 interface Entry {
   key: string;
@@ -183,6 +184,7 @@ const BLOCK_WIDGETS = new Set<ValueWidget>(['JSON', 'blob_hex']);
  * in-progress rows disappear.
  */
 export function MapField(props: FieldProps) {
+  const monacoTheme = useMonacoTheme();
   const { column, value, onChange, disabled, placeholder, mapSchema } = props;
 
   const isTupleEditor = isStringStringMap(column.cql_type);
@@ -308,7 +310,7 @@ export function MapField(props: FieldProps) {
                   <label className="flex flex-1 items-center gap-2">
                     <input
                       type="checkbox"
-                      className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                      className="h-4 w-4 rounded border-slate-300 text-blue-600 dark:text-blue-400 focus:ring-blue-500"
                       checked={entry.value === 'true' || entry.value === '1'}
                       disabled={disabled}
                       onChange={(e) => setValue(e.target.checked ? 'true' : 'false')}
@@ -384,7 +386,7 @@ export function MapField(props: FieldProps) {
                     height="100%"
                     defaultLanguage="json"
                     language="json"
-                    theme="vs-light"
+                    theme={monacoTheme}
                     value={entry.value}
                     onChange={(v: string | undefined) => setValue(v ?? '')}
                     options={{

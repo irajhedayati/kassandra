@@ -1,6 +1,116 @@
 @import 'tailwindcss';
 @config '../tailwind.config.js';
 
+@theme {
+  /* Kassandra brand palette, drawn from the logo's deep navy, electric blue,
+     and cyan gradient. Existing blue/slate utility classes inherit the brand
+     without requiring one-off colors throughout the component tree. */
+  --color-blue-50: #effbff;
+  --color-blue-100: #d6f6ff;
+  --color-blue-200: #adefff;
+  --color-blue-300: #70e4f8;
+  --color-blue-400: #28cde8;
+  --color-blue-500: #0aa9d1;
+  --color-blue-600: #087fb8;
+  --color-blue-700: #075f9e;
+  --color-blue-800: #084a7d;
+  --color-blue-900: #073866;
+  --color-blue-950: #03244d;
+  --color-cyan-50: #edfeff;
+  --color-cyan-100: #cffbff;
+  --color-cyan-200: #a4f6fc;
+  --color-cyan-300: #65edf5;
+  --color-cyan-400: #20d8e5;
+  --color-cyan-500: #06bccd;
+  --color-cyan-600: #0797aa;
+  --color-cyan-700: #0d7889;
+  --color-cyan-800: #12616f;
+  --color-cyan-900: #134f5c;
+  --color-cyan-950: #05343f;
+  --color-slate-50: #f7fafc;
+  --color-slate-100: #edf4f8;
+  --color-slate-200: #dce8f0;
+  --color-slate-300: #bdceda;
+  --color-slate-400: #8ba3b5;
+  --color-slate-500: #627b90;
+  --color-slate-600: #465f75;
+  --color-slate-700: #30475c;
+  --color-slate-800: #1b3248;
+  --color-slate-900: #0d243a;
+  --color-slate-950: #06182c;
+  --color-green-50: #ecfdf3;
+  --color-green-100: #d1fadf;
+  --color-green-200: #a6f4c5;
+  --color-green-300: #6ce9a6;
+  --color-green-400: #32d583;
+  --color-green-500: #12b76a;
+  --color-green-600: #039855;
+  --color-green-700: #027a48;
+  --color-green-800: #05603a;
+  --color-green-900: #054f31;
+  --color-green-950: #053321;
+  --color-red-50: #fef3f2;
+  --color-red-100: #fee4e2;
+  --color-red-200: #fecdca;
+  --color-red-300: #fda29b;
+  --color-red-400: #f97066;
+  --color-red-500: #f04438;
+  --color-red-600: #d92d20;
+  --color-red-700: #b42318;
+  --color-red-800: #912018;
+  --color-red-900: #7a271a;
+  --color-red-950: #55160c;
+
+  /* Same values as slate, but never overridden by the dark theme: the sidebar is navy in both modes. */
+  --color-ink-50: #f7fafc;
+  --color-ink-100: #edf4f8;
+  --color-ink-200: #dce8f0;
+  --color-ink-300: #bdceda;
+  --color-ink-400: #8ba3b5;
+  --color-ink-500: #627b90;
+  --color-ink-600: #465f75;
+  --color-ink-700: #30475c;
+  --color-ink-800: #1b3248;
+  --color-ink-900: #0d243a;
+  --color-ink-950: #06182c;
+}
+
+/* The `dark` class on <html> switches the theme (see src/state/appearance.ts). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Dark theme: remap the neutral and tint colors the components already use, so
+ * almost no component needs dark: variants. Brand blue/cyan (buttons, sidebar)
+ * and the saturated status colors stay as they are.
+ */
+.dark {
+  color-scheme: dark;
+
+  --color-white: #12293f; /* card surfaces */
+  --color-slate-50: #081c30;
+  --color-slate-100: #0d243a;
+  --color-slate-200: #223c52;
+  --color-slate-300: #35506a;
+  --color-slate-400: #6d8aa0;
+  --color-slate-500: #8ba3b5;
+  --color-slate-600: #a9bccb;
+  --color-slate-700: #c5d3de;
+  --color-slate-800: #dce8f0;
+  --color-slate-900: #edf4f8;
+  --color-slate-950: #f7fafc;
+
+  --color-blue-50: #0a2c4a;
+  --color-blue-100: #0c3a5e;
+  --color-cyan-50: #0a2f3a;
+  --color-cyan-100: #0c3d4a;
+  --color-red-50: #3a1517;
+  --color-red-100: #4a1a1d;
+  --color-green-50: #0f2f22;
+  --color-green-100: #143d2b;
+  --color-amber-50: #33260c;
+  --color-amber-100: #43310f;
+}
+
 @layer base {
   html,
   body,

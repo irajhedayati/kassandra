@@ -30,6 +30,7 @@ import { CqlExecutionReport, type StatementRun } from './CqlExecutionReport.js';
 import { SaveQueryDialog } from '../Dialogs/SaveQueryDialog.js';
 import { SavedQueriesDialog } from '../Dialogs/SavedQueriesDialog.js';
 import { registerCqlCompletionProvider } from './cqlCompletion.js';
+import { useMonacoTheme } from '../../state/appearance.js';
 
 const DEFAULT_PAGE_SIZE = 100;
 
@@ -43,6 +44,7 @@ function formatDuration(ms: number): string {
 }
 
 export function CqlEditor() {
+  const monacoTheme = useMonacoTheme();
   const [collapsed, setCollapsed] = useState(false);
   const [query, setQuery] = useState<string>('');
   // Rows of the SELECT statement, if any, and where it sits in `runs` (for paging).
@@ -278,7 +280,7 @@ export function CqlEditor() {
               height="240px"
               defaultLanguage="sql"
               language="sql"
-              theme="vs-light"
+              theme={monacoTheme}
               value={query}
               onChange={onChange}
               onMount={handleEditorMount}
@@ -313,8 +315,8 @@ export function CqlEditor() {
             <div
               className={`rounded border px-3 py-2 text-sm ${
                 notice.kind === 'error'
-                  ? 'border-red-300 bg-red-50 text-red-800'
-                  : 'border-green-200 bg-green-50 text-green-800'
+                  ? 'border-red-300 dark:border-red-800 bg-red-50 text-red-800 dark:text-red-200'
+                  : 'border-green-200 dark:border-green-900 bg-green-50 text-green-800 dark:text-green-200'
               }`}
             >
               {notice.text}

@@ -137,7 +137,7 @@ export function RowDetail(props: Props) {
                 setDeleteError(null);
                 setConfirming(true);
               }}
-              className="rounded border border-red-300 bg-white px-3 py-1.5 text-sm text-red-700 hover:bg-red-50"
+              className="rounded border border-red-300 dark:border-red-800 bg-white px-3 py-1.5 text-sm text-red-700 dark:text-red-300 hover:bg-red-50"
             >
               Delete
               <kbd className="ml-1.5 text-xs text-red-400" title="Option+D / Ctrl+D">⌥D</kbd>

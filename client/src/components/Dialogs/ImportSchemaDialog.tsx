@@ -59,7 +59,7 @@ export function ImportSchemaDialog(props: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0d243a]/40 dark:bg-black/60 p-4">
       <div className="w-full max-w-2xl rounded bg-white p-6 shadow-lg">
         <h2 className="text-lg font-semibold text-slate-900">Import schema</h2>
         <p className="mt-1 text-sm text-slate-600">
@@ -74,7 +74,7 @@ export function ImportSchemaDialog(props: Props) {
           {filesQuery.isLoading ? (
             <div className="p-3 text-sm text-slate-500">Loading files…</div>
           ) : filesQuery.isError ? (
-            <div className="p-3 text-sm text-red-600">
+            <div className="p-3 text-sm text-red-600 dark:text-red-400">
               Failed to list files: {(filesQuery.error as Error).message}
             </div>
           ) : files.length === 0 ? (
@@ -128,14 +128,14 @@ export function ImportSchemaDialog(props: Props) {
         </div>
 
         {confirming && (
-          <div className="mt-3 rounded border border-amber-300 bg-amber-50 p-2 text-sm text-amber-800">
+          <div className="mt-3 rounded border border-amber-300 dark:border-amber-800 bg-amber-50 p-2 text-sm text-amber-800 dark:text-amber-200">
             This replaces the current metadata for {keyspace}.{table}, including any unsaved
             changes. Continue?
           </div>
         )}
 
         {props.errorMessage && (
-          <div className="mt-3 rounded border border-red-300 bg-red-50 p-2 text-sm text-red-700">
+          <div className="mt-3 rounded border border-red-300 dark:border-red-800 bg-red-50 p-2 text-sm text-red-700 dark:text-red-300">
             {props.errorMessage}
           </div>
         )}

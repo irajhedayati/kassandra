@@ -217,7 +217,7 @@ export function DataGrid({ keyspace, table }: Props) {
   }
   if (schemaQuery.isError) {
     return (
-      <div className="rounded border border-red-300 bg-red-50 p-3 text-sm text-red-700">
+      <div className="rounded border border-red-300 dark:border-red-800 bg-red-50 p-3 text-sm text-red-700 dark:text-red-300">
         Failed to load schema: {(schemaQuery.error as Error).message}
       </div>
     );
@@ -375,7 +375,7 @@ export function DataGrid({ keyspace, table }: Props) {
                         {h.isPlaceholder
                           ? null
                           : flexRender(h.column.columnDef.header, h.getContext())}
-                        <span className={sort?.column === h.column.id ? 'text-blue-600' : 'text-slate-300'}>
+                        <span className={sort?.column === h.column.id ? 'text-blue-600 dark:text-blue-400' : 'text-slate-300'}>
                           {sort?.column === h.column.id ? (sort.direction === 'asc' ? '▲' : '▼') : '↕'}
                         </span>
                       </button>
@@ -414,7 +414,7 @@ export function DataGrid({ keyspace, table }: Props) {
                 <tr>
                   <td
                     colSpan={Math.max(visibleColumns.length, 1)}
-                    className="px-3 py-6 text-center text-red-700"
+                    className="px-3 py-6 text-center text-red-700 dark:text-red-300"
                   >
                     {errorMessage}
                   </td>

@@ -68,6 +68,7 @@ legacy/  ; original Python/Streamlit app (reference only)
 - `App.tsx`; sidebar + tabbed main panel. Reads connection status and selection from global stores.
 - `state/connection.ts`; TanStack Query hook for `/api/profiles/status`.
 - `state/selection.ts`; Zustand store for the active keyspace + table.
+- `state/appearance.ts`; Light/Dark/System (localStorage; toggles the `dark` class on `<html>`; also picks the Monaco theme). The palette is `@theme` variables in `index.css` and the dark theme is a `.dark` override block there, so components rarely need `dark:` classes. The always-navy sidebar uses the never-overridden `ink-*` copy of the slate scale instead of `slate-*`.
 - `api/client.ts`; typed fetch wrapper; throws `ApiError` on non-OK responses.
 - `components/Sidebar/`; `ConnectionPanel`, `SchemaNavigator`.
 - `components/DataGrid/`; paginated table view.

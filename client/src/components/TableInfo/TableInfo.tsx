@@ -152,7 +152,7 @@ export function TableInfo({ keyspace, table }: Props) {
   if (schemaQuery.isError) {
     const err = schemaQuery.error as Error;
     return (
-      <div className="text-sm text-red-600">
+      <div className="text-sm text-red-600 dark:text-red-400">
         Failed to load schema: {err.message}
       </div>
     );
@@ -161,7 +161,7 @@ export function TableInfo({ keyspace, table }: Props) {
   if (metadataQuery.isError) {
     const err = metadataQuery.error as Error;
     return (
-      <div className="text-sm text-red-600">
+      <div className="text-sm text-red-600 dark:text-red-400">
         Failed to load metadata: {err.message}
       </div>
     );
@@ -346,7 +346,7 @@ export function TableInfo({ keyspace, table }: Props) {
       </div>
 
       {saveMutation.isError ? (
-        <div className="mt-3 text-sm text-red-600">
+        <div className="mt-3 text-sm text-red-600 dark:text-red-400">
           Save failed: {(saveMutation.error as Error).message}
         </div>
       ) : null}

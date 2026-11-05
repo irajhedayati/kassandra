@@ -8,7 +8,7 @@ export function CheckboxField(props: FieldProps) {
     <label className="flex items-center gap-2">
       <input
         type="checkbox"
-        className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+        className="h-4 w-4 rounded border-slate-300 text-blue-600 dark:text-blue-400 focus:ring-blue-500"
         checked={checked}
         onChange={(e) => onChange(e.target.checked ? 'true' : 'false')}
         disabled={disabled}

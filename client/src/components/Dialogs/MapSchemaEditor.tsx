@@ -169,7 +169,7 @@ export function MapSchemaEditor(props: Props) {
         </div>
 
         {props.errorMessage && (
-          <div className="mb-4 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <div className="mb-4 rounded border border-red-200 dark:border-red-900 bg-red-50 px-3 py-2 text-sm text-red-700 dark:text-red-300">
             Save failed: {props.errorMessage}
           </div>
         )}

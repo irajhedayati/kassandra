@@ -79,7 +79,7 @@ export function JsonField(props: JsonFieldProps) {
         placeholder={placeholder ?? 'JSON'}
         spellCheck={false}
       />
-      {error && <span className="mt-1 block text-xs text-red-600">{error}</span>}
+      {error && <span className="mt-1 block text-xs text-red-600 dark:text-red-400">{error}</span>}
     </label>
   );
 }

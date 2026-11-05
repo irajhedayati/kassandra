@@ -203,7 +203,7 @@ export function CreateTableDialog({ open, keyspace, onClose }: Props) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0d243a]/40 dark:bg-black/60 p-4">
       <div className="max-h-full w-full max-w-3xl overflow-y-auto rounded bg-white p-6 shadow-lg">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900">
@@ -215,14 +215,14 @@ export function CreateTableDialog({ open, keyspace, onClose }: Props) {
             aria-label="Show help"
             aria-expanded={showHelp}
             title="Help"
-            className={`text-lg transition ${showHelp ? 'text-blue-600' : 'text-slate-400 hover:text-blue-600'}`}
+            className={`text-lg transition ${showHelp ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 hover:text-blue-600'}`}
           >
             <FontAwesomeIcon icon={faCircleQuestion} />
           </button>
         </div>
 
         {showHelp && (
-          <div className="mt-3 space-y-2 rounded border border-blue-200 bg-blue-50 p-3 text-xs text-slate-700">
+          <div className="mt-3 space-y-2 rounded border border-blue-200 dark:border-blue-800 bg-blue-50 p-3 text-xs text-slate-700">
             <p>
               <strong>Primary key</strong>: every table needs at least one partition key column.
               Partition keys decide where a row lives; with several, they are combined into a
@@ -249,7 +249,7 @@ export function CreateTableDialog({ open, keyspace, onClose }: Props) {
               statement that will run and explains anything that is invalid.
             </p>
             <p>
-              <a href={DOCS_URL} target="_blank" rel="noreferrer" className="text-blue-700 underline">
+              <a href={DOCS_URL} target="_blank" rel="noreferrer" className="text-blue-700 dark:text-blue-300 underline">
                 CREATE TABLE reference (DataStax)
               </a>
             </p>
@@ -357,7 +357,7 @@ export function CreateTableDialog({ open, keyspace, onClose }: Props) {
             <button
               type="button"
               onClick={() => setRows((rs) => [...rs, newRow()])}
-              className="mt-2 flex items-center gap-1.5 text-xs text-blue-600 hover:underline"
+              className="mt-2 flex items-center gap-1.5 text-xs text-blue-600 dark:text-blue-400 hover:underline"
             >
               <FontAwesomeIcon icon={faPlus} /> Add column
             </button>
@@ -424,7 +424,7 @@ export function CreateTableDialog({ open, keyspace, onClose }: Props) {
               CQL preview
             </label>
             {validationError ? (
-              <p className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              <p className="rounded border border-amber-200 dark:border-amber-900 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
                 {validationError}
               </p>
             ) : (
@@ -436,7 +436,7 @@ export function CreateTableDialog({ open, keyspace, onClose }: Props) {
         </div>
 
         {error && (
-          <div className="mt-3 rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <div className="mt-3 rounded border border-red-200 dark:border-red-900 bg-red-50 px-3 py-2 text-sm text-red-700 dark:text-red-300">
             {error}
           </div>
         )}

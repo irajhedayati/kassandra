@@ -147,11 +147,11 @@ export function ConnectionPanel() {
   return (
     <div className="space-y-3">
       <div>
-        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-slate-400">
+        <label className="mb-1 block text-xs font-medium uppercase tracking-wide text-ink-400">
           Connection profile
         </label>
         {profiles.length === 0 ? (
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-ink-400">
             No profiles yet. Create one to get started.
           </p>
         ) : (
@@ -181,7 +181,7 @@ export function ConnectionPanel() {
               type="button"
               onClick={() => disconnectMutation.mutate()}
               disabled={disconnectMutation.isPending}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 transition hover:bg-slate-700 disabled:opacity-60"
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-ink-700 bg-ink-800 px-3 py-2 text-sm text-ink-100 transition hover:bg-ink-700 disabled:opacity-60"
             >
               <FontAwesomeIcon icon={faPlugCircleXmark} />
               {disconnectMutation.isPending ? 'Disconnecting...' : 'Disconnect'}
@@ -192,7 +192,7 @@ export function ConnectionPanel() {
                 if (status?.profileName) reconnectMutation.mutate(status.profileName);
               }}
               disabled={!status?.profileName || disconnectMutation.isPending}
-              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 transition hover:bg-slate-700 disabled:opacity-60"
+              className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-ink-700 bg-ink-800 px-3 py-2 text-sm text-ink-100 transition hover:bg-ink-700 disabled:opacity-60"
             >
               <FontAwesomeIcon icon={faRotate} />
               Reconnect
@@ -231,15 +231,15 @@ export function ConnectionPanel() {
         </div>
       )}
 
-      <details className="rounded-lg border border-slate-700 bg-slate-800/50 px-3 py-2 text-sm text-slate-200">
-        <summary className="cursor-pointer select-none text-slate-300">
+      <details className="rounded-lg border border-ink-700 bg-ink-800/50 px-3 py-2 text-sm text-ink-200">
+        <summary className="cursor-pointer select-none text-ink-300">
           Manage connections
         </summary>
         <div className="mt-2 space-y-2">
           <button
             type="button"
             onClick={openNew}
-            className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 transition hover:bg-slate-700"
+            className="w-full rounded-lg border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-ink-100 transition hover:bg-ink-700"
           >
             + New profile
           </button>
@@ -247,14 +247,14 @@ export function ConnectionPanel() {
             type="button"
             onClick={openEdit}
             disabled={!selectedProfile || connected}
-            className="w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 transition hover:bg-slate-700 disabled:opacity-50"
+            className="w-full rounded-lg border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-ink-100 transition hover:bg-ink-700 disabled:opacity-50"
           >
             Edit selected
           </button>
           <button
             type="button"
             onClick={() => setImportOpen(true)}
-            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-slate-100 transition hover:bg-slate-700"
+            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-ink-700 bg-ink-900 px-3 py-2 text-sm text-ink-100 transition hover:bg-ink-700"
           >
             <FontAwesomeIcon icon={faFileImport} />
             Import configuration

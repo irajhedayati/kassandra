@@ -151,6 +151,9 @@ the sidebar reopens that page. Choosing an empty location copies the current con
 in place); a location that already holds a configuration is used as is. Setting the `KASSANDRA_HOME` environment variable
 fixes the location, skips the first-run page and disables the setting in the UI (the Docker image and Helm chart do this).
 
+The same page has an **Appearance** setting (Light, Dark or System, which follows the operating system). It is remembered
+per browser.
+
 On the **Table Schema** tab, **Import schema** copies one of those files onto the current table (for example the same
 table of another connection). The file must be valid metadata whose columns all exist in the table; existing metadata is
 only replaced after you confirm.

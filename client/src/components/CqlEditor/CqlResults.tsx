@@ -19,7 +19,7 @@ export function CqlResults({ result }: Props) {
 
   if (!result.success) {
     return (
-      <div className="rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-800">
+      <div className="rounded border border-red-300 dark:border-red-800 bg-red-50 px-3 py-2 text-sm text-red-800 dark:text-red-200">
         {result.message}
       </div>
     );
@@ -28,7 +28,7 @@ export function CqlResults({ result }: Props) {
   if (result.rows.length === 0) {
     const message = result.message ?? 'Statement executed.';
     return (
-      <div className="inline-flex items-center rounded-full bg-green-100 px-3 py-1 text-sm text-green-800">
+      <div className="inline-flex items-center rounded-full bg-green-100 px-3 py-1 text-sm text-green-800 dark:text-green-200">
         {message}
       </div>
     );

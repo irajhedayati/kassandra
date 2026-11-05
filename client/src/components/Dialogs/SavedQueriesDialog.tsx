@@ -81,7 +81,7 @@ export function SavedQueriesDialog({ open, onClose }: Props) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0d243a]/40 dark:bg-black/60 p-4">
       <div className="flex max-h-full w-full max-w-2xl flex-col rounded bg-white p-6 shadow-lg">
         <div className="flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900">Saved queries</h2>
@@ -146,7 +146,7 @@ export function SavedQueriesDialog({ open, onClose }: Props) {
                     </button>
                     <button
                       type="button"
-                      className={`${btn} text-red-600`}
+                      className={`${btn} text-red-600 dark:text-red-400`}
                       onClick={() => {
                         if (window.confirm(`Delete saved query "${q.name}"?`)) {
                           deleteMutation.mutate(q.id);
