@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { useConnectionStatus } from './state/connection.js';
 import { useSelection } from './state/selection.js';
 import { useFavoriteKeyspaces } from './state/favorites.js';
+import { useSetup } from './state/setup.js';
 import { ConnectionPanel } from './components/Sidebar/ConnectionPanel.js';
 import { SchemaNavigator } from './components/Sidebar/SchemaNavigator.js';
 import { SidebarFooter } from './components/Sidebar/SidebarFooter.js';
+import { ConfigurationPage } from './components/Configuration/ConfigurationPage.js';
 import { DataGrid } from './components/DataGrid/DataGrid.js';
 import { InsertForm } from './components/Forms/InsertForm.js';
 import { TableInfo } from './components/TableInfo/TableInfo.js';
@@ -19,6 +21,18 @@ export function App() {
   const { keyspace, table } = useSelection();
   const { isFavorite, toggleFavorite } = useFavoriteKeyspaces(status?.profileName);
   const [tab, setTab] = useState<Tab>('data');
+  const setup = useSetup();
+  const [showConfig, setShowConfig] = useState(false);
+
+  // Wait for the first-run answer so nothing reads the configuration before it is set up.
+  if (setup.isLoading) return null;
+  if (setup.data?.firstRun) {
+    return (
+      <div className="h-full overflow-auto bg-slate-100 p-6">
+        <ConfigurationPage setup={setup.data} onDone={() => setShowConfig(false)} />
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-full bg-slate-100">
@@ -40,7 +54,7 @@ export function App() {
             </>
           )}
         </div>
-        <SidebarFooter />
+        <SidebarFooter onOpenSettings={() => setShowConfig(true)} />
       </aside>
 
       <main className="flex flex-1 flex-col overflow-hidden">
@@ -86,7 +100,13 @@ export function App() {
         </header>
 
         <div className="flex-1 overflow-auto bg-gradient-to-br from-slate-100 via-blue-50/40 to-cyan-50/60 p-6">
-          {!connected ? (
+          {showConfig && setup.data ? (
+            <ConfigurationPage
+              setup={setup.data}
+              onDone={() => setShowConfig(false)}
+              onClose={() => setShowConfig(false)}
+            />
+          ) : !connected ? (
             <div className="card p-6 text-slate-600">
               Connect to a Cassandra cluster from the sidebar to get started.
             </div>

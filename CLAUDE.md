@@ -55,6 +55,7 @@ legacy/  ; original Python/Streamlit app (reference only)
 - `cassandra/schema.ts`; `system_schema` introspection (keyspaces, tables, columns).
 - `cassandra/repository.ts`; row CRUD using prepared statements; paging-state is base64-encoded for the wire.
 - `config/storage.ts`; `ConfigStorage` interface, a key -> JSON-document store (plus version and cross-process lock) that every config backend implements; `getStorage()` returns the active one. `config/storage.contract.ts` is the test suite each backend must pass.
+- `config/location.ts`; where the config lives: `KASSANDRA_HOME`, else the path saved by the Configuration page in `~/.kassandra/.location`, else `~/.kassandra`. `config/setup.ts` holds the first-run state (decided once at startup) and `changeLocation()`, which copies to an empty target, migrates it and then switches.
 - `config/fileStorage.ts`; default backend: `${KASSANDRA_HOME ?? ~/.kassandra}/<key>.json` (`config.json`, `tables/*.json`) plus a plain-text `VERSION` file.
 - `config/store.ts`; settings (profiles, favorites, saved queries) and column metadata on top of `ConfigStorage`. All functions are async and run one at a time (`config/serial.ts`) so concurrent requests cannot overwrite each other.
 - `config/tables.ts`; per-table metadata documents (`tables/<connection>-<keyspace>.<table>`), naming and validation.
@@ -72,6 +73,7 @@ legacy/  ; original Python/Streamlit app (reference only)
 - `components/DataGrid/`; paginated table view.
 - `components/Forms/`; schema-driven dynamic form (insert/update).
 - `components/TableInfo/`; column metadata panel.
+- `components/Configuration/`; Configuration page (config location); shown instead of the app on the first run, and from the gear in the sidebar footer.
 - `components/CqlEditor/`; Monaco-based raw CQL editor.
 
 ### Important Patterns

@@ -3,20 +3,15 @@
  * the version is the plain-text file `<dir>/VERSION`.
  */
 import fs from 'node:fs/promises';
-import os from 'node:os';
 import path from 'node:path';
+import { getConfigDir } from './location.js';
 import type { ConfigStorage, LockOptions } from './storage.js';
 
-const DEFAULT_DIR_NAME = '.kassandra';
 const VERSION_FILE_NAME = 'VERSION';
 const LOCK_FILE_NAME = '.migrate.lock';
 const SEGMENT = /^[A-Za-z0-9_%][A-Za-z0-9_%.-]*$/;
 
-export function getConfigDir(): string {
-  const env = process.env.KASSANDRA_HOME;
-  if (env && env.trim() !== '') return env;
-  return path.join(os.homedir(), DEFAULT_DIR_NAME);
-}
+export { getConfigDir };
 
 const isMissing = (err: unknown) => (err as NodeJS.ErrnoException).code === 'ENOENT';
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
