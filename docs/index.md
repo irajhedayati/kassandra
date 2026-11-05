@@ -210,6 +210,8 @@ connection profile and appear first in the keyspace selector.
 - **Filtering**: Enter values in the column fields above the grid, then click **Apply**. Click **Clear** to remove
   filters. Most columns use equality filters; map columns also offer *Key = value*, *Contains key*, and *Contains
   value*. The generated query uses `ALLOW FILTERING`, which can scan substantial data for non-key columns.
+- **Generate CQL**: Next to **Apply**, sends a `SELECT` with the *applied* filters (not edits you have not applied yet) to
+  the CQL editor below, where you can review, change and run it.
 - **Sort and filter the loaded page**: Click a column header to sort ascending, click again for descending, and a third
   time to clear. Type in the box under a header to filter that column. These apply only to the rows already loaded on
   the current page, do not query Cassandra, and reset when you switch tables. Use the filters above the grid to search

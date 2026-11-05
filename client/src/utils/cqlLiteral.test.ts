@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildInsertCql, buildUpdateCql, valueToCqlLiteral } from './cqlLiteral.js';
+import { buildFilterSelectCql, buildInsertCql, buildUpdateCql, valueToCqlLiteral } from './cqlLiteral.js';
 
 describe('valueToCqlLiteral', () => {
   it('quotes text and escapes embedded quotes', () => {
@@ -125,5 +125,91 @@ describe('buildUpdateCql', () => {
       {},
     );
     expect(cql).toBe('');
+  });
+});
+
+describe('buildFilterSelectCql', () => {
+  const columns = [
+    { name: 'id', cql_type: 'uuid' },
+    { name: 'name', cql_type: 'text' },
+    { name: 'age', cql_type: 'int' },
+    { name: 'active', cql_type: 'boolean' },
+    { name: 'tags', cql_type: 'set<text>' },
+    { name: 'scores', cql_type: 'list<int>' },
+    { name: 'attrs', cql_type: 'map<text, int>' },
+    { name: 'Mixed', cql_type: 'text' },
+  ];
+
+  it('selects the whole table when no filter is applied', () => {
+    expect(buildFilterSelectCql('ks', 't', columns, [])).toBe('SELECT * FROM ks.t;');
+  });
+
+  it('writes equality filters as typed literals with ALLOW FILTERING', () => {
+    expect(
+      buildFilterSelectCql('ks', 't', columns, [
+        { column: 'name', operator: 'eq', value: "o'brien" },
+        { column: 'age', operator: 'eq', value: '42' },
+        { column: 'active', operator: 'eq', value: 'true' },
+        { column: 'id', operator: 'eq', value: '5b6962dd-3f90-4c93-8f61-eabfa4a803e2' },
+      ]),
+    ).toBe(
+      [
+        'SELECT * FROM ks.t',
+        "WHERE name = 'o''brien'",
+        '  AND age = 42',
+        '  AND active = true',
+        '  AND id = 5b6962dd-3f90-4c93-8f61-eabfa4a803e2',
+        'ALLOW FILTERING;',
+      ].join('\n'),
+    );
+  });
+
+  it('handles collection operators with the right element types', () => {
+    expect(
+      buildFilterSelectCql('ks', 't', columns, [
+        { column: 'tags', operator: 'contains', value: 'red' },
+        { column: 'scores', operator: 'contains', value: '7' },
+        { column: 'attrs', operator: 'contains', value: '3' },
+        { column: 'attrs', operator: 'contains_key', value: 'k' },
+        { column: 'attrs', operator: 'map_entry_eq', mapKey: 'size', value: '10' },
+      ]),
+    ).toBe(
+      [
+        'SELECT * FROM ks.t',
+        "WHERE tags CONTAINS 'red'",
+        '  AND scores CONTAINS 7',
+        '  AND attrs CONTAINS 3',
+        "  AND attrs CONTAINS KEY 'k'",
+        "  AND attrs['size'] = 10",
+        'ALLOW FILTERING;',
+      ].join('\n'),
+    );
+  });
+
+  it('writes whole-collection equality with the right brackets', () => {
+    expect(
+      buildFilterSelectCql('ks', 't', columns, [
+        { column: 'tags', operator: 'eq', value: '["a","b"]' },
+        { column: 'scores', operator: 'eq', value: '[1,2]' },
+      ]),
+    ).toContain("tags = {'a', 'b'}\n  AND scores = [1, 2]");
+  });
+
+  it('quotes identifiers only when needed', () => {
+    expect(buildFilterSelectCql('My_Ks', 'select', columns, [{ column: 'Mixed', operator: 'eq', value: 'x' }])).toBe(
+      ['SELECT * FROM "My_Ks"."select"', "WHERE \"Mixed\" = 'x'", 'ALLOW FILTERING;'].join('\n'),
+    );
+  });
+
+  it('leaves out filters on columns the table does not have', () => {
+    expect(
+      buildFilterSelectCql('ks', 't', columns, [
+        { column: 'gone', operator: 'eq', value: '1' },
+        { column: 'age', operator: 'eq', value: '3' },
+      ]),
+    ).toBe(['SELECT * FROM ks.t', 'WHERE age = 3', 'ALLOW FILTERING;'].join('\n'));
+    expect(buildFilterSelectCql('ks', 't', columns, [{ column: 'gone', operator: 'eq', value: '1' }])).toBe(
+      'SELECT * FROM ks.t;',
+    );
   });
 });

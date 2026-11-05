@@ -1,4 +1,5 @@
-import { mapKeyValueTypes, rootCqlType } from '@kassandra/shared';
+import { isCqlReservedWord, mapKeyValueTypes, rootCqlType } from '@kassandra/shared';
+import type { FilterCondition } from '@kassandra/shared';
 
 const NUMERIC_TYPES = new Set([
   'tinyint',
@@ -186,4 +187,70 @@ export function buildUpdateCql(
     statements.push(`DELETE ${deleteTargets.join(', ')}\nFROM ${keyspace}.${tableName}\nWHERE ${whereClause};`);
   }
   return statements.join('\n\n');
+}
+
+/** The identifier as CQL needs it: bare when that is the same name, otherwise double-quoted. */
+function cqlIdent(name: string): string {
+  return /^[a-z][a-z0-9_]*$/.test(name) && !isCqlReservedWord(name)
+    ? name
+    : `"${name.replace(/"/g, '""')}"`;
+}
+
+/** `text` for `list<text>` / `frozen<set<text>>`; the type itself when it is not a list or set. */
+function collectionElementType(cqlType: string): string {
+  const inner = unwrapFrozen(cqlType.trim());
+  const root = rootCqlType(inner);
+  if (root !== 'list' && root !== 'set') return cqlType;
+  return inner.slice(inner.indexOf('<') + 1, inner.lastIndexOf('>')).trim();
+}
+
+/** A whole-column literal; CQL sets are written with braces, lists with brackets. */
+function columnLiteral(value: string, cqlType: string): string {
+  const literal = valueToCqlLiteral(value, cqlType);
+  if (rootCqlType(unwrapFrozen(cqlType)) === 'set' && literal.startsWith('[') && literal.endsWith(']')) {
+    return `{${literal.slice(1, -1)}}`;
+  }
+  return literal;
+}
+
+/**
+ * The CQL equivalent of the data grid's filters: the same predicates the
+ * server runs, with the values written as literals (the server binds them as
+ * parameters), and `ALLOW FILTERING` whenever there is a filter, as the
+ * server adds. Filters on columns the table does not have are left out.
+ */
+export function buildFilterSelectCql(
+  keyspace: string,
+  tableName: string,
+  columns: ColumnLike[],
+  filters: FilterCondition[],
+): string {
+  const table = `${cqlIdent(keyspace)}.${cqlIdent(tableName)}`;
+  const predicates: string[] = [];
+  for (const filter of filters) {
+    const col = columns.find((c) => c.name === filter.column);
+    if (!col) continue;
+    const ident = cqlIdent(col.name);
+    const kv = mapKeyValueTypes(col.cql_type);
+    switch (filter.operator) {
+      case 'eq':
+        predicates.push(`${ident} = ${columnLiteral(filter.value, col.cql_type)}`);
+        break;
+      case 'contains':
+        predicates.push(
+          `${ident} CONTAINS ${valueToCqlLiteral(filter.value, kv?.valueType ?? collectionElementType(col.cql_type))}`,
+        );
+        break;
+      case 'contains_key':
+        predicates.push(`${ident} CONTAINS KEY ${valueToCqlLiteral(filter.value, kv?.keyType ?? 'text')}`);
+        break;
+      case 'map_entry_eq':
+        predicates.push(
+          `${ident}[${valueToCqlLiteral(filter.mapKey ?? '', kv?.keyType ?? 'text')}] = ${valueToCqlLiteral(filter.value, kv?.valueType ?? 'text')}`,
+        );
+        break;
+    }
+  }
+  if (predicates.length === 0) return `SELECT * FROM ${table};`;
+  return `SELECT * FROM ${table}\nWHERE ${predicates.join('\n  AND ')}\nALLOW FILTERING;`;
 }
