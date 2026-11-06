@@ -2,42 +2,32 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { DEFAULT_PROFILE } from '@kassandra/shared';
+import { DocumentRepository } from './documentRepository.js';
 import { FileStorage } from './fileStorage.js';
 import { importTableMetadata } from './importSchema.js';
-import {
-  listTableFiles,
-  parseTableFileName,
-  readTableMetadata,
-  tableFileName,
-  writeTableMetadata,
-} from './tables.js';
+import type { ConfigRepository } from './repository.js';
+import { SqliteRepository } from './sqlite/repository.js';
+import { listTableFiles, parseTableFileName, tableFileName } from './tables.js';
 
-describe('import table metadata', () => {
-  let dir: string;
-  let storage: FileStorage;
-  const target = { connection: 'prod', keyspace: 'ks', table: 't', columns: ['id', 'name', 'tags'] };
-  const sourceName = 'dev-ks.t.json';
-  const tablePath = (name: string) => path.join(dir, 'tables', name);
-
-  beforeEach(async () => {
-    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kassandra-'));
-    storage = new FileStorage(dir);
-    await writeTableMetadata(storage, 'dev', 'ks', 't', {
-      name: { hide: true },
-      tags: { display_type: 'JSON' },
-    });
-  });
-  afterEach(() => fs.rmSync(dir, { recursive: true, force: true }));
-
+describe('table file names', () => {
   it('lists files with their parsed names and column counts, skipping foreign files', async () => {
-    await writeTableMetadata(storage, 'my cluster', 'ks2', 'u', {});
-    fs.writeFileSync(tablePath('notes.txt'), 'x');
-    fs.writeFileSync(tablePath('bad-name.json'), '{}');
-    expect(await listTableFiles(storage)).toEqual([
-      { file: 'dev-ks.t.json', connection: 'dev', keyspace: 'ks', table: 't', columns: 2 },
-      { file: 'my%20cluster-ks2.u.json', connection: 'my cluster', keyspace: 'ks2', table: 'u', columns: 0 },
-    ]);
-    expect(await listTableFiles(new FileStorage(path.join(dir, 'nope')))).toEqual([]);
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kassandra-'));
+    try {
+      const storage = new FileStorage(dir);
+      const repo = new DocumentRepository(storage);
+      await repo.replaceTableMetadata({ connection: 'dev', keyspace: 'ks', table: 't' }, { a: {}, b: {} });
+      await repo.replaceTableMetadata({ connection: 'my cluster', keyspace: 'ks2', table: 'u' }, {});
+      fs.writeFileSync(path.join(dir, 'tables', 'notes.txt'), 'x');
+      fs.writeFileSync(path.join(dir, 'tables', 'bad-name.json'), '{}');
+      expect(await listTableFiles(storage)).toEqual([
+        { file: 'dev-ks.t.json', connection: 'dev', keyspace: 'ks', table: 't', columns: 2 },
+        { file: 'my%20cluster-ks2.u.json', connection: 'my cluster', keyspace: 'ks2', table: 'u', columns: 0 },
+      ]);
+      expect(await listTableFiles(new FileStorage(path.join(dir, 'nope')))).toEqual([]);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('parses names back to their parts', () => {
@@ -49,53 +39,84 @@ describe('import table metadata', () => {
     expect(parseTableFileName('config.json')).toBeNull();
     expect(parseTableFileName('a-b.c.json%')).toBeNull();
   });
+});
 
-  it("copies the file to the target table's document", async () => {
-    const data = await importTableMetadata(storage, sourceName, target, false);
+const backends: [string, (dir: string) => ConfigRepository][] = [
+  ['documents', (dir) => new DocumentRepository(new FileStorage(dir))],
+  ['sqlite', (dir) => new SqliteRepository(path.join(dir, 'k.db'))],
+];
+
+describe.each(backends)('import table metadata (%s)', (_name, create) => {
+  let dir: string;
+  let repo: ConfigRepository;
+  const target = { connection: 'prod', keyspace: 'ks', table: 't', columns: ['id', 'name', 'tags'] };
+  const prod = { connection: 'prod', keyspace: 'ks', table: 't' };
+  const sourceName = 'dev-ks.t.json';
+
+  beforeEach(async () => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kassandra-'));
+    repo = create(dir);
+    await repo.migrate();
+    await repo.upsertProfile({ ...DEFAULT_PROFILE, name: 'dev' });
+    await repo.upsertProfile({ ...DEFAULT_PROFILE, name: 'prod' });
+    await repo.replaceTableMetadata(
+      { connection: 'dev', keyspace: 'ks', table: 't' },
+      { name: { hide: true }, tags: { display_type: 'JSON' } },
+    );
+  });
+  afterEach(() => {
+    repo.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("copies the source's metadata to the target table", async () => {
+    const data = await importTableMetadata(repo, sourceName, target, false);
     expect(data).toEqual({ name: { hide: true }, tags: { display_type: 'JSON' } });
-    expect(await readTableMetadata(storage, 'prod', 'ks', 't')).toEqual(data);
-    expect(fs.existsSync(tablePath('prod-ks.t.json'))).toBe(true);
+    expect(await repo.getTableMetadata(prod)).toEqual(data);
   });
 
   it('refuses to replace existing metadata without overwrite, and replaces it with it', async () => {
-    await writeTableMetadata(storage, 'prod', 'ks', 't', { id: { hide: true } });
-    await expect(importTableMetadata(storage, sourceName, target, false)).rejects.toThrow(/already exists/);
-    expect(await readTableMetadata(storage, 'prod', 'ks', 't')).toEqual({ id: { hide: true } });
-    await importTableMetadata(storage, sourceName, target, true);
-    expect(await readTableMetadata(storage, 'prod', 'ks', 't')).toEqual({
-      name: { hide: true },
-      tags: { display_type: 'JSON' },
-    });
+    await repo.replaceTableMetadata(prod, { id: { hide: true } });
+    await expect(importTableMetadata(repo, sourceName, target, false)).rejects.toThrow(/already exists/);
+    expect(await repo.getTableMetadata(prod)).toEqual({ id: { hide: true } });
+    await importTableMetadata(repo, sourceName, target, true);
+    expect(await repo.getTableMetadata(prod)).toEqual({ name: { hide: true }, tags: { display_type: 'JSON' } });
   });
 
   it('treats empty existing metadata as nothing to overwrite', async () => {
-    await writeTableMetadata(storage, 'prod', 'ks', 't', {});
-    await expect(importTableMetadata(storage, sourceName, target, false)).resolves.toBeDefined();
+    await repo.replaceTableMetadata(prod, {});
+    await expect(importTableMetadata(repo, sourceName, target, false)).resolves.toBeDefined();
   });
 
   it('rejects columns the target table does not have', async () => {
-    await expect(
-      importTableMetadata(storage, sourceName, { ...target, columns: ['id', 'name'] }, true),
-    ).rejects.toThrow(/do not exist in ks\.t: tags/);
-    expect(await readTableMetadata(storage, 'prod', 'ks', 't')).toEqual({});
+    await expect(importTableMetadata(repo, sourceName, { ...target, columns: ['id', 'name'] }, true)).rejects.toThrow(
+      /do not exist in ks\.t: tags/,
+    );
+    expect(await repo.getTableMetadata(prod)).toEqual({});
   });
 
-  it('rejects invalid JSON and wrong shapes', async () => {
-    const bad = (name: string, content: string) => fs.writeFileSync(tablePath(name), content);
-    bad('bad1-ks.t.json', '{nope');
-    bad('bad2-ks.t.json', '[1]');
-    bad('bad3-ks.t.json', '{"name":{"hide":"yes"}}');
-    bad('bad4-ks.t.json', '{"name":{"bogus":1}}');
-    await expect(importTableMetadata(storage, 'bad1-ks.t.json', target, true)).rejects.toThrow(/not valid JSON/);
-    for (const f of ['bad2-ks.t.json', 'bad3-ks.t.json', 'bad4-ks.t.json']) {
-      await expect(importTableMetadata(storage, f, target, true)).rejects.toThrow(/not valid table metadata/);
-    }
-  });
-
-  it('only accepts plain per-table file names', async () => {
+  it('only accepts per-table file names of tables that have metadata', async () => {
     for (const f of ['../config.json', 'config.json', '../tables/dev-ks.t.json', '/etc/passwd']) {
-      await expect(importTableMetadata(storage, f, target, true)).rejects.toThrow(/Not a table metadata file/);
+      await expect(importTableMetadata(repo, f, target, true)).rejects.toThrow(/Not a table metadata file/);
     }
-    await expect(importTableMetadata(storage, 'gone-ks.t.json', target, true)).rejects.toThrow(/not found/);
+    await expect(importTableMetadata(repo, 'gone-ks.t.json', target, true)).rejects.toThrow(/not found/);
+  });
+});
+
+describe('import of hand-edited documents', () => {
+  it('rejects the wrong shapes', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'kassandra-'));
+    try {
+      const repo = new DocumentRepository(new FileStorage(dir));
+      fs.mkdirSync(path.join(dir, 'tables'));
+      fs.writeFileSync(path.join(dir, 'tables', 'bad3-ks.t.json'), '{"name":{"hide":"yes"}}');
+      fs.writeFileSync(path.join(dir, 'tables', 'bad4-ks.t.json'), '{"name":{"bogus":1}}');
+      const target = { connection: 'prod', keyspace: 'ks', table: 't', columns: ['name'] };
+      for (const f of ['bad3-ks.t.json', 'bad4-ks.t.json']) {
+        await expect(importTableMetadata(repo, f, target, true)).rejects.toThrow(/not valid table metadata/);
+      }
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

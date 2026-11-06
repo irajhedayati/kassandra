@@ -59,15 +59,13 @@ legacy/  ; original Python/Streamlit app (reference only)
 - `cassandra/connection.ts`; connect/disconnect lifecycle, SSL, auth, execution profile.
 - `cassandra/schema.ts`; `system_schema` introspection (keyspaces, tables, columns).
 - `cassandra/repository.ts`; row CRUD using prepared statements; paging-state is base64-encoded for the wire.
-- `config/storage.ts`; `ConfigStorage` interface, a key -> JSON-document store (plus version and cross-process lock)
-  that every config backend implements; `getStorage()` returns the active one. `config/storage.contract.ts` is the test
-  suite each backend must pass. `getStorage()` picks the backend registered under `KASSANDRA_STORAGE` (default `file`);
-  connectors register themselves with `registerStorageBackend()`.
+- `config/repository.ts`; `ConfigRepository`, the interface every config backend implements: domain operations (profiles, last connection, favorites, saved queries, table metadata) plus `migrate()`, version, snapshot export/import and a cross-process lock. `config/repository.contract.ts` is the test suite each backend must pass. `config/registry.ts`; named backends (`file`, `sqlite`, plus `registerStorageBackend()`), `getRepository()` returns the active one.
+- `config/storage.ts`; `ConfigStorage`, the key -> JSON-document layer under `DocumentRepository` (`config/documentRepository.ts`: `config` + `tables/*` documents, the default `file` backend, and any future document store). `config/storage.contract.ts` is its test suite.
 - `config/location.ts`; where the config lives: `KASSANDRA_HOME`, else the path saved by the Configuration page in
   `~/.kassandra/.location`, else `~/.kassandra`. `config/setup.ts` holds the first-run state (decided once at startup)
   and `changeLocation()`, which copies to an empty target, migrates it and then switches.
-- `config/backend.ts`; which backend is active (`KASSANDRA_STORAGE`, else the choice saved in `~/.kassandra/.backend`, else `file`) and the SQLite path (`KASSANDRA_SQLITE_PATH`, else saved, else `<config dir>/kassandra.db`). `setup.ts#changeStorage()` switches backend, copying into an empty target and migrating it first.
-- `config/sqliteStorage.ts`; SQLite backend on `node:sqlite` (no native dependency): `documents`, `meta` and `lock` tables, schema versioned with `PRAGMA user_version` (append to `SCHEMA_STEPS`).
+- `config/backend.ts`; which backend is active (`KASSANDRA_STORAGE`, else the choice saved in `~/.kassandra/.backend`, else `file`) and the SQLite path (`KASSANDRA_SQLITE_PATH`, else saved, else `<config dir>/kassandra.db`). `setup.ts#changeStorage()` switches backend, migrating the target and copying a snapshot into it if it is empty.
+- `config/sqlite/`; SQLite backend (better-sqlite3 + Drizzle): `schema.ts` is the relational schema, `repository.ts` the `SqliteRepository`, and the SQL migrations live in `server/drizzle/` (generated, committed). Change the schema with `npm run db:generate -w server`, never by editing applied migration files.
 - `config/fileStorage.ts`; default backend: `${KASSANDRA_HOME ?? ~/.kassandra}/<key>.json` (`config.json`,
   `tables/*.json`) plus a plain-text `VERSION` file.
 - `config/store.ts`; settings (profiles, favorites, saved queries) and column metadata on top of `ConfigStorage`. All
@@ -77,7 +75,7 @@ legacy/  ; original Python/Streamlit app (reference only)
   counts as `1.5.0`).
 - `config/migrations/`; one `vX_Y_Z.ts` per config-shape change, registered in `index.ts`; `runMigrations()` runs at
   startup, takes the storage lock, backs everything up to `backups/<version>/` and applies those newer than the stored
-  version, in order. Migrations only use `ConfigStorage`. Any change to the config layout must add a migration (see
+  version, in order. Migrations only use `ConfigStorage` (they apply to the file backend; SQLite uses Drizzle migrations). Any change to the config layout must add a migration (see
   CONTRIBUTING.md).
 - `routes/*`; one file per feature (`connection`, `schema`, `data`, `cql`, `metadata`).
 

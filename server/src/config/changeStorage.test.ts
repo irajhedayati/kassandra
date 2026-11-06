@@ -2,17 +2,19 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { DEFAULT_PROFILE } from '@kassandra/shared';
 import { getBackendName, getSqlitePath } from './backend.js';
+import { DocumentRepository } from './documentRepository.js';
 import { FileStorage } from './fileStorage.js';
+import { getRepository } from './registry.js';
 import { changeStorage, getSetupInfo, initSetupState } from './setup.js';
-import { SqliteStorage, closeSharedSqliteStorage } from './sqliteStorage.js';
-import { getStorage } from './storage.js';
-import { getAppVersion } from './version.js';
+import { closeSharedSqliteRepository, SqliteRepository } from './sqlite/repository.js';
 
 describe('switching the storage backend', () => {
   let home: string;
   let work: string;
   const savedHome = process.env.HOME;
+  const t = { connection: 'p', keyspace: 'ks', table: 't' };
 
   beforeEach(() => {
     home = fs.mkdtempSync(path.join(os.tmpdir(), 'kassandra-home-'));
@@ -23,7 +25,7 @@ describe('switching the storage backend', () => {
     delete process.env.KASSANDRA_SQLITE_PATH;
   });
   afterEach(() => {
-    closeSharedSqliteStorage();
+    closeSharedSqliteRepository();
     process.env.HOME = savedHome;
     delete process.env.KASSANDRA_STORAGE;
     delete process.env.KASSANDRA_SQLITE_PATH;
@@ -31,17 +33,19 @@ describe('switching the storage backend', () => {
     fs.rmSync(work, { recursive: true, force: true });
   });
 
+  /** A migrated JSON configuration with one profile, one saved query and one table. */
   const seedFiles = async () => {
-    const files = new FileStorage(path.join(home, '.kassandra'));
-    await files.put('config', { profiles: [{ name: 'p' }] });
-    await files.put('tables/p-ks.t', { columns: {} });
-    await files.setVersion(getAppVersion());
+    const files = new DocumentRepository(new FileStorage(path.join(home, '.kassandra')));
+    await files.migrate();
+    await files.upsertProfile({ ...DEFAULT_PROFILE, name: 'p', hosts: ['h1', 'h2'] });
+    await files.addFavoriteKeyspace('p', 'ks');
+    await files.setColumnMetadata(t, 'c', { hide: true });
+    await files.createSavedQuery({ name: 'q', description: '', query: 'SELECT 1', paramTypes: {} });
     return files;
   };
 
   it('defaults to the file backend with a database path in the config directory', () => {
-    const info = getSetupInfo();
-    expect(info).toMatchObject({
+    expect(getSetupInfo()).toMatchObject({
       backend: 'file',
       backendLocked: false,
       sqlitePath: path.join(home, '.kassandra', 'kassandra.db'),
@@ -53,15 +57,17 @@ describe('switching the storage backend', () => {
     const files = await seedFiles();
     const db = path.join(work, 'k.db');
     const result = await changeStorage({ backend: 'sqlite', sqlitePath: db });
-    expect(result).toMatchObject({ backend: 'sqlite', sqlitePath: db, copied: 2, existing: false });
+    expect(result).toMatchObject({ backend: 'sqlite', sqlitePath: db, copied: 3, existing: false });
 
-    const active = getStorage();
-    expect(active).toBeInstanceOf(SqliteStorage);
-    expect(await active.get('config')).toEqual({ profiles: [{ name: 'p' }] });
-    expect(await active.get('tables/p-ks.t')).toEqual({ columns: {} });
+    const active = getRepository();
+    expect(active).toBeInstanceOf(SqliteRepository);
+    expect(await active.listProfiles()).toEqual(await files.listProfiles());
+    expect(await active.getFavoriteKeyspaces('p')).toEqual(['ks']);
+    expect(await active.getTableMetadata(t)).toEqual({ c: { hide: true } });
+    expect((await active.listSavedQueries()).map((q) => q.name)).toEqual(['q']);
     expect(await active.getVersion()).not.toBeNull();
     // The JSON files are left in place.
-    expect(await files.get('config')).toEqual({ profiles: [{ name: 'p' }] });
+    expect((await files.listProfiles()).map((p) => p.name)).toEqual(['p']);
     expect(getBackendName()).toBe('sqlite');
     expect(getSqlitePath()).toBe(db);
     expect(getSetupInfo().firstRun).toBe(false);
@@ -71,18 +77,19 @@ describe('switching the storage backend', () => {
     await seedFiles();
     const result = await changeStorage({ backend: 'sqlite', sqlitePath: path.join(work, 'k.db'), migrate: false });
     expect(result.copied).toBe(0);
-    expect(await getStorage().get('config')).toBeUndefined();
+    expect(await getRepository().isEmpty()).toBe(true);
   });
 
   it('uses a database that already holds a configuration as is', async () => {
     await seedFiles();
     const db = path.join(work, 'k.db');
-    const existing = new SqliteStorage(db);
-    await existing.put('config', { from: 'db' });
+    const existing = new SqliteRepository(db);
+    await existing.migrate();
+    await existing.upsertProfile({ ...DEFAULT_PROFILE, name: 'from-db' });
     existing.close();
     const result = await changeStorage({ backend: 'sqlite', sqlitePath: db });
     expect(result).toMatchObject({ copied: 0, existing: true });
-    expect(await getStorage().get('config')).toEqual({ from: 'db' });
+    expect((await getRepository().listProfiles()).map((p) => p.name)).toEqual(['from-db']);
   });
 
   it('defaults the database to kassandra.db in the config directory', async () => {
@@ -94,10 +101,22 @@ describe('switching the storage backend', () => {
   it('can go back to the files', async () => {
     await seedFiles();
     await changeStorage({ backend: 'sqlite', sqlitePath: path.join(work, 'k.db') });
-    await getStorage().put('config', { edited: true });
+    await getRepository().createSavedQuery({ name: 'only-in-db', description: '', query: 'SELECT 2', paramTypes: {} });
     const result = await changeStorage({ backend: 'file' });
     expect(result).toMatchObject({ backend: 'file', existing: true });
-    expect(await getStorage().get('config')).toEqual({ profiles: [{ name: 'p' }] });
+    expect(getRepository()).toBeInstanceOf(DocumentRepository);
+    expect((await getRepository().listSavedQueries()).map((q) => q.name)).toEqual(['q']);
+  });
+
+  it('copies from SQLite into an empty file location', async () => {
+    await seedFiles();
+    await changeStorage({ backend: 'sqlite', sqlitePath: path.join(work, 'k.db') });
+    fs.rmSync(path.join(home, '.kassandra', 'config.json'));
+    fs.rmSync(path.join(home, '.kassandra', 'tables'), { recursive: true });
+    fs.rmSync(path.join(home, '.kassandra', 'VERSION'));
+    await changeStorage({ backend: 'file' });
+    expect((await getRepository().listProfiles()).map((p) => p.name)).toEqual(['p']);
+    expect(await getRepository().getTableMetadata(t)).toEqual({ c: { hide: true } });
   });
 
   it('rejects an unusable database path with a clear message', async () => {
@@ -114,7 +133,7 @@ describe('switching the storage backend', () => {
   it('is refused when KASSANDRA_STORAGE fixes the backend', async () => {
     process.env.KASSANDRA_STORAGE = 'file';
     expect(getSetupInfo().backendLocked).toBe(true);
-    expect(initSetupState()).toBeUndefined();
+    initSetupState();
     expect(getSetupInfo().firstRun).toBe(false);
     await expect(changeStorage({ backend: 'sqlite' })).rejects.toThrow(/KASSANDRA_STORAGE/);
   });

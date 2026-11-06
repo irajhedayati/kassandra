@@ -6,7 +6,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createApp } from '../app.js';
 import { initSetupState } from '../config/setup.js';
-import { closeSharedSqliteStorage } from '../config/sqliteStorage.js';
+import { closeSharedSqliteRepository } from '../config/sqlite/repository.js';
 
 describe('/api/setup (first-run flow through the Express app)', () => {
   let home: string;
@@ -41,7 +41,7 @@ describe('/api/setup (first-run flow through the Express app)', () => {
     initSetupState();
   });
   afterEach(() => {
-    closeSharedSqliteStorage();
+    closeSharedSqliteRepository();
     process.env.HOME = savedHome;
     delete process.env.KASSANDRA_HOME;
     fs.rmSync(home, { recursive: true, force: true });

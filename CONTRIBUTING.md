@@ -36,10 +36,22 @@ As a **v0.2.0 Beta** project, we are especially grateful for help with bug fixes
 
 ## 🔄 Changing the configuration format
 
-Kassandra keeps its configuration (connection profiles, saved queries, per-table metadata) behind the `ConfigStorage`
-interface (`server/src/config/storage.ts`); by default that is the config directory (`~/.kassandra`, or `KASSANDRA_HOME`).
+Kassandra keeps its configuration (connection profiles, saved queries, per-table metadata) behind the `ConfigRepository`
+interface (`server/src/config/repository.ts`). Two backends ship: JSON files in the config directory (`~/.kassandra`, or
+`KASSANDRA_HOME`), and SQLite. Each has its own way to evolve, and existing users are upgraded automatically in both.
+
+### SQLite schema changes
+
+The relational schema is `server/src/config/sqlite/schema.ts` (Drizzle). After changing it run
+`npm run db:generate -w server`, review the new SQL file in `server/drizzle/` and commit it together with the schema
+change and the code that uses it. Never edit a migration that has been released; add another. The SQLite repository
+applies pending migrations when the server starts, and refuses a database that has more migrations than the running
+version knows. Extend `sqlite/repository.test.ts` or the contract suite when behavior changes.
+
+### File (JSON document) format changes
+
 The storage's version (the `VERSION` file in the directory) records the release that last wrote it. **Any change
-that alters the shape of that directory needs a migration**, so existing users are upgraded automatically.
+that alters the shape of that directory needs a migration.**
 
 1. Add `server/src/config/migrations/vX_Y_Z.ts`, where `X.Y.Z` is the release that ships the change, exporting a
    `migration` with `version`, `description` and an async `up({ storage })`. Use only the `ConfigStorage` methods
@@ -55,15 +67,19 @@ may have changed since the old format was written.
 
 ### Adding a storage backend
 
-Implement `ConfigStorage` and run `describeStorageContract()` from `storage.contract.ts` against it, as
-`fileStorage.test.ts` does. The contract covers documents, key listing, the version and the lock; the rest of the
-application and the migrations then work unchanged.
+Implement `ConfigRepository` and run `describeRepositoryContract()` from `repository.contract.ts` against it, as
+`documentRepository.test.ts` and `sqlite/repository.test.ts` do. The contract covers profiles, favorites, saved queries,
+table metadata, snapshots and the lock; the rest of the application then works unchanged.
 
-Then make it selectable: call `registerStorageBackend('<name>', () => new YourStorage(...))` (from `storage.ts`) at
-startup. Users choose it with `KASSANDRA_STORAGE=<name>`; without it the `file` backend is used. The factory runs on
-every `getStorage()` call, so return a shared instance. The built-in `sqlite` backend (`sqliteStorage.ts`) is a worked
-example; a change to its tables is a new entry at the end of `SCHEMA_STEPS`, not an edit of an existing one. To offer a
-backend on the Configuration page it also needs a place in `config/backend.ts` and `changeStorage()` in `setup.ts`.
+If the backend is a key -> JSON-document store (Redis, a key-value service, ...), implement the smaller `ConfigStorage`
+(`storage.ts`, tested with `describeStorageContract()`) and wrap it in `DocumentRepository`; the file-format migrations
+above then apply to it. A relational or otherwise richer backend implements `ConfigRepository` directly and owns its
+schema migrations, as `sqlite/` does. Its `migrate()` must create or upgrade the data and record the version.
+
+Then make it selectable: call `registerStorageBackend('<name>', () => yourRepository)` (from `registry.ts`) at startup.
+Users choose it with `KASSANDRA_STORAGE=<name>`; without it the `file` backend is used. The factory runs on every
+`getRepository()` call, so return a shared instance. To offer a backend on the Configuration page it also needs a place
+in `config/backend.ts` and `changeStorage()` in `setup.ts`.
 
 ---
 

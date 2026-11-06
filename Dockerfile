@@ -25,6 +25,7 @@ COPY --from=builder /app/shared/package.json ./shared/
 COPY --from=builder /app/shared/dist ./shared/dist
 COPY --from=builder /app/server/package.json ./server/
 COPY --from=builder /app/server/dist ./server/dist
+COPY --from=builder /app/server/drizzle ./server/drizzle
 COPY --from=builder /app/client/dist ./client/dist
 RUN npm install --omit=dev --no-audit --no-fund
 

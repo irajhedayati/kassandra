@@ -9,7 +9,6 @@
  * work with every backend.
  */
 import type { ConfigStorage, LockOptions } from '../storage.js';
-import { getStorage } from '../storage.js';
 import { compareVersions, getAppVersion, initConfigVersion } from '../version.js';
 import { migration as v1_6_0 } from './v1_6_0.js';
 
@@ -33,7 +32,7 @@ function pendingFor(migrations: Migration[], current: string): Migration[] {
 
 /** Returns the versions that were applied. */
 export async function runMigrations(
-  storage: ConfigStorage = getStorage(),
+  storage: ConfigStorage,
   migrations: Migration[] = MIGRATIONS,
   appVersion: string = getAppVersion(),
   lockOptions: LockOptions = {},

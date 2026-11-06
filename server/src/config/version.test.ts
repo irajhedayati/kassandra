@@ -3,7 +3,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { FileStorage } from './fileStorage.js';
-import { loadSettings, saveSettings } from './store.js';
+import { DEFAULT_PROFILE } from '@kassandra/shared';
+import { listProfiles, upsertProfile } from './store.js';
 import { compareVersions, getAppVersion, initConfigVersion, LEGACY_VERSION } from './version.js';
 
 describe('config version', () => {
@@ -20,14 +21,14 @@ describe('config version', () => {
   });
 
   it('is created with the app version on first run', async () => {
-    await loadSettings();
+    await listProfiles();
     expect(fs.readFileSync(path.join(dir, 'VERSION'), 'utf-8')).toBe(`${getAppVersion()}\n`);
     expect(getAppVersion()).toMatch(/^\d+\.\d+\.\d+/);
   });
 
   it('stamps an existing config without VERSION with the last pre-versioning release', async () => {
     fs.writeFileSync(path.join(dir, 'config.json'), '{}');
-    await loadSettings();
+    await listProfiles();
     expect(await storage.getVersion()).toBe(LEGACY_VERSION);
   });
 
@@ -46,7 +47,7 @@ describe('config version', () => {
 
   it('does not overwrite an existing version on save', async () => {
     await storage.setVersion('0.9.0');
-    await saveSettings(await loadSettings());
+    await upsertProfile({ ...DEFAULT_PROFILE, name: 'p' });
     expect(await storage.getVersion()).toBe('0.9.0');
   });
 });

@@ -2,8 +2,9 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { DocumentRepository } from './documentRepository.js';
 import { FileStorage } from './fileStorage.js';
-import { getStorage, registerStorageBackend } from './storage.js';
+import { getRepository, registerStorageBackend } from './registry.js';
 
 describe('storage backend selection', () => {
   let home: string;
@@ -20,18 +21,18 @@ describe('storage backend selection', () => {
   });
 
   it('defaults to the file backend', () => {
-    expect(getStorage()).toBeInstanceOf(FileStorage);
+    expect(getRepository()).toBeInstanceOf(DocumentRepository);
   });
 
   it('uses the backend named by KASSANDRA_STORAGE', () => {
-    const fake = new FileStorage('/tmp/kassandra-fake');
+    const fake = new DocumentRepository(new FileStorage(path.join(home, 'fake')));
     registerStorageBackend('fake', () => fake);
     process.env.KASSANDRA_STORAGE = 'fake';
-    expect(getStorage()).toBe(fake);
+    expect(getRepository()).toBe(fake);
   });
 
   it('rejects an unknown backend, listing the available ones', () => {
     process.env.KASSANDRA_STORAGE = 'nope';
-    expect(() => getStorage()).toThrow(/Unknown storage backend "nope".*file/);
+    expect(() => getRepository()).toThrow(/Unknown storage backend "nope".*file.*sqlite/);
   });
 });

@@ -27,8 +27,11 @@ import {
 } from './location.js';
 import { runMigrations } from './migrations/index.js';
 import { serialize } from './serial.js';
-import { closeSharedSqliteStorage, SqliteStorage } from './sqliteStorage.js';
-import { getStorage, type ConfigStorage } from './storage.js';
+import { DocumentRepository } from './documentRepository.js';
+import { getRepository } from './registry.js';
+import type { ConfigRepository } from './repository.js';
+import { closeSharedSqliteRepository, SqliteRepository } from './sqlite/repository.js';
+import type { ConfigStorage } from './storage.js';
 
 let firstRun: boolean | null = null;
 
@@ -132,12 +135,12 @@ export function changeStorage(request: ChangeStorageRequest): Promise<ChangeLoca
     }
 
     let sqlitePath: string | undefined;
-    let target: ConfigStorage;
+    let target: ConfigRepository;
     if (backend === 'sqlite') {
       sqlitePath = isSqlitePathLocked() ? getSqlitePath() : expandLocation(request.sqlitePath ?? defaultSqlitePath());
       target = await openSqlite(sqlitePath);
     } else {
-      target = new FileStorage(getConfigDir());
+      target = new DocumentRepository(new FileStorage(getConfigDir()));
     }
 
     try {
@@ -145,26 +148,30 @@ export function changeStorage(request: ChangeStorageRequest): Promise<ChangeLoca
       let copied = 0;
       let existing = false;
       if (!unchanged) {
-        existing = (await target.list('')).length > 0;
-        if (!existing && migrate) copied = await copyConfiguration(getStorage(), target);
-        await runMigrations(target);
+        await target.migrate();
+        existing = !(await target.isEmpty());
+        if (!existing && migrate) {
+          const snapshot = await getRepository().exportSnapshot();
+          await target.importSnapshot(snapshot);
+          copied = snapshot.settings.connections.length + snapshot.settings.saved_queries.length + snapshot.tables.length;
+        }
       }
       saveBackend({ backend, sqlitePath });
       firstRun = false;
       return { ...getSetupInfo(), copied, existing };
     } finally {
-      if (target instanceof SqliteStorage) target.close();
+      target.close();
       // Let the next request open the database that is now active.
-      closeSharedSqliteStorage();
+      closeSharedSqliteRepository();
     }
   });
 }
 
-async function openSqlite(file: string): Promise<SqliteStorage> {
+async function openSqlite(file: string): Promise<SqliteRepository> {
   try {
     if (existsSync(file) && statSync(file).isDirectory()) throw new Error('is a directory');
     await ensureWritableDir(path.dirname(file));
-    return new SqliteStorage(file);
+    return new SqliteRepository(file);
   } catch (err) {
     if (err instanceof LocationError) throw err;
     throw new LocationError(`Cannot use ${file}: ${err instanceof Error ? err.message : String(err)}`, 400);
