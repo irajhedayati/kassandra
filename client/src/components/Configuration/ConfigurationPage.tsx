@@ -1,12 +1,12 @@
 /**
  * Configuration page. Shown on its own on the first run, and from the gear in
- * the sidebar afterwards. Holds the appearance and the location of the
- * configuration files.
+ * the sidebar afterwards. Holds the appearance, the storage backend (files or
+ * SQLite) and the location of the configuration.
  */
 import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import type { ChangeLocationResult, SetupInfo } from '@kassandra/shared';
-import { setConfigLocation } from '../../api/setup.js';
+import { setConfigLocation, setStorageBackend } from '../../api/setup.js';
 import { useAppearance } from '../../state/appearance.js';
 import { type Appearance } from '../../utils/appearance.js';
 
@@ -24,6 +24,13 @@ const APPEARANCE_OPTIONS: { value: Appearance; label: string; hint: string }[] =
   { value: 'system', label: 'System', hint: 'Match the operating system' },
 ];
 
+type Backend = 'file' | 'sqlite';
+
+const BACKEND_OPTIONS: { value: Backend; label: string; hint: string }[] = [
+  { value: 'file', label: 'JSON files', hint: 'One JSON file per document in the location below' },
+  { value: 'sqlite', label: 'SQLite', hint: 'A single SQLite database file' },
+];
+
 function describe(result: ChangeLocationResult): string {
   if (result.existing) return 'Using the configuration already in that location.';
   if (result.copied > 0) {
@@ -35,14 +42,31 @@ function describe(result: ChangeLocationResult): string {
 export function ConfigurationPage({ setup, onDone, onClose }: Props) {
   const queryClient = useQueryClient();
   const [location, setLocation] = useState(setup.location);
+  const [backend, setBackend] = useState<Backend>(setup.backend === 'sqlite' ? 'sqlite' : 'file');
+  const [sqlitePath, setSqlitePath] = useState(setup.sqlitePath);
+  const [migrate, setMigrate] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const { appearance, setAppearance } = useAppearance();
 
-  // Follow the server when the saved location changes.
+  // Follow the server when the saved settings change.
   useEffect(() => setLocation(setup.location), [setup.location]);
+  useEffect(() => {
+    setBackend(setup.backend === 'sqlite' ? 'sqlite' : 'file');
+    setSqlitePath(setup.sqlitePath);
+  }, [setup.backend, setup.sqlitePath]);
+
+  // The location is that of the JSON files, so it can only be edited while they are in use.
+  const locationEditable = !setup.locked && setup.backend === 'file' && backend === 'file';
+  const backendChanged = backend !== setup.backend || (backend === 'sqlite' && sqlitePath.trim() !== setup.sqlitePath);
+  const locationChanged = locationEditable && location.trim() !== setup.location;
 
   const save = useMutation({
-    mutationFn: setConfigLocation,
+    mutationFn: async () => {
+      if (backendChanged || (backend === 'sqlite' && setup.firstRun)) {
+        return setStorageBackend({ backend, sqlitePath: backend === 'sqlite' ? sqlitePath : undefined, migrate });
+      }
+      return setConfigLocation(location);
+    },
     onSuccess: async (result) => {
       setMessage(setup.firstRun ? null : describe(result));
       // Profiles, saved queries and table settings all come from the configuration.
@@ -51,8 +75,10 @@ export function ConfigurationPage({ setup, onDone, onClose }: Props) {
     },
   });
 
-  const unchanged = !setup.firstRun && location.trim() === setup.location;
-  const disabled = setup.locked || save.isPending || location.trim() === '' || unchanged;
+  const unchanged = !setup.firstRun && !backendChanged && !locationChanged;
+  const empty = backend === 'sqlite' ? sqlitePath.trim() === '' : location.trim() === '';
+  const canSave = !(setup.locked && setup.backendLocked);
+  const disabled = !canSave || save.isPending || empty || unchanged;
 
   return (
     <div className="card mx-auto max-w-2xl p-6">
@@ -93,47 +119,123 @@ export function ConfigurationPage({ setup, onDone, onClose }: Props) {
         <p className="mt-1 text-xs text-slate-500">Applies immediately and is remembered in this browser.</p>
       </fieldset>
 
+      <fieldset className="mt-8" disabled={setup.backendLocked}>
+        <legend className="text-sm font-medium text-slate-700">Storage</legend>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {BACKEND_OPTIONS.map((o) => (
+            <label
+              key={o.value}
+              title={o.hint}
+              className={`flex cursor-pointer items-center gap-2 rounded border px-3 py-1.5 text-sm ${
+                backend === o.value
+                  ? 'border-blue-500 bg-blue-50 text-blue-700 dark:text-blue-300'
+                  : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'
+              }`}
+            >
+              <input
+                type="radio"
+                name="backend"
+                value={o.value}
+                checked={backend === o.value}
+                onChange={() => setBackend(o.value)}
+              />
+              {o.label}
+            </label>
+          ))}
+        </div>
+        {setup.backendLocked && (
+          <p className="mt-2 rounded border border-amber-300 dark:border-amber-800 bg-amber-50 p-2 text-sm text-amber-800 dark:text-amber-200">
+            The storage is set by the <span className="font-mono">KASSANDRA_STORAGE</span> environment
+            variable and cannot be changed here.
+          </p>
+        )}
+        {backend === 'sqlite' && (
+          <div className="mt-3">
+            <label htmlFor="config-sqlite-path" className="block text-sm font-medium text-slate-700">
+              SQLite database file
+            </label>
+            <div className="mt-1 flex gap-2">
+              <input
+                id="config-sqlite-path"
+                type="text"
+                value={sqlitePath}
+                onChange={(e) => setSqlitePath(e.target.value)}
+                disabled={setup.sqlitePathLocked || setup.backendLocked}
+                spellCheck={false}
+                className="w-full rounded border border-slate-300 px-3 py-1.5 font-mono text-sm disabled:bg-slate-100 disabled:text-slate-500"
+              />
+              <button
+                type="button"
+                onClick={() => setSqlitePath(setup.defaultSqlitePath)}
+                disabled={setup.sqlitePathLocked || setup.backendLocked || sqlitePath === setup.defaultSqlitePath}
+                className="shrink-0 rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Use default
+              </button>
+            </div>
+            {setup.sqlitePathLocked && (
+              <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                The path is set by <span className="font-mono">KASSANDRA_SQLITE_PATH</span>.
+              </p>
+            )}
+            {backendChanged && (
+              <label className="mt-2 flex items-center gap-2 text-sm text-slate-700">
+                <input type="checkbox" checked={migrate} onChange={(e) => setMigrate(e.target.checked)} />
+                Copy the current configuration into the database if it is empty
+              </label>
+            )}
+            <p className="mt-1 text-xs text-slate-500">
+              A database that already holds a configuration is used as is. The previous files are left in place.
+            </p>
+          </div>
+        )}
+      </fieldset>
+
       <form
         className="mt-8"
         onSubmit={(e) => {
           e.preventDefault();
           setMessage(null);
-          save.mutate(location);
+          save.mutate();
         }}
       >
-        <label htmlFor="config-location" className="block text-sm font-medium text-slate-700">
-          Location of the configuration files
-        </label>
-        <div className="mt-1 flex gap-2">
-          <input
-            id="config-location"
-            type="text"
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-            disabled={setup.locked}
-            spellCheck={false}
-            className="w-full rounded border border-slate-300 px-3 py-1.5 font-mono text-sm disabled:bg-slate-100 disabled:text-slate-500"
-          />
-          <button
-            type="button"
-            onClick={() => setLocation(setup.defaultLocation)}
-            disabled={setup.locked || location === setup.defaultLocation}
-            className="shrink-0 rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Use default
-          </button>
-        </div>
-        <p className="mt-1 text-xs text-slate-500">
-          Connection profiles, saved queries and table settings are stored here. Default:{' '}
-          <span className="font-mono">{setup.defaultLocation}</span>. An existing configuration at
-          the new location is used as is; otherwise the current one is copied there and the old
-          files are left in place.
-        </p>
-        {setup.locked && (
-          <p className="mt-2 rounded border border-amber-300 dark:border-amber-800 bg-amber-50 p-2 text-sm text-amber-800 dark:text-amber-200">
-            The location is set by the <span className="font-mono">KASSANDRA_HOME</span> environment
-            variable and cannot be changed here.
+        {backend === 'file' && (
+          <>
+          <label htmlFor="config-location" className="block text-sm font-medium text-slate-700">
+            Location of the configuration files
+          </label>
+          <div className="mt-1 flex gap-2">
+            <input
+              id="config-location"
+              type="text"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              disabled={!locationEditable}
+              spellCheck={false}
+              className="w-full rounded border border-slate-300 px-3 py-1.5 font-mono text-sm disabled:bg-slate-100 disabled:text-slate-500"
+            />
+            <button
+              type="button"
+              onClick={() => setLocation(setup.defaultLocation)}
+              disabled={!locationEditable || location === setup.defaultLocation}
+              className="shrink-0 rounded border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Use default
+            </button>
+          </div>
+          <p className="mt-1 text-xs text-slate-500">
+            Connection profiles, saved queries and table settings are stored here. Default:{' '}
+            <span className="font-mono">{setup.defaultLocation}</span>. An existing configuration at
+            the new location is used as is; otherwise the current one is copied there and the old
+            files are left in place.
           </p>
+          {setup.locked && (
+            <p className="mt-2 rounded border border-amber-300 dark:border-amber-800 bg-amber-50 p-2 text-sm text-amber-800 dark:text-amber-200">
+              The location is set by the <span className="font-mono">KASSANDRA_HOME</span> environment
+              variable and cannot be changed here.
+            </p>
+          )}
+          </>
         )}
 
         {save.isError && (
@@ -157,7 +259,7 @@ export function ConfigurationPage({ setup, onDone, onClose }: Props) {
               Close
             </button>
           )}
-          {(setup.firstRun || !setup.locked) && (
+          {canSave && (
             <button
               type="submit"
               disabled={disabled}

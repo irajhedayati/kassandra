@@ -1,9 +1,9 @@
 /**
- * Storage abstraction for everything Kassandra persists: a small key ->
- * JSON-document store. The settings logic (store.ts), the table metadata
- * (tables.ts) and the migrations are written against this interface only, so a
- * different backend (SQLite, an RDBMS, Redis, Firebase, ...) only has to
- * implement it. FileStorage (fileStorage.ts) is the default.
+ * Document layer: a small key -> JSON-document store. DocumentRepository
+ * (documentRepository.ts) builds the ConfigRepository on top of it, so a
+ * backend that fits this shape (files, Redis, a key-value service, ...) only
+ * has to implement this interface. FileStorage (fileStorage.ts) is the default.
+ * Backends with a richer model (SQLite) implement ConfigRepository directly.
  *
  * Keys:
  *   config                      connection profiles, favorites, saved queries
@@ -14,14 +14,8 @@
  * reject anything else. The version of the data is kept apart from the keys
  * because it is read before anything can be parsed.
  */
-import { FileStorage, getConfigDir } from './fileStorage.js';
-
-export interface LockOptions {
-  /** How long to wait for another process to release the lock. Default 60 s. */
-  timeoutMs?: number;
-  /** A lock older than this is assumed to belong to a crashed process. Default 5 min. */
-  staleMs?: number;
-}
+export type { LockOptions } from './repository.js';
+import type { LockOptions } from './repository.js';
 
 export interface ConfigStorage {
   /** Where the data lives, for log and error messages. */
@@ -44,39 +38,4 @@ export interface ConfigStorage {
    * takes over a stale lock, rejects after the timeout. Resolves to the release function.
    */
   lock(options?: LockOptions): Promise<() => Promise<void>>;
-}
-
-/** Creates a backend. Called on every `getStorage()`, so a non-trivial backend should return a shared instance. */
-export type StorageFactory = () => ConfigStorage;
-
-export const DEFAULT_BACKEND = 'file';
-
-const backends = new Map<string, StorageFactory>([[DEFAULT_BACKEND, () => new FileStorage(getConfigDir())]]);
-
-/** Make a backend selectable with `KASSANDRA_STORAGE=<name>`. Replaces a backend of the same name. */
-export function registerStorageBackend(name: string, factory: StorageFactory): void {
-  backends.set(name, factory);
-}
-
-/** Name of the configured backend: `KASSANDRA_STORAGE`, else `file`. */
-export function getBackendName(): string {
-  return process.env.KASSANDRA_STORAGE?.trim() || DEFAULT_BACKEND;
-}
-
-let override: ConfigStorage | null = null;
-
-/** The active storage: the backend named by `KASSANDRA_STORAGE`, files in `KASSANDRA_HOME ?? ~/.kassandra` by default. */
-export function getStorage(): ConfigStorage {
-  if (override) return override;
-  const name = getBackendName();
-  const factory = backends.get(name);
-  if (!factory) {
-    throw new Error(`Unknown storage backend "${name}". Available: ${[...backends.keys()].sort().join(', ')}`);
-  }
-  return factory();
-}
-
-/** Use `storage` instead of the configured backend; pass null to go back to it. */
-export function setStorage(storage: ConfigStorage | null): void {
-  override = storage;
 }

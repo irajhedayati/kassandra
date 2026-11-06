@@ -1,11 +1,11 @@
 /**
  * Per-column metadata (display_type, hide, map_schema).
  *
- * Persisted per connection + table in ~/.kassandra/tables/ (see config/tables.ts).
+ * Persisted per connection + table by the active config repository (see config/repository.ts).
  *
  * Routes (mounted at /api/metadata):
  *
- *   GET /files                  → ApiOk<TableMetadataFile[]>  (files in the config directory)
+ *   GET /files                  → ApiOk<TableMetadataFile[]>  (tables that have metadata, named <connection>-<keyspace>.<table>.json)
  *   GET /:ks/:t                 → ApiOk<Record<string, ColumnMetadata>>
  *   PUT /:ks/:t/:column         → body: ColumnMetadata → ApiOk<ColumnMetadata>
  *   POST /:ks/:t/import         → body: ImportTableMetadataRequest → ApiOk<Record<string, ColumnMetadata>>
@@ -21,15 +21,13 @@ import type {
 import { getTableSchema } from '../cassandra/schema.js';
 import { requireSession } from '../cassandra/state.js';
 import { importTableMetadata } from '../config/importSchema.js';
-import { serialize } from '../config/serial.js';
-import { getTableMetadata, setColumnMetadata } from '../config/store.js';
-import { getStorage } from '../config/storage.js';
-import { columnMetadataSchema, listTableFiles, TableFileError } from '../config/tables.js';
+import { getTableMetadata, listTableFiles, setColumnMetadata, withRepository } from '../config/store.js';
+import { columnMetadataSchema, TableFileError } from '../config/tables.js';
 
 export const metadataRouter = Router();
 
 metadataRouter.get('/files', async (_req, res) => {
-  const body: ApiOk<TableMetadataFile[]> = { ok: true, data: await listTableFiles(getStorage()) };
+  const body: ApiOk<TableMetadataFile[]> = { ok: true, data: await listTableFiles() };
   res.json(body);
 });
 
@@ -67,13 +65,8 @@ metadataRouter.post(
       const { file, overwrite }: ImportTableMetadataRequest = request.data;
       const schema = await getTableSchema(client, keyspace, table);
       const columns = schema.columns.map((c) => c.name);
-      const data = await serialize(() =>
-        importTableMetadata(
-          getStorage(),
-          file,
-          { connection: profile.name, keyspace, table, columns },
-          overwrite === true,
-        ),
+      const data = await withRepository((repository) =>
+        importTableMetadata(repository, file, { connection: profile.name, keyspace, table, columns }, overwrite === true),
       );
       const body: ApiOk<Record<string, ColumnMetadata>> = { ok: true, data };
       res.json(body);

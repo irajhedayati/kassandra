@@ -11,7 +11,7 @@ import {
   saveLocation,
 } from './location.js';
 import { changeLocation, getSetupInfo, initSetupState } from './setup.js';
-import { getStorage } from './storage.js';
+import { getRepository } from './registry.js';
 import { compareVersions, getAppVersion } from './version.js';
 
 // Documents without the backups a migration may have just made.
@@ -133,7 +133,7 @@ describe('configuration location and first run', () => {
 
       expect(result).toMatchObject({ location: target, copied: 2, existing: false });
       expect(getConfigDir()).toBe(target);
-      expect(getStorage().description).toBe(target);
+      expect(getRepository().description).toBe(target);
       const to = new FileStorage(target);
       expect(await docs(to)).toEqual(['config', 'tables/c1-ks.t']);
       expect(await to.get('tables/c1-ks.t')).toEqual({ a: { hide: true } });

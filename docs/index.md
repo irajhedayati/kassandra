@@ -462,6 +462,18 @@ By default, the configuration is kept in files (the file backend). KASSANDRA_STO
 by name; if the name is unknown, the server fails with an error that lists the available backends. KASSANDRA_HOME and
 the Configuration page's location setting apply only to the file backend.
 
+### SQLite storage
+
+Instead of JSON files, the configuration can live in a single SQLite database with a relational schema (tables for
+connections and their hosts, favorite keyspaces, saved queries and their parameters, and per-table column metadata). Choose **SQLite** under *Storage* on the
+Configuration page (the gear icon in the sidebar) and set the database file; the default is `kassandra.db` in the
+configuration directory. The schema is created and upgraded automatically at startup. Switching copies the current configuration into the database if it is empty (clear the checkbox
+to start empty); a database that already holds a configuration is used as is, and the old JSON files are left in place.
+Switching back to the files works the same way. Two environment variables fix the choice and disable it in the UI:
+`KASSANDRA_STORAGE=sqlite` and `KASSANDRA_SQLITE_PATH=/path/to/kassandra.db`. The choice itself is remembered in
+`~/.kassandra/.backend`, which always stays in the default directory because it has to be readable before any storage is.
+
+
 For source installations, `HOST` and `PORT` control the server's listening address and port; defaults are `127.0.0.1`
 and `8501`. The Docker image sets `HOST=0.0.0.0` so the published port is reachable.
 

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { DEFAULT_PROFILE } from '@kassandra/shared';
 import { FileStorage } from './fileStorage.js';
-import { deleteProfile, getTableMetadata, loadSettings, setColumnMetadata, upsertProfile } from './store.js';
+import { deleteProfile, getTableMetadata, listProfiles, setColumnMetadata, upsertProfile } from './store.js';
 import { tableFileName, tableKeyForFile } from './tables.js';
 
 const profile = (name: string) => ({ ...DEFAULT_PROFILE, name });
@@ -21,7 +21,7 @@ describe('per-table metadata', () => {
   });
 
   it('round-trips and merges per column, isolated by connection and table', async () => {
-    await loadSettings();
+    await listProfiles();
     await setColumnMetadata('c1', 'ks', 't', 'a', { hide: true });
     await setColumnMetadata('c1', 'ks', 't', 'a', { display_type: 'JSON' });
     await setColumnMetadata('c1', 'ks', 't', 'b', { hide: false });

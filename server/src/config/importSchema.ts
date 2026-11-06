@@ -1,16 +1,10 @@
 /**
- * Import a per-table metadata document from the config storage as the
- * metadata of another table (typically the same table of another connection).
+ * Import the column metadata of one table as the metadata of another (typically
+ * the same table of another connection).
  */
 import type { ColumnMetadata } from '@kassandra/shared';
-import type { ConfigStorage } from './storage.js';
-import {
-  readTableMetadata,
-  TableFileError,
-  tableKeyForFile,
-  tableMetadataSchema,
-  writeTableMetadata,
-} from './tables.js';
+import type { ConfigRepository, TableRef } from './repository.js';
+import { parseTableFileName, TableFileError, tableMetadataSchema } from './tables.js';
 
 export interface ImportTarget {
   connection: string;
@@ -21,31 +15,26 @@ export interface ImportTarget {
 }
 
 /**
- * Validates `file` (JSON shape, and every column must exist on the target) and
- * writes it as the target's metadata, replacing what was there. Rejects with
- * TableFileError: 400 invalid file, 404 missing file, 409 target already has
- * metadata and `overwrite` is not set.
+ * Validates the source named by `file` (a name from the table listing, see
+ * tableFileName; every column must exist on the target) and stores its metadata
+ * as the target's, replacing what was there. Rejects with TableFileError: 400
+ * invalid name or metadata, 404 no such source, 409 target already has metadata
+ * and `overwrite` is not set.
  */
 export async function importTableMetadata(
-  storage: ConfigStorage,
+  repository: ConfigRepository,
   file: string,
   target: ImportTarget,
   overwrite: boolean,
 ): Promise<Record<string, ColumnMetadata>> {
-  const key = tableKeyForFile(file);
-  if (!(await storage.list(key)).includes(key)) throw new TableFileError(`File not found: ${file}`, 404);
-
-  let json: unknown;
-  try {
-    json = await storage.get(key);
-  } catch (err) {
-    throw new TableFileError(
-      `${file} is not valid JSON: ${err instanceof Error ? err.message : String(err)}`,
-      400,
-    );
+  const source: TableRef | null = parseTableFileName(file);
+  if (!source) throw new TableFileError(`Not a table metadata file: ${file}`, 400);
+  const listed = await repository.listTables();
+  if (!listed.some((t) => t.connection === source.connection && t.keyspace === source.keyspace && t.table === source.table)) {
+    throw new TableFileError(`File not found: ${file}`, 404);
   }
 
-  const parsed = tableMetadataSchema.safeParse(json);
+  const parsed = tableMetadataSchema.safeParse(await repository.getTableMetadata(source));
   if (!parsed.success) {
     const issues = parsed.error.issues
       .slice(0, 5)
@@ -63,7 +52,7 @@ export async function importTableMetadata(
     );
   }
 
-  const existing = await readTableMetadata(storage, target.connection, target.keyspace, target.table);
+  const existing = await repository.getTableMetadata(target);
   if (!overwrite && Object.keys(existing).length > 0) {
     throw new TableFileError(
       `Metadata for ${target.keyspace}.${target.table} already exists; confirm to overwrite it`,
@@ -71,6 +60,6 @@ export async function importTableMetadata(
     );
   }
 
-  await writeTableMetadata(storage, target.connection, target.keyspace, target.table, parsed.data);
+  await repository.replaceTableMetadata(target, parsed.data);
   return parsed.data;
 }
