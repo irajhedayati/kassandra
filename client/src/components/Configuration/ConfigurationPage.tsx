@@ -1,11 +1,17 @@
 /**
  * Configuration page. Shown on its own on the first run, and from the gear in
  * the sidebar afterwards. Holds the appearance, the storage backend (files,
- * SQLite or PostgreSQL) and the location of the configuration.
+ * SQLite, PostgreSQL or MySQL) and the location of the configuration.
  */
 import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import type { ChangeLocationResult, SetupInfo } from '@kassandra/shared';
+import {
+  DEFAULT_SQL_SCHEMA,
+  SQL_DEFAULT_PORTS,
+  type ChangeLocationResult,
+  type SetupInfo,
+  type SqlDialect,
+} from '@kassandra/shared';
 import { setConfigLocation, setStorageBackend } from '../../api/setup.js';
 import { useAppearance } from '../../state/appearance.js';
 import { type Appearance } from '../../utils/appearance.js';
@@ -24,15 +30,52 @@ const APPEARANCE_OPTIONS: { value: Appearance; label: string; hint: string }[] =
   { value: 'system', label: 'System', hint: 'Match the operating system' },
 ];
 
-type Backend = 'file' | 'sqlite' | 'postgres';
+type Backend = 'file' | 'sqlite' | SqlDialect;
 
 const BACKEND_OPTIONS: { value: Backend; label: string; hint: string }[] = [
   { value: 'file', label: 'JSON files', hint: 'One JSON file per document in the location below' },
   { value: 'sqlite', label: 'SQLite', hint: 'A single SQLite database file' },
   { value: 'postgres', label: 'PostgreSQL', hint: 'A PostgreSQL database, shared by every Kassandra that uses it' },
+  { value: 'mysql', label: 'MySQL / MariaDB', hint: 'A MySQL or MariaDB database, shared by every Kassandra that uses it' },
 ];
 
-const asBackend = (name: string): Backend => (name === 'sqlite' || name === 'postgres' ? name : 'file');
+const asBackend = (name: string): Backend =>
+  name === 'sqlite' || name === 'postgres' || name === 'mysql' ? name : 'file';
+
+const isSql = (backend: Backend): backend is SqlDialect => backend === 'postgres' || backend === 'mysql';
+
+/** The connection form; the port is text while it is being typed. */
+interface SqlForm {
+  host: string;
+  port: string;
+  database: string;
+  username: string;
+  /** Empty keeps the saved password: the server never sends it back. */
+  password: string;
+  ssl: boolean;
+  schema: string;
+}
+
+/** The form for `dialect`: the saved connection if it is for that dialect, else defaults. */
+function sqlFormFor(setup: SetupInfo, dialect: SqlDialect): SqlForm {
+  const saved = setup.sql;
+  if (saved.dialect !== dialect) {
+    return { host: 'localhost', port: String(SQL_DEFAULT_PORTS[dialect]), database: '', username: '', password: '', ssl: false, schema: DEFAULT_SQL_SCHEMA };
+  }
+  return { host: saved.host, port: String(saved.port), database: saved.database, username: saved.username, password: '', ssl: saved.ssl, schema: saved.schema };
+}
+
+const sameForm = (a: SqlForm, b: SqlForm) =>
+  a.host.trim() === b.host.trim() &&
+  a.port.trim() === b.port.trim() &&
+  a.database.trim() === b.database.trim() &&
+  a.username === b.username &&
+  a.password === b.password &&
+  a.ssl === b.ssl &&
+  a.schema.trim() === b.schema.trim();
+
+const FIELD_CLASS =
+  'mt-1 w-full rounded border border-slate-300 px-3 py-1.5 text-sm disabled:bg-slate-100 disabled:text-slate-500';
 
 function describe(result: ChangeLocationResult): string {
   if (result.existing) return 'Using the configuration already in that location.';
@@ -47,9 +90,9 @@ export function ConfigurationPage({ setup, onDone, onClose }: Props) {
   const [location, setLocation] = useState(setup.location);
   const [backend, setBackend] = useState<Backend>(asBackend(setup.backend));
   const [sqlitePath, setSqlitePath] = useState(setup.sqlitePath);
-  // The password in the URL is masked by the server; leaving it as shown keeps the saved one.
-  const [postgresUrl, setPostgresUrl] = useState(setup.postgresUrl);
-  const [postgresSchema, setPostgresSchema] = useState(setup.postgresSchema);
+  const initialDialect = isSql(asBackend(setup.backend)) ? (setup.backend as SqlDialect) : setup.sql.dialect;
+  const [sqlForm, setSqlForm] = useState<SqlForm>(() => sqlFormFor(setup, initialDialect));
+  const updateSql = (patch: Partial<SqlForm>) => setSqlForm((form) => ({ ...form, ...patch }));
   const [migrate, setMigrate] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const { appearance, setAppearance } = useAppearance();
@@ -59,17 +102,21 @@ export function ConfigurationPage({ setup, onDone, onClose }: Props) {
   useEffect(() => {
     setBackend(asBackend(setup.backend));
     setSqlitePath(setup.sqlitePath);
-    setPostgresUrl(setup.postgresUrl);
-    setPostgresSchema(setup.postgresSchema);
-  }, [setup.backend, setup.sqlitePath, setup.postgresUrl, setup.postgresSchema]);
+    setSqlForm(sqlFormFor(setup, isSql(asBackend(setup.backend)) ? (setup.backend as SqlDialect) : setup.sql.dialect));
+  }, [setup]);
+
+  const chooseBackend = (next: Backend) => {
+    setBackend(next);
+    // Each database has its own defaults (port, schema) and its own saved connection.
+    if (isSql(next)) setSqlForm(sqlFormFor(setup, next));
+  };
 
   // The location is that of the JSON files, so it can only be edited while they are in use.
   const locationEditable = !setup.locked && setup.backend === 'file' && backend === 'file';
   const backendChanged =
     backend !== setup.backend ||
     (backend === 'sqlite' && sqlitePath.trim() !== setup.sqlitePath) ||
-    (backend === 'postgres' &&
-      (postgresUrl.trim() !== setup.postgresUrl || postgresSchema.trim() !== setup.postgresSchema));
+    (isSql(backend) && !sameForm(sqlForm, sqlFormFor(setup, backend)));
   const locationChanged = locationEditable && location.trim() !== setup.location;
 
   const save = useMutation({
@@ -78,8 +125,17 @@ export function ConfigurationPage({ setup, onDone, onClose }: Props) {
         return setStorageBackend({
           backend,
           sqlitePath: backend === 'sqlite' ? sqlitePath : undefined,
-          postgresUrl: backend === 'postgres' ? postgresUrl : undefined,
-          postgresSchema: backend === 'postgres' ? postgresSchema : undefined,
+          sql: isSql(backend)
+            ? {
+                host: sqlForm.host,
+                port: Number(sqlForm.port),
+                database: sqlForm.database,
+                username: sqlForm.username,
+                password: sqlForm.password === '' ? undefined : sqlForm.password,
+                ssl: sqlForm.ssl,
+                schema: backend === 'postgres' ? sqlForm.schema : undefined,
+              }
+            : undefined,
           migrate,
         });
       }
@@ -97,8 +153,10 @@ export function ConfigurationPage({ setup, onDone, onClose }: Props) {
   const empty =
     backend === 'sqlite'
       ? sqlitePath.trim() === ''
-      : backend === 'postgres'
-        ? postgresUrl.trim() === ''
+      : isSql(backend)
+        ? setup.sqlLocked
+          ? false
+          : sqlForm.host.trim() === '' || sqlForm.database.trim() === '' || !Number.isInteger(Number(sqlForm.port))
         : location.trim() === '';
   const canSave = !(setup.locked && setup.backendLocked);
   const disabled = !canSave || save.isPending || empty || unchanged;
@@ -160,7 +218,7 @@ export function ConfigurationPage({ setup, onDone, onClose }: Props) {
                 name="backend"
                 value={o.value}
                 checked={backend === o.value}
-                onChange={() => setBackend(o.value)}
+                onChange={() => chooseBackend(o.value)}
               />
               {o.label}
             </label>
@@ -212,44 +270,59 @@ export function ConfigurationPage({ setup, onDone, onClose }: Props) {
             </p>
           </div>
         )}
-        {backend === 'postgres' && (
+        {isSql(backend) && (
           <div className="mt-3">
-            <label htmlFor="config-postgres-url" className="block text-sm font-medium text-slate-700">
-              PostgreSQL connection URL
-            </label>
-            <input
-              id="config-postgres-url"
-              type="text"
-              value={postgresUrl}
-              onChange={(e) => setPostgresUrl(e.target.value)}
-              disabled={setup.postgresUrlLocked || setup.backendLocked}
-              placeholder="postgres://user:password@host:5432/database"
-              spellCheck={false}
-              autoComplete="off"
-              className="mt-1 w-full rounded border border-slate-300 px-3 py-1.5 font-mono text-sm disabled:bg-slate-100 disabled:text-slate-500"
-            />
-            {setup.postgresUrlLocked && (
-              <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
-                The URL is set by <span className="font-mono">KASSANDRA_PG_URL</span>.
+            {setup.sqlLocked && (
+              <p className="mb-2 rounded border border-amber-300 dark:border-amber-800 bg-amber-50 p-2 text-sm text-amber-800 dark:text-amber-200">
+                The connection is set by the <span className="font-mono">KASSANDRA_DB_URL</span> environment
+                variable and cannot be changed here.
               </p>
             )}
-            <label htmlFor="config-postgres-schema" className="mt-3 block text-sm font-medium text-slate-700">
-              Schema
-            </label>
-            <input
-              id="config-postgres-schema"
-              type="text"
-              value={postgresSchema}
-              onChange={(e) => setPostgresSchema(e.target.value)}
-              disabled={setup.postgresSchemaLocked || setup.backendLocked}
-              spellCheck={false}
-              className="mt-1 w-full rounded border border-slate-300 px-3 py-1.5 font-mono text-sm disabled:bg-slate-100 disabled:text-slate-500"
-            />
-            {setup.postgresSchemaLocked && (
-              <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
-                The schema is set by <span className="font-mono">KASSANDRA_PG_SCHEMA</span>.
-              </p>
-            )}
+            <fieldset disabled={setup.sqlLocked || setup.backendLocked} className="grid grid-cols-6 gap-3">
+              <div className="col-span-4">
+                <label htmlFor="config-sql-host" className="block text-sm font-medium text-slate-700">Host</label>
+                <input id="config-sql-host" type="text" value={sqlForm.host} onChange={(e) => updateSql({ host: e.target.value })} spellCheck={false} className={`${FIELD_CLASS} font-mono`} />
+              </div>
+              <div className="col-span-2">
+                <label htmlFor="config-sql-port" className="block text-sm font-medium text-slate-700">Port</label>
+                <input id="config-sql-port" type="text" inputMode="numeric" value={sqlForm.port} onChange={(e) => updateSql({ port: e.target.value })} className={`${FIELD_CLASS} font-mono`} />
+              </div>
+              <div className="col-span-6">
+                <label htmlFor="config-sql-database" className="block text-sm font-medium text-slate-700">Database</label>
+                <input id="config-sql-database" type="text" value={sqlForm.database} onChange={(e) => updateSql({ database: e.target.value })} spellCheck={false} className={`${FIELD_CLASS} font-mono`} />
+              </div>
+              <div className="col-span-3">
+                <label htmlFor="config-sql-username" className="block text-sm font-medium text-slate-700">User</label>
+                <input id="config-sql-username" type="text" value={sqlForm.username} onChange={(e) => updateSql({ username: e.target.value })} spellCheck={false} autoComplete="off" className={`${FIELD_CLASS} font-mono`} />
+              </div>
+              <div className="col-span-3">
+                <label htmlFor="config-sql-password" className="block text-sm font-medium text-slate-700">Password</label>
+                <input
+                  id="config-sql-password"
+                  type="password"
+                  value={sqlForm.password}
+                  onChange={(e) => updateSql({ password: e.target.value })}
+                  placeholder={setup.sql.dialect === backend && setup.sql.hasPassword ? 'Saved; leave empty to keep it' : ''}
+                  autoComplete="new-password"
+                  className={FIELD_CLASS}
+                />
+              </div>
+              {backend === 'postgres' && (
+                <div className="col-span-6">
+                  <label htmlFor="config-sql-schema" className="block text-sm font-medium text-slate-700">Schema</label>
+                  <input id="config-sql-schema" type="text" value={sqlForm.schema} onChange={(e) => updateSql({ schema: e.target.value })} disabled={setup.sqlSchemaLocked} spellCheck={false} className={`${FIELD_CLASS} font-mono`} />
+                  {setup.sqlSchemaLocked && (
+                    <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                      The schema is set by <span className="font-mono">KASSANDRA_DB_SCHEMA</span>.
+                    </p>
+                  )}
+                </div>
+              )}
+              <label className="col-span-6 flex items-center gap-2 text-sm text-slate-700">
+                <input type="checkbox" checked={sqlForm.ssl} onChange={(e) => updateSql({ ssl: e.target.checked })} />
+                Encrypt the connection with TLS and verify the server certificate
+              </label>
+            </fieldset>
             {backendChanged && (
               <label className="mt-2 flex items-center gap-2 text-sm text-slate-700">
                 <input type="checkbox" checked={migrate} onChange={(e) => setMigrate(e.target.checked)} />
@@ -257,9 +330,11 @@ export function ConfigurationPage({ setup, onDone, onClose }: Props) {
               </label>
             )}
             <p className="mt-1 text-xs text-slate-500">
-              The tables are created in the schema if they do not exist yet; a database that already holds a
-              configuration is used as is. The URL, including its password, is saved in a file only your user can
-              read. The previous storage is left in place.
+              {backend === 'mysql'
+                ? 'The database must already exist; the tables are created in it if they do not.'
+                : 'The tables are created in the schema, which is created if it does not exist.'}{' '}
+              A database that already holds a configuration is used as is. The password is saved in a file only
+              your user can read. The previous storage is left in place.
             </p>
           </div>
         )}

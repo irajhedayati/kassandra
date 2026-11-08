@@ -23,6 +23,41 @@ export interface AboutInfo {
   version: string;
 }
 
+/** Relational databases that can hold the configuration. The `mysql` dialect also covers MariaDB. */
+export type SqlDialect = 'postgres' | 'mysql';
+
+export const SQL_DEFAULT_PORTS: Record<SqlDialect, number> = { postgres: 5432, mysql: 3306 };
+
+/** PostgreSQL schema used unless another is given; MySQL has none (the database is the namespace). */
+export const DEFAULT_SQL_SCHEMA = 'public';
+
+/** How Kassandra reaches a relational database, without the password. */
+export interface SqlConnectionInfo {
+  dialect: SqlDialect;
+  host: string;
+  port: number;
+  database: string;
+  username: string;
+  /** Verify and encrypt the connection with TLS. */
+  ssl: boolean;
+  /** PostgreSQL schema holding the tables; ignored for MySQL. */
+  schema: string;
+  /** A password is saved. It is never sent to the browser. */
+  hasPassword: boolean;
+}
+
+/** The connection settings in a PUT /api/setup/storage request. */
+export interface SqlConnectionRequest {
+  host: string;
+  port: number;
+  database: string;
+  username: string;
+  /** Omit to keep the saved password. */
+  password?: string;
+  ssl: boolean;
+  schema?: string;
+}
+
 /** Payload of GET /api/setup. */
 export interface SetupInfo {
   /** Nothing has been configured yet; the UI shows the Configuration page first. */
@@ -32,7 +67,7 @@ export interface SetupInfo {
   defaultLocation: string;
   /** KASSANDRA_HOME fixes the location; it cannot be changed from the UI. */
   locked: boolean;
-  /** Storage backend in use: `file`, `sqlite` or `postgres` (or a registered connector). */
+  /** Storage backend in use: `file`, `sqlite`, `postgres` or `mysql` (or a registered connector). */
   backend: string;
   /** KASSANDRA_STORAGE fixes the backend; it cannot be changed from the UI. */
   backendLocked: boolean;
@@ -41,14 +76,15 @@ export interface SetupInfo {
   defaultSqlitePath: string;
   /** KASSANDRA_SQLITE_PATH fixes the database file. */
   sqlitePathLocked: boolean;
-  /** PostgreSQL connection URL with the password masked, '' if none is configured. */
-  postgresUrl: string;
-  /** KASSANDRA_PG_URL fixes the connection URL. */
-  postgresUrlLocked: boolean;
-  /** PostgreSQL schema holding the tables. */
-  postgresSchema: string;
-  /** KASSANDRA_PG_SCHEMA fixes the schema. */
-  postgresSchemaLocked: boolean;
+  /**
+   * Connection settings of the relational database: the one in use if the backend is `postgres` or
+   * `mysql`, else the last one saved, else defaults.
+   */
+  sql: SqlConnectionInfo;
+  /** KASSANDRA_DB_URL fixes the whole connection; it cannot be changed from the UI. */
+  sqlLocked: boolean;
+  /** KASSANDRA_DB_SCHEMA fixes the PostgreSQL schema. */
+  sqlSchemaLocked: boolean;
 }
 
 /** Payload of PUT /api/setup/location and PUT /api/setup/storage. */
@@ -61,16 +97,11 @@ export interface ChangeLocationResult extends SetupInfo {
 
 /** Body of PUT /api/setup/storage. */
 export interface ChangeStorageRequest {
-  backend: 'file' | 'sqlite' | 'postgres';
+  backend: 'file' | 'sqlite' | SqlDialect;
   /** Database file for `sqlite`; the default in the config directory when omitted. */
   sqlitePath?: string;
-  /**
-   * Connection URL for `postgres`. Omit it (or send back the masked URL from SetupInfo)
-   * to keep the one already configured.
-   */
-  postgresUrl?: string;
-  /** PostgreSQL schema for `postgres`; `public` when omitted. */
-  postgresSchema?: string;
+  /** Connection for `postgres` and `mysql`. Required unless KASSANDRA_DB_URL provides it. */
+  sql?: SqlConnectionRequest;
   /** Copy the current configuration into an empty target. Default true. */
   migrate?: boolean;
 }

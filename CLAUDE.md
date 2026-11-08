@@ -31,8 +31,8 @@ npm run typecheck
 # Run unit tests (all workspaces)
 npm run test
 
-# Integration tests: starts a throwaway PostgreSQL container with Docker, runs
-# *.integration.test.ts against it, removes it (or set KASSANDRA_TEST_PG_URL to use your own)
+# Integration tests: starts throwaway PostgreSQL and MySQL containers with Docker, runs
+# *.integration.test.ts against it, removes it (or set KASSANDRA_TEST_POSTGRES_URL / KASSANDRA_TEST_MYSQL_URL to use your own)
 npm run test:integration
 
 # Docker
@@ -68,9 +68,9 @@ legacy/  ; original Python/Streamlit app (reference only)
 - `config/location.ts`; where the config lives: `KASSANDRA_HOME`, else the path saved by the Configuration page in
   `~/.kassandra/.location`, else `~/.kassandra`. `config/setup.ts` holds the first-run state (decided once at startup)
   and `changeLocation()`, which copies to an empty target, migrates it and then switches.
-- `config/backend.ts`; which backend is active (`KASSANDRA_STORAGE`, else the choice saved in `~/.kassandra/.backend`, else `file`) the SQLite path (`KASSANDRA_SQLITE_PATH`, else saved, else `<config dir>/kassandra.db`) and the PostgreSQL URL and schema (`KASSANDRA_PG_URL`/`KASSANDRA_PG_SCHEMA`, else saved). `setup.ts#changeStorage()` switches backend, migrating the target and copying a snapshot into it if it is empty.
+- `config/backend.ts`; which backend is active (`KASSANDRA_STORAGE`, else the choice saved in `~/.kassandra/.backend`, else `file`), the SQLite path (`KASSANDRA_SQLITE_PATH`, else saved, else `<config dir>/kassandra.db`) and the PostgreSQL/MySQL connection (`KASSANDRA_DB_URL` plus `KASSANDRA_DB_SCHEMA`, else saved). `setup.ts#changeStorage()` switches backend, migrating the target and copying a snapshot into it if it is empty.
 - `config/sqlite/`; SQLite backend (better-sqlite3 + Drizzle): `schema.ts` is the relational schema, `repository.ts` the `SqliteRepository`, and the SQL migrations live in `server/drizzle/` (generated, committed). Change the schema with `npm run db:generate -w server`, never by editing applied migration files.
-- `config/postgres/`; PostgreSQL backend (pg + Kysely): `schema.ts` holds the Kysely table types, `migrations.ts` the migrations (add an entry for every schema change, never edit a shipped one) and `repository.ts` the `PostgresRepository`. Selected with `KASSANDRA_STORAGE=postgres` plus `KASSANDRA_PG_URL` (and optionally `KASSANDRA_PG_SCHEMA`, default `public`), or on the Configuration page, which saves the URL (password included, so the file is mode 0600) in `~/.kassandra/.backend`; `SetupInfo.postgresUrl` is always masked and sending the masked URL back keeps the saved one. Its tests are the `*.integration.test.ts` files here (the repository contract plus Postgres specifics, and switching from the Configuration page), run by `server/scripts/test-integration.mjs`.
+- `config/sql/`; the relational backends, PostgreSQL and MySQL/MariaDB (`mysql` also covers MariaDB), on one dialect-aware layer (Kysely + pg/mysql2): `connection.ts` the connection settings and `KASSANDRA_DB_URL` parsing, `dialect.ts` what differs between the databases (pools, duplicate-key errors, ordering), `schema.ts` the Kysely table types, `migrations.ts` the migrations (one definition generating the schema for both; add an entry for every schema change, never edit a shipped one; MySQL needs varchar keys, table-level foreign keys and `if not exists` since its DDL is not transactional) and `repository.ts` the `SqlRepository`. Selected with `KASSANDRA_STORAGE=postgres|mysql` plus `KASSANDRA_DB_URL` (`postgres://user:pw@host:5432/db`, `mysql://...`; `KASSANDRA_DB_SCHEMA` for the PostgreSQL schema, default `public`), or on the Configuration page (host, port, database, user, password, TLS), which saves the connection (password included, so the file is mode 0600) in `~/.kassandra/.backend`. The password never leaves the server: `SetupInfo.sql` only has `hasPassword`, and a request without a password keeps the saved one. Its tests are the `*.integration.test.ts` files here, run for each database by `server/scripts/test-integration.mjs` (the repository contract plus database specifics, and switching from the Configuration page); `testing.ts` creates an isolated schema/database per test.
 - `config/fileStorage.ts`; default backend: `${KASSANDRA_HOME ?? ~/.kassandra}/<key>.json` (`config.json`,
   `tables/*.json`) plus a plain-text `VERSION` file.
 - `config/store.ts`; settings (profiles, favorites, saved queries) and column metadata on top of `ConfigStorage`. All

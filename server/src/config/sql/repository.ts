@@ -1,17 +1,18 @@
 /**
- * ConfigRepository on a PostgreSQL database (pg + Kysely) with the relational
- * schema in schema.ts, so several Kassandra instances can share one config.
+ * ConfigRepository on a relational database (PostgreSQL or MySQL/MariaDB,
+ * through Kysely) with the schema in schema.ts, so several Kassandra instances
+ * can share one configuration.
  *
  * The schema is created and upgraded by the migrations in migrations.ts
  * (applied by migrate()); the `meta` table records which Kassandra version last
  * wrote the data. Every mutation is one transaction, so a crash never leaves
- * half a profile or half a table behind. The tables live in one PostgreSQL
- * schema (`public` unless told otherwise), which is created on migrate().
+ * half a profile or half a table behind. PostgreSQL keeps the tables in one
+ * schema (`public` unless told otherwise), created on migrate(); MySQL keeps
+ * them in the database, which must exist.
  */
 import crypto from 'node:crypto';
-import { Kysely, PostgresDialect, sql, type Selectable } from 'kysely';
+import { Kysely, sql, type InsertResult, type Selectable } from 'kysely';
 import { Migrator } from 'kysely/migration';
-import pg from 'pg';
 import type { ColumnMetadata, ConnectionProfile, SavedQuery, SavedQueryInput } from '@kassandra/shared';
 import {
   normalizeProfile,
@@ -24,11 +25,12 @@ import {
   type TableSummary,
 } from '../repository.js';
 import { compareVersions, getAppVersion } from '../version.js';
-import { migrations } from './migrations.js';
+import { describeConnection, sameConnection, validateConnection, type SqlConnection } from './connection.js';
+import { byText, createDatabase, isDuplicateKey } from './dialect.js';
+import { createMigrations } from './migrations.js';
 import type { Database } from './schema.js';
 
 const VERSION_ROW = 'version';
-const SCHEMA_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 /** The database, or a transaction on it: both run queries. */
 type Db = Kysely<Database>;
@@ -47,55 +49,38 @@ function groupBy<T, K>(rows: T[], key: (row: T) => K): Map<K, T[]> {
   return groups;
 }
 
-/** Byte-wise ordering, so lists sort the same whatever the database collation. */
-const byText = (column: string) => sql`${sql.ref(column)} collate "C"`;
-
-export interface PostgresOptions {
-  /** PostgreSQL schema holding the tables. Default `public`. */
-  schema?: string;
-}
-
-export class PostgresRepository implements ConfigRepository {
+export class SqlRepository implements ConfigRepository {
   private readonly db: Db;
-  private readonly pool: pg.Pool;
-  readonly schema: string;
+  private readonly pg: boolean;
   private closed: Promise<void> | null = null;
 
-  constructor(readonly url: string, { schema = 'public' }: PostgresOptions = {}) {
-    if (!SCHEMA_NAME.test(schema)) throw new Error(`Invalid PostgreSQL schema name "${schema}"`);
-    this.schema = schema;
-    this.pool = new pg.Pool({
-      connectionString: url,
-      options: `-c search_path=${schema}`,
-      connectionTimeoutMillis: 10_000,
-    });
-    // An idle client dropped by the server must not crash the process; the pool replaces it.
-    this.pool.on('error', (err) => console.warn(`[kassandra] PostgreSQL connection error: ${err.message}`));
-    this.db = new Kysely<Database>({ dialect: new PostgresDialect({ pool: this.pool }) });
+  constructor(readonly connection: SqlConnection) {
+    validateConnection(connection);
+    this.pg = connection.dialect === 'postgres';
+    this.db = createDatabase(connection);
   }
 
   get description(): string {
-    // Never include the credentials of the URL.
-    try {
-      const u = new URL(this.url);
-      return `PostgreSQL database ${u.hostname}${u.port ? `:${u.port}` : ''}${u.pathname} (schema ${this.schema})`;
-    } catch {
-      return `PostgreSQL database (schema ${this.schema})`;
-    }
+    return describeConnection(this.connection);
   }
 
   // --- lifecycle ---------------------------------------------------------------------------
 
   /** Names of the migrations recorded as applied, [] if the migrator has never run here. */
   private async appliedMigrations(): Promise<string[]> {
-    const exists = await sql<{ found: boolean }>`select to_regclass('kysely_migration') is not null as found`.execute(this.db);
-    if (!exists.rows[0]?.found) return [];
+    // PostgreSQL lists the tables of every schema, MySQL only those of the current database.
+    const tables = await this.db.introspection.getTables({ withInternalKyselyTables: true });
+    const found = tables.some(
+      (t) => t.name === 'kysely_migration' && (!this.pg || t.schema === this.connection.schema),
+    );
+    if (!found) return [];
     const { rows } = await sql<{ name: string }>`select name from kysely_migration order by name`.execute(this.db);
     return rows.map((r) => r.name);
   }
 
   async migrate(): Promise<string[]> {
-    await sql`create schema if not exists ${sql.id(this.schema)}`.execute(this.db);
+    if (this.pg) await sql`create schema if not exists ${sql.id(this.connection.schema)}`.execute(this.db);
+    const migrations = createMigrations(this.connection.dialect);
     const known = Object.keys(migrations);
     const before = await this.appliedMigrations();
     if (before.some((name) => !known.includes(name))) {
@@ -104,11 +89,11 @@ export class PostgresRepository implements ConfigRepository {
       );
     }
     // Without migrationTableSchema the migrator treats its tables in *any* schema as its own, so a second schema in
-    // the same database would never get them.
+    // the same database would never get them. MySQL has no schemas below the database.
     const migrator = new Migrator({
       db: this.db,
       provider: { getMigrations: async () => migrations },
-      migrationTableSchema: this.schema,
+      migrationTableSchema: this.pg ? this.connection.schema : undefined,
     });
     const { error, results } = await migrator.migrateToLatest();
     if (error) throw error;
@@ -126,11 +111,8 @@ export class PostgresRepository implements ConfigRepository {
   }
 
   private async setVersionRow(db: Db, version: string): Promise<void> {
-    await db
-      .insertInto('meta')
-      .values({ name: VERSION_ROW, value: version })
-      .onConflict((oc) => oc.column('name').doUpdateSet({ value: version }))
-      .execute();
+    const insert = db.insertInto('meta').values({ name: VERSION_ROW, value: version });
+    await (this.pg ? insert.onConflict((oc) => oc.column('name').doUpdateSet({ value: version })) : insert.onDuplicateKeyUpdate({ value: version })).execute();
   }
 
   async getVersion(): Promise<string | null> {
@@ -190,18 +172,24 @@ export class PostgresRepository implements ConfigRepository {
     const deadline = Date.now() + timeoutMs;
     for (;;) {
       const now = Date.now();
-      // One statement: taking over a stale lock and claiming it cannot interleave with another process.
-      const claimed = await this.db
-        .insertInto('lock')
-        .values({ id: 1, owner, taken_at: now })
-        .onConflict((oc) =>
-          oc
-            .column('id')
-            .doUpdateSet({ owner, taken_at: now })
-            .where('lock.taken_at', '<', now - staleMs),
-        )
+      // Each step is one atomic statement, so two processes cannot both win: taking over a stale lock is a
+      // conditional update, and creating the lock fails on the primary key if someone else holds it.
+      const takenOver = await this.db
+        .updateTable('lock')
+        .set({ owner, taken_at: now })
+        .where('id', '=', 1)
+        .where('taken_at', '<', now - staleMs)
         .executeTakeFirst();
-      if ((claimed.numInsertedOrUpdatedRows ?? 0n) > 0n) {
+      let claimed = (takenOver.numUpdatedRows ?? 0n) > 0n;
+      if (!claimed) {
+        try {
+          await this.db.insertInto('lock').values({ id: 1, owner, taken_at: now }).execute();
+          claimed = true;
+        } catch (err) {
+          if (!isDuplicateKey(err)) throw err;
+        }
+      }
+      if (claimed) {
         return async () => {
           await this.db.deleteFrom('lock').where('id', '=', 1).where('owner', '=', owner).execute();
         };
@@ -232,7 +220,7 @@ export class PostgresRepository implements ConfigRepository {
       port: row.port,
       username: row.username,
       password: row.password,
-      ssl_enabled: row.ssl_enabled,
+      ssl_enabled: Boolean(row.ssl_enabled), // MySQL returns 0/1
       ssl_protocol: row.ssl_protocol as ConnectionProfile['ssl_protocol'],
       ssl_cert_path: row.ssl_cert_path,
       default_keyspace: row.default_keyspace,
@@ -259,11 +247,8 @@ export class PostgresRepository implements ConfigRepository {
       local_datacenter: profile.local_datacenter,
     };
     // An upsert, not delete + insert: replacing the row would cascade to the profile's favorites and metadata.
-    await tx
-      .insertInto('connections')
-      .values(values)
-      .onConflict((oc) => oc.column('name').doUpdateSet(values))
-      .execute();
+    const insert = tx.insertInto('connections').values(values);
+    await (this.pg ? insert.onConflict((oc) => oc.column('name').doUpdateSet(values)) : insert.onDuplicateKeyUpdate(values)).execute();
     await tx.deleteFrom('connection_hosts').where('connection_name', '=', profile.name).execute();
     await tx
       .insertInto('connection_hosts')
@@ -311,11 +296,8 @@ export class PostgresRepository implements ConfigRepository {
   }
 
   private async writeLastConnection(tx: Db, name: string | null): Promise<void> {
-    await tx
-      .insertInto('app_state')
-      .values({ id: 1, last_connection: name })
-      .onConflict((oc) => oc.column('id').doUpdateSet({ last_connection: name }))
-      .execute();
+    const insert = tx.insertInto('app_state').values({ id: 1, last_connection: name });
+    await (this.pg ? insert.onConflict((oc) => oc.column('id').doUpdateSet({ last_connection: name })) : insert.onDuplicateKeyUpdate({ last_connection: name })).execute();
   }
 
   async getLastConnection(): Promise<string> {
@@ -344,6 +326,14 @@ export class PostgresRepository implements ConfigRepository {
   }
 
   private async writeFavorite(tx: Db, connection: string, keyspace: string): Promise<void> {
+    // Not INSERT IGNORE / ON CONFLICT DO NOTHING: MySQL's IGNORE would also swallow a missing connection.
+    const existing = await tx
+      .selectFrom('favorite_keyspaces')
+      .select('keyspace')
+      .where('connection_name', '=', connection)
+      .where('keyspace', '=', keyspace)
+      .executeTakeFirst();
+    if (existing) return;
     const last = await tx
       .selectFrom('favorite_keyspaces')
       .select((eb) => eb.fn.max('position').as('n'))
@@ -352,7 +342,6 @@ export class PostgresRepository implements ConfigRepository {
     await tx
       .insertInto('favorite_keyspaces')
       .values({ connection_name: connection, keyspace, position: (last?.n ?? -1) + 1 })
-      .onConflict((oc) => oc.doNothing())
       .execute();
   }
 
@@ -504,12 +493,24 @@ export class PostgresRepository implements ConfigRepository {
     const existing = await this.findTable(tx, ref);
     if (existing !== undefined) return existing;
     await this.requireConnection(tx, ref.connection);
-    const { id } = await tx
+    const insert = tx
       .insertInto('table_metadata')
-      .values({ connection_name: ref.connection, keyspace: ref.keyspace, table_name: ref.table })
-      .returning('id')
-      .executeTakeFirstOrThrow();
-    return id;
+      .values({ connection_name: ref.connection, keyspace: ref.keyspace, table_name: ref.table });
+    return this.insertedId(
+      async () => (await insert.returning('id').executeTakeFirstOrThrow()).id,
+      () => insert.executeTakeFirstOrThrow(),
+    );
+  }
+
+  /**
+   * The id a just-inserted row was given: PostgreSQL returns it with RETURNING,
+   * MySQL (which has none) reports the last auto-increment value.
+   */
+  private async insertedId(returning: () => Promise<number>, plain: () => Promise<InsertResult>): Promise<number> {
+    if (this.pg) return returning();
+    const { insertId } = await plain();
+    if (insertId === undefined) throw new Error('The database did not report the id of the inserted row');
+    return Number(insertId);
   }
 
   private async readColumns(tx: Db, tableId: number): Promise<TableColumns> {
@@ -540,7 +541,7 @@ export class PostgresRepository implements ConfigRepository {
     const result: TableColumns = {};
     for (const column of columns) {
       const metadata: ColumnMetadata = {};
-      if (column.hide !== null) metadata.hide = column.hide;
+      if (column.hide !== null) metadata.hide = Boolean(column.hide); // MySQL returns 0/1
       if (column.display_type !== null) metadata.display_type = column.display_type;
       const values = enums.get(column.id);
       if (values) metadata.enum_values = values.map((v) => v.value);
@@ -562,16 +563,16 @@ export class PostgresRepository implements ConfigRepository {
   /** Replace one column's rows (and, by cascade, its enum values and map entries). */
   private async writeColumn(tx: Db, tableId: number, column: string, metadata: ColumnMetadata): Promise<void> {
     await tx.deleteFrom('column_metadata').where('table_id', '=', tableId).where('column_name', '=', column).execute();
-    const { id: columnId } = await tx
-      .insertInto('column_metadata')
-      .values({
-        table_id: tableId,
-        column_name: column,
-        hide: metadata.hide ?? null,
-        display_type: metadata.display_type ?? null,
-      })
-      .returning('id')
-      .executeTakeFirstOrThrow();
+    const insertColumn = tx.insertInto('column_metadata').values({
+      table_id: tableId,
+      column_name: column,
+      hide: metadata.hide ?? null,
+      display_type: metadata.display_type ?? null,
+    });
+    const columnId = await this.insertedId(
+      async () => (await insertColumn.returning('id').executeTakeFirstOrThrow()).id,
+      () => insertColumn.executeTakeFirstOrThrow(),
+    );
     if (metadata.enum_values?.length) {
       await tx
         .insertInto('column_enum_values')
@@ -580,11 +581,13 @@ export class PostgresRepository implements ConfigRepository {
     }
     const mapSchema = metadata.map_schema ?? [];
     for (const [position, entry] of mapSchema.entries()) {
-      const { id: entryId } = await tx
+      const insertEntry = tx
         .insertInto('column_map_entries')
-        .values({ column_id: columnId, position, key: entry.key, label: entry.label, display_type: entry.display_type ?? null })
-        .returning('id')
-        .executeTakeFirstOrThrow();
+        .values({ column_id: columnId, position, key: entry.key, label: entry.label, display_type: entry.display_type ?? null });
+      const entryId = await this.insertedId(
+        async () => (await insertEntry.returning('id').executeTakeFirstOrThrow()).id,
+        () => insertEntry.executeTakeFirstOrThrow(),
+      );
       if (entry.enum_values?.length) {
         await tx
           .insertInto('map_entry_enum_values')
@@ -625,9 +628,9 @@ export class PostgresRepository implements ConfigRepository {
       .select(['t.connection_name', 't.keyspace', 't.table_name'])
       .select((eb) => eb.fn.count<string>('c.id').as('columns'))
       .groupBy('t.id')
-      .orderBy(byText('t.connection_name'))
-      .orderBy(byText('t.keyspace'))
-      .orderBy(byText('t.table_name'))
+      .orderBy(byText(this.connection, 't.connection_name'))
+      .orderBy(byText(this.connection, 't.keyspace'))
+      .orderBy(byText(this.connection, 't.table_name'))
       .execute();
     return rows.map((r) => ({
       connection: r.connection_name,
@@ -638,19 +641,19 @@ export class PostgresRepository implements ConfigRepository {
   }
 }
 
-let shared: PostgresRepository | null = null;
+let shared: SqlRepository | null = null;
 
-/** The process-wide pool for `url` and `schema`; switching to another database closes the previous one. */
-export function sharedPostgresRepository(url: string, schema?: string): PostgresRepository {
-  if (shared?.url !== url || shared.schema !== (schema ?? 'public')) {
+/** The process-wide pool for `connection`; switching to another database closes the previous one. */
+export function sharedSqlRepository(connection: SqlConnection): SqlRepository {
+  if (!shared || !sameConnection(shared.connection, connection)) {
     shared?.close();
-    shared = new PostgresRepository(url, { schema });
+    shared = new SqlRepository(connection);
   }
   return shared;
 }
 
 /** Close the shared pool (it is reopened on demand). */
-export function closeSharedPostgresRepository(): void {
+export function closeSharedSqlRepository(): void {
   shared?.close();
   shared = null;
 }

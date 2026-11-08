@@ -8,13 +8,16 @@
  *
  * Like the location pointer (location.ts) this cannot live in the storage it
  * selects, so it is a dotfile in the default directory. KASSANDRA_SQLITE_PATH
- * fixes the SQLite database path the same way. The PostgreSQL URL and schema
- * (KASSANDRA_PG_URL, KASSANDRA_PG_SCHEMA) work likewise; since the URL usually
- * carries a password, the pointer file is readable by its owner only.
+ * fixes the SQLite database path the same way. A PostgreSQL or MySQL connection
+ * is KASSANDRA_DB_URL (with KASSANDRA_DB_SCHEMA for the PostgreSQL schema), else
+ * the one saved here; since it carries a password, the pointer file is readable
+ * by its owner only.
  */
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
+import type { SqlDialect } from '@kassandra/shared';
 import { defaultConfigDir, getConfigDir } from './location.js';
+import { parseConnectionUrl, validateConnection, type SqlConnection } from './sql/connection.js';
 
 export const DEFAULT_BACKEND = 'file';
 const POINTER_FILE_NAME = '.backend';
@@ -24,16 +27,34 @@ export interface BackendChoice {
   backend: string;
   /** Database file, for the `sqlite` backend. */
   sqlitePath?: string;
-  /** Connection URL, for the `postgres` backend. Contains the password. */
-  postgresUrl?: string;
-  /** PostgreSQL schema holding the tables, for the `postgres` backend. */
-  postgresSchema?: string;
+  /** Database connection, for the `postgres` and `mysql` backends. Contains the password. */
+  sql?: SqlConnection;
 }
 
 const envValue = (name: string): string | null => process.env[name]?.trim() || null;
 
 function pointerFile(): string {
   return path.join(defaultConfigDir(), POINTER_FILE_NAME);
+}
+
+/** A saved connection if it is well formed, else undefined (a hand-edited pointer must not crash startup). */
+function readSqlConnection(value: unknown): SqlConnection | undefined {
+  const c = value as Partial<SqlConnection> | null;
+  if (!c || typeof c !== 'object' || (c.dialect !== 'postgres' && c.dialect !== 'mysql')) return undefined;
+  try {
+    return validateConnection({
+      dialect: c.dialect,
+      host: String(c.host ?? ''),
+      port: Number(c.port),
+      database: String(c.database ?? ''),
+      username: String(c.username ?? ''),
+      password: String(c.password ?? ''),
+      ssl: c.ssl === true,
+      schema: String(c.schema ?? 'public'),
+    });
+  } catch {
+    return undefined;
+  }
 }
 
 function readPointer(): BackendChoice | null {
@@ -43,8 +64,7 @@ function readPointer(): BackendChoice | null {
       ? {
           backend: parsed.backend,
           sqlitePath: typeof parsed.sqlitePath === 'string' ? parsed.sqlitePath : undefined,
-          postgresUrl: typeof parsed.postgresUrl === 'string' ? parsed.postgresUrl : undefined,
-          postgresSchema: typeof parsed.postgresSchema === 'string' ? parsed.postgresSchema : undefined,
+          sql: readSqlConnection(parsed.sql),
         }
       : null;
   } catch {
@@ -80,37 +100,40 @@ export function isSqlitePathLocked(): boolean {
   return envValue('KASSANDRA_SQLITE_PATH') !== null;
 }
 
-export const DEFAULT_POSTGRES_SCHEMA = 'public';
-
-/** The PostgreSQL URL in use: KASSANDRA_PG_URL, else the saved one, else null. Contains the password. */
-export function getPostgresUrl(): string | null {
-  return envValue('KASSANDRA_PG_URL') ?? readPointer()?.postgresUrl ?? null;
+/**
+ * The connection for `dialect`: KASSANDRA_DB_URL (its schema overridden by
+ * KASSANDRA_DB_SCHEMA), else the one saved on the Configuration page, else null.
+ * Throws if KASSANDRA_DB_URL is not a URL of that dialect. Contains the password.
+ */
+export function getSqlConnection(dialect: SqlDialect): SqlConnection | null {
+  const url = envValue('KASSANDRA_DB_URL');
+  const schema = envValue('KASSANDRA_DB_SCHEMA');
+  const connection = url ? parseConnectionUrl(url, dialect) : readPointer()?.sql;
+  if (!connection || connection.dialect !== dialect) return null;
+  return schema ? validateConnection({ ...connection, schema }) : connection;
 }
 
-/** True when KASSANDRA_PG_URL fixes the connection URL. */
-export function isPostgresUrlLocked(): boolean {
-  return envValue('KASSANDRA_PG_URL') !== null;
+/** Which database KASSANDRA_DB_URL is for, judging by its scheme; null if it is unset or unrecognised. */
+export function getSqlUrlDialect(): SqlDialect | null {
+  const url = envValue('KASSANDRA_DB_URL');
+  if (!url) return null;
+  const scheme = url.split(':', 1)[0]?.toLowerCase();
+  return scheme === 'postgres' || scheme === 'postgresql' ? 'postgres' : scheme === 'mysql' || scheme === 'mariadb' ? 'mysql' : null;
 }
 
-/** PostgreSQL schema holding the tables: KASSANDRA_PG_SCHEMA, else the saved one, else `public`. */
-export function getPostgresSchema(): string {
-  return envValue('KASSANDRA_PG_SCHEMA') ?? readPointer()?.postgresSchema ?? DEFAULT_POSTGRES_SCHEMA;
+/** The connection saved on the Configuration page, whatever its dialect; null if none. */
+export function getSavedSqlConnection(): SqlConnection | null {
+  return readPointer()?.sql ?? null;
 }
 
-/** True when KASSANDRA_PG_SCHEMA fixes the schema. */
-export function isPostgresSchemaLocked(): boolean {
-  return envValue('KASSANDRA_PG_SCHEMA') !== null;
+/** True when KASSANDRA_DB_URL fixes the connection. */
+export function isSqlLocked(): boolean {
+  return envValue('KASSANDRA_DB_URL') !== null;
 }
 
-/** `url` with its password replaced, safe to show. Unparseable input is returned as is (it holds no structure to leak). */
-export function maskPostgresUrl(url: string): string {
-  try {
-    const u = new URL(url);
-    if (u.password) u.password = '***';
-    return u.toString();
-  } catch {
-    return url;
-  }
+/** True when KASSANDRA_DB_SCHEMA fixes the PostgreSQL schema. */
+export function isSqlSchemaLocked(): boolean {
+  return envValue('KASSANDRA_DB_SCHEMA') !== null;
 }
 
 export function saveBackend(choice: BackendChoice): void {
