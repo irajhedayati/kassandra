@@ -69,6 +69,22 @@ export function isSqlitePathLocked(): boolean {
   return envValue('KASSANDRA_SQLITE_PATH') !== null;
 }
 
+/**
+ * PostgreSQL connection URL for the `postgres` backend (KASSANDRA_PG_URL). Only
+ * ever read from the environment: it usually carries a password, which must not
+ * land in a dotfile.
+ */
+export function getPostgresUrl(): string {
+  const url = envValue('KASSANDRA_PG_URL');
+  if (!url) throw new Error('KASSANDRA_PG_URL must be set to use the "postgres" storage backend');
+  return url;
+}
+
+/** PostgreSQL schema holding the tables: KASSANDRA_PG_SCHEMA, else `public`. */
+export function getPostgresSchema(): string {
+  return envValue('KASSANDRA_PG_SCHEMA') ?? 'public';
+}
+
 export function saveBackend(choice: BackendChoice): void {
   mkdirSync(defaultConfigDir(), { recursive: true });
   writeFileSync(pointerFile(), `${JSON.stringify(choice, null, 2)}\n`, 'utf-8');

@@ -31,13 +31,17 @@ npm run typecheck
 # Run unit tests (all workspaces)
 npm run test
 
+# Integration tests: starts a throwaway PostgreSQL container with Docker, runs
+# *.integration.test.ts against it, removes it (or set KASSANDRA_TEST_PG_URL to use your own)
+npm run test:integration
+
 # Docker
 docker build -t kassandra .
 docker run -p 8501:8501 kassandra
 ```
 
-Unit tests use Vitest, one config-free `test` script per workspace (`shared`, `server`, `client`); there is no linting
-configuration in this project.
+Unit tests use Vitest, one config-free `test` script per workspace (`shared`, `server`, `client`); `*.integration.test.ts`
+files are left out of it and need Docker (`npm run test:integration`). There is no linting configuration in this project.
 
 ## Architecture
 
@@ -66,6 +70,7 @@ legacy/  ; original Python/Streamlit app (reference only)
   and `changeLocation()`, which copies to an empty target, migrates it and then switches.
 - `config/backend.ts`; which backend is active (`KASSANDRA_STORAGE`, else the choice saved in `~/.kassandra/.backend`, else `file`) and the SQLite path (`KASSANDRA_SQLITE_PATH`, else saved, else `<config dir>/kassandra.db`). `setup.ts#changeStorage()` switches backend, migrating the target and copying a snapshot into it if it is empty.
 - `config/sqlite/`; SQLite backend (better-sqlite3 + Drizzle): `schema.ts` is the relational schema, `repository.ts` the `SqliteRepository`, and the SQL migrations live in `server/drizzle/` (generated, committed). Change the schema with `npm run db:generate -w server`, never by editing applied migration files.
+- `config/postgres/`; PostgreSQL backend (pg + Kysely), selected with `KASSANDRA_STORAGE=postgres` and `KASSANDRA_PG_URL` (optional `KASSANDRA_PG_SCHEMA`, default `public`; env only, since the URL carries a password): `schema.ts` holds the Kysely table types, `migrations.ts` the migrations (add an entry for every schema change, never edit a shipped one) and `repository.ts` the `PostgresRepository`. Not yet selectable on the Configuration page. Its tests are `repository.integration.test.ts` (the repository contract plus Postgres specifics), run by `server/scripts/test-integration.mjs`.
 - `config/fileStorage.ts`; default backend: `${KASSANDRA_HOME ?? ~/.kassandra}/<key>.json` (`config.json`,
   `tables/*.json`) plus a plain-text `VERSION` file.
 - `config/store.ts`; settings (profiles, favorites, saved queries) and column metadata on top of `ConfigStorage`. All
