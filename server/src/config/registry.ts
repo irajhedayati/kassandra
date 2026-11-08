@@ -15,7 +15,14 @@ export type RepositoryFactory = () => ConfigRepository;
 const backends = new Map<string, RepositoryFactory>([
   [DEFAULT_BACKEND, () => new DocumentRepository(new FileStorage(getConfigDir()))],
   ['sqlite', () => sharedSqliteRepository(getSqlitePath())],
-  ['postgres', () => sharedPostgresRepository(getPostgresUrl(), getPostgresSchema())],
+  [
+    'postgres',
+    () => {
+      const url = getPostgresUrl();
+      if (!url) throw new Error('The "postgres" storage backend needs KASSANDRA_PG_URL, or a URL saved on the Configuration page');
+      return sharedPostgresRepository(url, getPostgresSchema());
+    },
+  ],
 ]);
 
 /** Make a backend selectable with `KASSANDRA_STORAGE=<name>`. Replaces a backend of the same name. */

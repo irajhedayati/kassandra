@@ -1,7 +1,7 @@
 /**
  * Configuration page. Shown on its own on the first run, and from the gear in
- * the sidebar afterwards. Holds the appearance, the storage backend (files or
- * SQLite) and the location of the configuration.
+ * the sidebar afterwards. Holds the appearance, the storage backend (files,
+ * SQLite or PostgreSQL) and the location of the configuration.
  */
 import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -24,12 +24,15 @@ const APPEARANCE_OPTIONS: { value: Appearance; label: string; hint: string }[] =
   { value: 'system', label: 'System', hint: 'Match the operating system' },
 ];
 
-type Backend = 'file' | 'sqlite';
+type Backend = 'file' | 'sqlite' | 'postgres';
 
 const BACKEND_OPTIONS: { value: Backend; label: string; hint: string }[] = [
   { value: 'file', label: 'JSON files', hint: 'One JSON file per document in the location below' },
   { value: 'sqlite', label: 'SQLite', hint: 'A single SQLite database file' },
+  { value: 'postgres', label: 'PostgreSQL', hint: 'A PostgreSQL database, shared by every Kassandra that uses it' },
 ];
+
+const asBackend = (name: string): Backend => (name === 'sqlite' || name === 'postgres' ? name : 'file');
 
 function describe(result: ChangeLocationResult): string {
   if (result.existing) return 'Using the configuration already in that location.';
@@ -42,8 +45,11 @@ function describe(result: ChangeLocationResult): string {
 export function ConfigurationPage({ setup, onDone, onClose }: Props) {
   const queryClient = useQueryClient();
   const [location, setLocation] = useState(setup.location);
-  const [backend, setBackend] = useState<Backend>(setup.backend === 'sqlite' ? 'sqlite' : 'file');
+  const [backend, setBackend] = useState<Backend>(asBackend(setup.backend));
   const [sqlitePath, setSqlitePath] = useState(setup.sqlitePath);
+  // The password in the URL is masked by the server; leaving it as shown keeps the saved one.
+  const [postgresUrl, setPostgresUrl] = useState(setup.postgresUrl);
+  const [postgresSchema, setPostgresSchema] = useState(setup.postgresSchema);
   const [migrate, setMigrate] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const { appearance, setAppearance } = useAppearance();
@@ -51,19 +57,31 @@ export function ConfigurationPage({ setup, onDone, onClose }: Props) {
   // Follow the server when the saved settings change.
   useEffect(() => setLocation(setup.location), [setup.location]);
   useEffect(() => {
-    setBackend(setup.backend === 'sqlite' ? 'sqlite' : 'file');
+    setBackend(asBackend(setup.backend));
     setSqlitePath(setup.sqlitePath);
-  }, [setup.backend, setup.sqlitePath]);
+    setPostgresUrl(setup.postgresUrl);
+    setPostgresSchema(setup.postgresSchema);
+  }, [setup.backend, setup.sqlitePath, setup.postgresUrl, setup.postgresSchema]);
 
   // The location is that of the JSON files, so it can only be edited while they are in use.
   const locationEditable = !setup.locked && setup.backend === 'file' && backend === 'file';
-  const backendChanged = backend !== setup.backend || (backend === 'sqlite' && sqlitePath.trim() !== setup.sqlitePath);
+  const backendChanged =
+    backend !== setup.backend ||
+    (backend === 'sqlite' && sqlitePath.trim() !== setup.sqlitePath) ||
+    (backend === 'postgres' &&
+      (postgresUrl.trim() !== setup.postgresUrl || postgresSchema.trim() !== setup.postgresSchema));
   const locationChanged = locationEditable && location.trim() !== setup.location;
 
   const save = useMutation({
     mutationFn: async () => {
-      if (backendChanged || (backend === 'sqlite' && setup.firstRun)) {
-        return setStorageBackend({ backend, sqlitePath: backend === 'sqlite' ? sqlitePath : undefined, migrate });
+      if (backendChanged || (backend !== 'file' && setup.firstRun)) {
+        return setStorageBackend({
+          backend,
+          sqlitePath: backend === 'sqlite' ? sqlitePath : undefined,
+          postgresUrl: backend === 'postgres' ? postgresUrl : undefined,
+          postgresSchema: backend === 'postgres' ? postgresSchema : undefined,
+          migrate,
+        });
       }
       return setConfigLocation(location);
     },
@@ -76,7 +94,12 @@ export function ConfigurationPage({ setup, onDone, onClose }: Props) {
   });
 
   const unchanged = !setup.firstRun && !backendChanged && !locationChanged;
-  const empty = backend === 'sqlite' ? sqlitePath.trim() === '' : location.trim() === '';
+  const empty =
+    backend === 'sqlite'
+      ? sqlitePath.trim() === ''
+      : backend === 'postgres'
+        ? postgresUrl.trim() === ''
+        : location.trim() === '';
   const canSave = !(setup.locked && setup.backendLocked);
   const disabled = !canSave || save.isPending || empty || unchanged;
 
@@ -186,6 +209,57 @@ export function ConfigurationPage({ setup, onDone, onClose }: Props) {
             )}
             <p className="mt-1 text-xs text-slate-500">
               A database that already holds a configuration is used as is. The previous files are left in place.
+            </p>
+          </div>
+        )}
+        {backend === 'postgres' && (
+          <div className="mt-3">
+            <label htmlFor="config-postgres-url" className="block text-sm font-medium text-slate-700">
+              PostgreSQL connection URL
+            </label>
+            <input
+              id="config-postgres-url"
+              type="text"
+              value={postgresUrl}
+              onChange={(e) => setPostgresUrl(e.target.value)}
+              disabled={setup.postgresUrlLocked || setup.backendLocked}
+              placeholder="postgres://user:password@host:5432/database"
+              spellCheck={false}
+              autoComplete="off"
+              className="mt-1 w-full rounded border border-slate-300 px-3 py-1.5 font-mono text-sm disabled:bg-slate-100 disabled:text-slate-500"
+            />
+            {setup.postgresUrlLocked && (
+              <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                The URL is set by <span className="font-mono">KASSANDRA_PG_URL</span>.
+              </p>
+            )}
+            <label htmlFor="config-postgres-schema" className="mt-3 block text-sm font-medium text-slate-700">
+              Schema
+            </label>
+            <input
+              id="config-postgres-schema"
+              type="text"
+              value={postgresSchema}
+              onChange={(e) => setPostgresSchema(e.target.value)}
+              disabled={setup.postgresSchemaLocked || setup.backendLocked}
+              spellCheck={false}
+              className="mt-1 w-full rounded border border-slate-300 px-3 py-1.5 font-mono text-sm disabled:bg-slate-100 disabled:text-slate-500"
+            />
+            {setup.postgresSchemaLocked && (
+              <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                The schema is set by <span className="font-mono">KASSANDRA_PG_SCHEMA</span>.
+              </p>
+            )}
+            {backendChanged && (
+              <label className="mt-2 flex items-center gap-2 text-sm text-slate-700">
+                <input type="checkbox" checked={migrate} onChange={(e) => setMigrate(e.target.checked)} />
+                Copy the current configuration into the database if it is empty
+              </label>
+            )}
+            <p className="mt-1 text-xs text-slate-500">
+              The tables are created in the schema if they do not exist yet; a database that already holds a
+              configuration is used as is. The URL, including its password, is saved in a file only your user can
+              read. The previous storage is left in place.
             </p>
           </div>
         )}
