@@ -1,6 +1,6 @@
 /**
- * Relational schema of the PostgreSQL backend, as Kysely types. It mirrors the
- * SQLite schema (sqlite/schema.ts); migrations.ts creates it.
+ * Relational schema of the PostgreSQL and MySQL backends, as Kysely types. It
+ * mirrors the SQLite schema (sqlite/schema.ts); migrations.ts creates it.
  *
  *   connections ─┬─ connection_hosts
  *                ├─ favorite_keyspaces
@@ -16,9 +16,13 @@
  */
 import type { ColumnType, Generated } from 'kysely';
 
-/** bigint comes back from `pg` as a string; it is written (and compared) as a number. */
+/** bigint comes back from `pg` as a string and from `mysql2` as a number; it is written as a number. */
 type BigInt = ColumnType<string | number, number, number>;
 
+/**
+ * Booleans are typed as such, but MySQL returns 0/1; the repository coerces them
+ * on read.
+ */
 export interface ConnectionsTable {
   name: string;
   /** Creation order, so profiles list in the order they were added. */

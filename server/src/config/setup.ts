@@ -2,22 +2,29 @@
  * First-run state and moving the configuration to another directory
  * (the Configuration page).
  */
-import type { ChangeLocationResult, ChangeStorageRequest, SetupInfo } from '@kassandra/shared';
+import {
+  DEFAULT_SQL_SCHEMA,
+  SQL_DEFAULT_PORTS,
+  type ChangeLocationResult,
+  type ChangeStorageRequest,
+  type SetupInfo,
+  type SqlConnectionInfo,
+  type SqlDialect,
+} from '@kassandra/shared';
 import { existsSync, statSync } from 'node:fs';
 import path from 'node:path';
 import {
-  DEFAULT_POSTGRES_SCHEMA,
   defaultSqlitePath,
   getBackendName,
-  getPostgresSchema,
-  getPostgresUrl,
+  getSavedSqlConnection,
+  getSqlConnection,
+  getSqlUrlDialect,
   getSqlitePath,
   hasSavedBackend,
   isBackendLocked,
-  isPostgresSchemaLocked,
-  isPostgresUrlLocked,
+  isSqlLocked,
+  isSqlSchemaLocked,
   isSqlitePathLocked,
-  maskPostgresUrl,
   saveBackend,
 } from './backend.js';
 import { FileStorage } from './fileStorage.js';
@@ -36,7 +43,8 @@ import { serialize } from './serial.js';
 import { DocumentRepository } from './documentRepository.js';
 import { getRepository } from './registry.js';
 import type { ConfigRepository } from './repository.js';
-import { closeSharedPostgresRepository, PostgresRepository } from './postgres/repository.js';
+import { sameConnection, validateConnection, type SqlConnection } from './sql/connection.js';
+import { closeSharedSqlRepository, SqlRepository } from './sql/repository.js';
 import { closeSharedSqliteRepository, SqliteRepository } from './sqlite/repository.js';
 import type { ConfigStorage } from './storage.js';
 
@@ -73,10 +81,33 @@ export function getSetupInfo(): SetupInfo {
     sqlitePath: getSqlitePath(),
     defaultSqlitePath: defaultSqlitePath(),
     sqlitePathLocked: isSqlitePathLocked(),
-    postgresUrl: maskPostgresUrl(getPostgresUrl() ?? ''),
-    postgresUrlLocked: isPostgresUrlLocked(),
-    postgresSchema: getPostgresSchema(),
-    postgresSchemaLocked: isPostgresSchemaLocked(),
+    sql: getSqlInfo(),
+    sqlLocked: isSqlLocked(),
+    sqlSchemaLocked: isSqlSchemaLocked(),
+  };
+}
+
+const isSqlDialect = (backend: string): backend is SqlDialect => backend === 'postgres' || backend === 'mysql';
+
+/** The connection the form starts from: the one in use, else the last saved, else defaults. Never the password. */
+function getSqlInfo(): SqlConnectionInfo {
+  const backend = getBackendName();
+  const dialect: SqlDialect = isSqlDialect(backend) ? backend : (getSqlUrlDialect() ?? getSavedSqlConnection()?.dialect ?? 'postgres');
+  let connection: SqlConnection | null = null;
+  try {
+    connection = getSqlConnection(dialect);
+  } catch {
+    // KASSANDRA_DB_URL is for another database; the registry reports that when the backend is used.
+  }
+  return {
+    dialect,
+    host: connection?.host ?? 'localhost',
+    port: connection?.port ?? SQL_DEFAULT_PORTS[dialect],
+    database: connection?.database ?? '',
+    username: connection?.username ?? '',
+    ssl: connection?.ssl ?? false,
+    schema: connection?.schema ?? DEFAULT_SQL_SCHEMA,
+    hasPassword: Boolean(connection?.password),
   };
 }
 
@@ -141,19 +172,19 @@ export function changeStorage(request: ChangeStorageRequest): Promise<ChangeLoca
       throw new LocationError('The storage backend is set by KASSANDRA_STORAGE and cannot be changed here', 409);
     }
     const { backend, migrate = true } = request;
-    if (backend !== 'file' && backend !== 'sqlite' && backend !== 'postgres') {
-      throw new LocationError('Backend must be "file", "sqlite" or "postgres"', 400);
+    if (backend !== 'file' && backend !== 'sqlite' && !isSqlDialect(backend)) {
+      throw new LocationError('Backend must be "file", "sqlite", "postgres" or "mysql"', 400);
     }
 
     let sqlitePath: string | undefined;
-    let postgres: { url: string; schema: string } | undefined;
+    let connection: SqlConnection | undefined;
     let target: ConfigRepository;
     if (backend === 'sqlite') {
       sqlitePath = isSqlitePathLocked() ? getSqlitePath() : expandLocation(request.sqlitePath ?? defaultSqlitePath());
       target = await openSqlite(sqlitePath);
-    } else if (backend === 'postgres') {
-      postgres = resolvePostgres(request);
-      target = openPostgres(postgres);
+    } else if (isSqlDialect(backend)) {
+      connection = resolveConnection(backend, request);
+      target = openSql(connection);
     } else {
       target = new DocumentRepository(new FileStorage(getConfigDir()));
     }
@@ -163,11 +194,11 @@ export function changeStorage(request: ChangeStorageRequest): Promise<ChangeLoca
         backend === getBackendName() &&
         (backend === 'file' ||
           (backend === 'sqlite' && sqlitePath === getSqlitePath()) ||
-          (backend === 'postgres' && postgres?.url === getPostgresUrl() && postgres.schema === getPostgresSchema()));
+          (connection !== undefined && sameConnectionAsActive(connection)));
       let copied = 0;
       let existing = false;
       if (!unchanged) {
-        await migrateTarget(target, backend);
+        await migrateTarget(target, connection !== undefined);
         existing = !(await target.isEmpty());
         if (!existing && migrate) {
           const snapshot = await getRepository().exportSnapshot();
@@ -175,53 +206,61 @@ export function changeStorage(request: ChangeStorageRequest): Promise<ChangeLoca
           copied = snapshot.settings.connections.length + snapshot.settings.saved_queries.length + snapshot.tables.length;
         }
       }
-      saveBackend({ backend, sqlitePath, postgresUrl: postgres?.url, postgresSchema: postgres?.schema });
+      saveBackend({ backend, sqlitePath, sql: connection });
       firstRun = false;
       return { ...getSetupInfo(), copied, existing };
     } finally {
       target.close();
       // Let the next request open the database that is now active.
       closeSharedSqliteRepository();
-      closeSharedPostgresRepository();
+      closeSharedSqlRepository();
     }
   });
 }
 
-/** The URL and schema to use: what the request gives, else (for the URL) what is configured; environment variables win. */
-function resolvePostgres(request: ChangeStorageRequest): { url: string; schema: string } {
-  const current = getPostgresUrl();
-  const requested = request.postgresUrl?.trim();
-  // The browser only ever sees the masked URL, so sending it back means "keep the configured one".
-  const keep = !requested || (current !== null && requested === maskPostgresUrl(current));
-  const url = isPostgresUrlLocked() ? current : keep ? current : requested;
-  if (!url) throw new LocationError('Enter the PostgreSQL connection URL', 400);
-  let parsed: URL;
-  try {
-    parsed = new URL(url);
-  } catch {
-    throw new LocationError('The PostgreSQL URL is not valid; expected postgres://user:password@host:5432/database', 400);
-  }
-  if (parsed.protocol !== 'postgres:' && parsed.protocol !== 'postgresql:') {
-    throw new LocationError('The PostgreSQL URL must start with postgres:// or postgresql://', 400);
-  }
-  const schema = isPostgresSchemaLocked() ? getPostgresSchema() : request.postgresSchema?.trim() || DEFAULT_POSTGRES_SCHEMA;
-  return { url, schema };
+function sameConnectionAsActive(connection: SqlConnection): boolean {
+  const active = getSqlConnection(connection.dialect);
+  return getBackendName() === connection.dialect && active !== null && sameConnection(active, connection);
 }
 
-function openPostgres({ url, schema }: { url: string; schema: string }): PostgresRepository {
+/**
+ * The connection to switch to: what KASSANDRA_DB_URL says if set, else the request.
+ * A request without a password keeps the saved one (the browser never has it).
+ */
+function resolveConnection(dialect: SqlDialect, request: ChangeStorageRequest): SqlConnection {
   try {
-    return new PostgresRepository(url, { schema });
+    if (isSqlLocked()) {
+      const fixed = getSqlConnection(dialect);
+      if (fixed) return fixed;
+    }
+    const given = request.sql;
+    if (!given) throw new Error('Enter the connection settings of the database');
+    const saved = getSavedSqlConnection();
+    return validateConnection({
+      dialect,
+      host: given.host.trim(),
+      port: given.port,
+      database: given.database.trim(),
+      username: given.username,
+      password: given.password ?? (saved?.dialect === dialect ? saved.password : ''),
+      ssl: given.ssl,
+      schema: isSqlSchemaLocked() ? (getSqlConnection(dialect)?.schema ?? DEFAULT_SQL_SCHEMA) : given.schema?.trim() || DEFAULT_SQL_SCHEMA,
+    });
   } catch (err) {
     throw new LocationError(err instanceof Error ? err.message : String(err), 400);
   }
 }
 
-/** Migrate a switch target; a PostgreSQL server that cannot be reached is the user's input to fix, not a server error. */
-async function migrateTarget(target: ConfigRepository, backend: string): Promise<void> {
+function openSql(connection: SqlConnection): SqlRepository {
+  return new SqlRepository(connection);
+}
+
+/** Migrate a switch target; a database that cannot be reached is the user's input to fix, not a server error. */
+async function migrateTarget(target: ConfigRepository, userSupplied: boolean): Promise<void> {
   try {
     await target.migrate();
   } catch (err) {
-    if (backend !== 'postgres') throw err;
+    if (!userSupplied) throw err;
     throw new LocationError(`Cannot use ${target.description}: ${err instanceof Error ? err.message : String(err)}`, 400);
   }
 }

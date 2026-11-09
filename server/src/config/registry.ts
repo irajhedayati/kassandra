@@ -2,12 +2,15 @@
  * The active ConfigRepository. Backends are registered by name; the name comes
  * from KASSANDRA_STORAGE or the Configuration page (see backend.ts).
  */
-import { DEFAULT_BACKEND, getBackendName, getPostgresSchema, getPostgresUrl, getSqlitePath } from './backend.js';
+import type { SqlDialect } from '@kassandra/shared';
+import { DEFAULT_BACKEND, getBackendName, getSqlConnection, getSqlitePath } from './backend.js';
 import { DocumentRepository } from './documentRepository.js';
 import { FileStorage, getConfigDir } from './fileStorage.js';
 import type { ConfigRepository } from './repository.js';
-import { sharedPostgresRepository } from './postgres/repository.js';
+import { sharedSqlRepository } from './sql/repository.js';
 import { sharedSqliteRepository } from './sqlite/repository.js';
+
+const SQL_DIALECTS: SqlDialect[] = ['postgres', 'mysql'];
 
 /** Creates a backend. Called on every `getRepository()`, so a non-trivial backend should return a shared instance. */
 export type RepositoryFactory = () => ConfigRepository;
@@ -15,14 +18,18 @@ export type RepositoryFactory = () => ConfigRepository;
 const backends = new Map<string, RepositoryFactory>([
   [DEFAULT_BACKEND, () => new DocumentRepository(new FileStorage(getConfigDir()))],
   ['sqlite', () => sharedSqliteRepository(getSqlitePath())],
-  [
-    'postgres',
+  ...SQL_DIALECTS.map((dialect): [string, RepositoryFactory] => [
+    dialect,
     () => {
-      const url = getPostgresUrl();
-      if (!url) throw new Error('The "postgres" storage backend needs KASSANDRA_PG_URL, or a URL saved on the Configuration page');
-      return sharedPostgresRepository(url, getPostgresSchema());
+      const connection = getSqlConnection(dialect);
+      if (!connection) {
+        throw new Error(
+          `The "${dialect}" storage backend needs KASSANDRA_DB_URL, or a connection saved on the Configuration page`,
+        );
+      }
+      return sharedSqlRepository(connection);
     },
-  ],
+  ]),
 ]);
 
 /** Make a backend selectable with `KASSANDRA_STORAGE=<name>`. Replaces a backend of the same name. */
