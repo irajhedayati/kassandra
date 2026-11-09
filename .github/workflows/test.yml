@@ -42,6 +42,6 @@ jobs:
       - name: Unit tests
         run: npm run test
 
-      # Starts a throwaway PostgreSQL container (Docker is preinstalled on the runner).
+      # Starts throwaway PostgreSQL, MySQL and Firestore-emulator containers (Docker is preinstalled on the runner).
       - name: Integration tests
         run: npm run test:integration

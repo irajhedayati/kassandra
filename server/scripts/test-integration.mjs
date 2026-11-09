@@ -1,18 +1,20 @@
 #!/usr/bin/env node
 /**
  * Runs the integration tests (src/**\/*.integration.test.ts) against throwaway
- * database containers: PostgreSQL and MySQL by default. Each container is
+ * containers: PostgreSQL, MySQL and the Firestore emulator by default. Each container is
  * started on a random local port, waited for until it accepts connections, and
  * removed however the run ends. vitest then runs once with
- * KASSANDRA_TEST_POSTGRES_URL / KASSANDRA_TEST_MYSQL_URL set, and every test
- * runs against each database.
+ * KASSANDRA_TEST_POSTGRES_URL / KASSANDRA_TEST_MYSQL_URL / FIRESTORE_EMULATOR_HOST
+ * set, and every test runs against each database.
  *
  * Needs the Docker CLI and a running daemon. Options, all environment variables:
- *   KASSANDRA_TEST_DIALECTS         comma separated subset to test, e.g. `postgres`
+ *   KASSANDRA_TEST_DIALECTS         comma separated subset to test, e.g. `postgres` (`firestore` is the emulator)
  *   KASSANDRA_TEST_POSTGRES_URL     use this server instead of starting a container
  *   KASSANDRA_TEST_MYSQL_URL        likewise (e.g. a CI service container)
  *   KASSANDRA_TEST_POSTGRES_IMAGE   default postgres:17-alpine
  *   KASSANDRA_TEST_MYSQL_IMAGE      default mysql:8.4; a mariadb image works too
+ *   FIRESTORE_EMULATOR_HOST         use this emulator (host:port) instead of starting a container
+ *   KASSANDRA_TEST_FIRESTORE_IMAGE  default gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
  * Extra arguments are passed to vitest.
  */
 import { spawn, spawnSync } from 'node:child_process';
@@ -28,6 +30,7 @@ const DATABASES = {
     variable: 'KASSANDRA_TEST_POSTGRES_URL',
     image: process.env.KASSANDRA_TEST_POSTGRES_IMAGE ?? 'postgres:17-alpine',
     port: 5432,
+    tests: 'src/config/sql/',
     env: { POSTGRES_PASSWORD: PASSWORD, POSTGRES_DB: 'kassandra' },
     url: (port) => `postgres://postgres:${PASSWORD}@127.0.0.1:${port}/kassandra`,
     async ping(url) {
@@ -44,6 +47,7 @@ const DATABASES = {
     variable: 'KASSANDRA_TEST_MYSQL_URL',
     image: process.env.KASSANDRA_TEST_MYSQL_IMAGE ?? 'mysql:8.4',
     port: 3306,
+    tests: 'src/config/sql/',
     env: { MYSQL_ROOT_PASSWORD: PASSWORD, MYSQL_DATABASE: 'kassandra' },
     url: (port) => `mysql://root:${PASSWORD}@127.0.0.1:${port}/kassandra`,
     async ping(url) {
@@ -53,6 +57,21 @@ const DATABASES = {
       } finally {
         await connection.end().catch(() => {});
       }
+    },
+  },
+  firestore: {
+    variable: 'FIRESTORE_EMULATOR_HOST',
+    image: process.env.KASSANDRA_TEST_FIRESTORE_IMAGE ?? 'gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators',
+    port: 8080,
+    tests: 'src/config/firestore/',
+    command: ['gcloud', 'emulators', 'firestore', 'start', '--host-port=0.0.0.0:8080'],
+    env: {},
+    // The value is host:port, as the SDK expects it.
+    url: (port) => `127.0.0.1:${port}`,
+    async ping(hostPort) {
+      // The emulator answers "Ok" on its root path once it is up.
+      const response = await fetch(`http://${hostPort}/`, { signal: AbortSignal.timeout(2000) });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
     },
   },
 };
@@ -90,6 +109,7 @@ async function startContainer(name, database) {
     ...Object.entries(database.env).flatMap(([key, value]) => ['--env', `${key}=${value}`]),
     '--publish', `127.0.0.1::${database.port}`,
     database.image,
+    ...(database.command ?? []),
   );
   if (run.status !== 0) throw new Error(`docker run ${database.image} failed:\n${run.stderr.trim()}`);
   const id = run.stdout.trim();
@@ -103,9 +123,9 @@ async function startContainer(name, database) {
   return url;
 }
 
-function runVitest(env, extraArgs) {
+function runVitest(env, filters, extraArgs) {
   return new Promise((resolve) => {
-    const child = spawn('npx', ['--no-install', 'vitest', 'run', '.integration.test.ts', ...extraArgs], {
+    const child = spawn('npx', ['--no-install', 'vitest', 'run', ...filters, ...extraArgs], {
       stdio: 'inherit',
       env: { ...process.env, ...env },
     });
@@ -153,7 +173,9 @@ try {
       env[database.variable] = process.env[database.variable] || (await startContainer(name, database));
     }),
   );
-  exitCode = await runVitest(env, process.argv.slice(2));
+  // Only the files of the selected databases: the others would fail for want of a server.
+  const filters = [...new Set(names.map((name) => DATABASES[name].tests))];
+  exitCode = await runVitest(env, filters, process.argv.slice(2));
 } catch (err) {
   console.error(err.message);
 } finally {

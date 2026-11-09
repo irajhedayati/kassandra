@@ -1,11 +1,12 @@
 /**
  * Configuration page. Shown on its own on the first run, and from the gear in
  * the sidebar afterwards. Holds the appearance, the storage backend (files,
- * SQLite, PostgreSQL or MySQL) and the location of the configuration.
+ * SQLite, PostgreSQL, MySQL or Firestore) and the location of the configuration.
  */
 import { useEffect, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import {
+  DEFAULT_FIRESTORE_COLLECTION,
   DEFAULT_SQL_SCHEMA,
   SQL_DEFAULT_PORTS,
   type ChangeLocationResult,
@@ -30,17 +31,18 @@ const APPEARANCE_OPTIONS: { value: Appearance; label: string; hint: string }[] =
   { value: 'system', label: 'System', hint: 'Match the operating system' },
 ];
 
-type Backend = 'file' | 'sqlite' | SqlDialect;
+type Backend = 'file' | 'sqlite' | SqlDialect | 'firestore';
 
 const BACKEND_OPTIONS: { value: Backend; label: string; hint: string }[] = [
   { value: 'file', label: 'JSON files', hint: 'One JSON file per document in the location below' },
   { value: 'sqlite', label: 'SQLite', hint: 'A single SQLite database file' },
   { value: 'postgres', label: 'PostgreSQL', hint: 'A PostgreSQL database, shared by every Kassandra that uses it' },
   { value: 'mysql', label: 'MySQL / MariaDB', hint: 'A MySQL or MariaDB database, shared by every Kassandra that uses it' },
+  { value: 'firestore', label: 'Firebase (Firestore)', hint: 'A Firestore collection, shared by every Kassandra that uses it' },
 ];
 
 const asBackend = (name: string): Backend =>
-  name === 'sqlite' || name === 'postgres' || name === 'mysql' ? name : 'file';
+  name === 'sqlite' || name === 'postgres' || name === 'mysql' || name === 'firestore' ? name : 'file';
 
 const isSql = (backend: Backend): backend is SqlDialect => backend === 'postgres' || backend === 'mysql';
 
@@ -74,6 +76,21 @@ const sameForm = (a: SqlForm, b: SqlForm) =>
   a.ssl === b.ssl &&
   a.schema.trim() === b.schema.trim();
 
+/** The Firestore form. */
+interface FirestoreForm {
+  projectId: string;
+  collection: string;
+  /** Empty keeps the saved key: the server never sends it back. */
+  credentials: string;
+}
+
+function firestoreFormFor(setup: SetupInfo): FirestoreForm {
+  return { projectId: setup.firestore.projectId, collection: setup.firestore.collection, credentials: '' };
+}
+
+const sameFirestoreForm = (a: FirestoreForm, b: FirestoreForm) =>
+  a.projectId.trim() === b.projectId.trim() && a.collection.trim() === b.collection.trim() && a.credentials.trim() === b.credentials.trim();
+
 const FIELD_CLASS =
   'mt-1 w-full rounded border border-slate-300 px-3 py-1.5 text-sm disabled:bg-slate-100 disabled:text-slate-500';
 
@@ -93,6 +110,8 @@ export function ConfigurationPage({ setup, onDone, onClose }: Props) {
   const initialDialect = isSql(asBackend(setup.backend)) ? (setup.backend as SqlDialect) : setup.sql.dialect;
   const [sqlForm, setSqlForm] = useState<SqlForm>(() => sqlFormFor(setup, initialDialect));
   const updateSql = (patch: Partial<SqlForm>) => setSqlForm((form) => ({ ...form, ...patch }));
+  const [firestoreForm, setFirestoreForm] = useState<FirestoreForm>(() => firestoreFormFor(setup));
+  const updateFirestore = (patch: Partial<FirestoreForm>) => setFirestoreForm((form) => ({ ...form, ...patch }));
   const [migrate, setMigrate] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const { appearance, setAppearance } = useAppearance();
@@ -103,6 +122,7 @@ export function ConfigurationPage({ setup, onDone, onClose }: Props) {
     setBackend(asBackend(setup.backend));
     setSqlitePath(setup.sqlitePath);
     setSqlForm(sqlFormFor(setup, isSql(asBackend(setup.backend)) ? (setup.backend as SqlDialect) : setup.sql.dialect));
+    setFirestoreForm(firestoreFormFor(setup));
   }, [setup]);
 
   const chooseBackend = (next: Backend) => {
@@ -116,7 +136,8 @@ export function ConfigurationPage({ setup, onDone, onClose }: Props) {
   const backendChanged =
     backend !== setup.backend ||
     (backend === 'sqlite' && sqlitePath.trim() !== setup.sqlitePath) ||
-    (isSql(backend) && !sameForm(sqlForm, sqlFormFor(setup, backend)));
+    (isSql(backend) && !sameForm(sqlForm, sqlFormFor(setup, backend))) ||
+    (backend === 'firestore' && !sameFirestoreForm(firestoreForm, firestoreFormFor(setup)));
   const locationChanged = locationEditable && location.trim() !== setup.location;
 
   const save = useMutation({
@@ -136,6 +157,14 @@ export function ConfigurationPage({ setup, onDone, onClose }: Props) {
                 schema: backend === 'postgres' ? sqlForm.schema : undefined,
               }
             : undefined,
+          firestore:
+            backend === 'firestore'
+              ? {
+                  projectId: firestoreForm.projectId.trim() || undefined,
+                  collection: firestoreForm.collection.trim() || undefined,
+                  credentials: firestoreForm.credentials.trim() === '' ? undefined : firestoreForm.credentials,
+                }
+              : undefined,
           migrate,
         });
       }
@@ -157,7 +186,11 @@ export function ConfigurationPage({ setup, onDone, onClose }: Props) {
         ? setup.sqlLocked
           ? false
           : sqlForm.host.trim() === '' || sqlForm.database.trim() === '' || !Number.isInteger(Number(sqlForm.port))
-        : location.trim() === '';
+        : backend === 'firestore'
+          ? setup.firestoreLocked
+            ? false
+            : firestoreForm.projectId.trim() === '' && firestoreForm.credentials.trim() === '' && !setup.firestore.hasCredentials
+          : location.trim() === '';
   const canSave = !(setup.locked && setup.backendLocked);
   const disabled = !canSave || save.isPending || empty || unchanged;
 
@@ -335,6 +368,61 @@ export function ConfigurationPage({ setup, onDone, onClose }: Props) {
                 : 'The tables are created in the schema, which is created if it does not exist.'}{' '}
               A database that already holds a configuration is used as is. The password is saved in a file only
               your user can read. The previous storage is left in place.
+            </p>
+          </div>
+        )}
+        {backend === 'firestore' && (
+          <div className="mt-3">
+            {setup.firestoreLocked && (
+              <p className="mb-2 rounded border border-amber-300 dark:border-amber-800 bg-amber-50 p-2 text-sm text-amber-800 dark:text-amber-200">
+                The connection is set by the <span className="font-mono">KASSANDRA_FIRESTORE_*</span> environment
+                variables and cannot be changed here.
+              </p>
+            )}
+            {setup.firestoreEmulator && (
+              <p className="mb-2 rounded border border-amber-300 dark:border-amber-800 bg-amber-50 p-2 text-sm text-amber-800 dark:text-amber-200">
+                <span className="font-mono">FIRESTORE_EMULATOR_HOST</span> is set: Firestore requests go to the
+                emulator at <span className="font-mono">{setup.firestoreEmulator}</span>, and no key is needed.
+              </p>
+            )}
+            <fieldset disabled={setup.firestoreLocked || setup.backendLocked} className="grid grid-cols-6 gap-3">
+              <div className="col-span-3">
+                <label htmlFor="config-firestore-project" className="block text-sm font-medium text-slate-700">Project ID</label>
+                <input id="config-firestore-project" type="text" value={firestoreForm.projectId} onChange={(e) => updateFirestore({ projectId: e.target.value })} placeholder="From the service account if empty" spellCheck={false} className={`${FIELD_CLASS} font-mono`} />
+              </div>
+              <div className="col-span-3">
+                <label htmlFor="config-firestore-collection" className="block text-sm font-medium text-slate-700">Collection</label>
+                <input id="config-firestore-collection" type="text" value={firestoreForm.collection} onChange={(e) => updateFirestore({ collection: e.target.value })} placeholder={DEFAULT_FIRESTORE_COLLECTION} spellCheck={false} className={`${FIELD_CLASS} font-mono`} />
+              </div>
+              <div className="col-span-6">
+                <label htmlFor="config-firestore-credentials" className="block text-sm font-medium text-slate-700">Service-account key</label>
+                <textarea
+                  id="config-firestore-credentials"
+                  value={firestoreForm.credentials}
+                  onChange={(e) => updateFirestore({ credentials: e.target.value })}
+                  placeholder={
+                    setup.firestore.hasCredentials
+                      ? `Saved${setup.firestore.clientEmail ? ` (${setup.firestore.clientEmail})` : ''}; leave empty to keep it`
+                      : 'Paste the content of the key file (JSON); empty uses Application Default Credentials'
+                  }
+                  rows={4}
+                  spellCheck={false}
+                  autoComplete="off"
+                  className={`${FIELD_CLASS} font-mono`}
+                />
+              </div>
+            </fieldset>
+            {backendChanged && (
+              <label className="mt-2 flex items-center gap-2 text-sm text-slate-700">
+                <input type="checkbox" checked={migrate} onChange={(e) => setMigrate(e.target.checked)} />
+                Copy the current configuration into Firestore if the collection is empty
+              </label>
+            )}
+            <p className="mt-1 text-xs text-slate-500">
+              Each document of the configuration is stored in the collection. The service account needs read and
+              write access to Firestore (for example the role Cloud Datastore User). A collection that already holds
+              a configuration is used as is. The key is saved in a file only your user can read. The previous storage
+              is left in place.
             </p>
           </div>
         )}

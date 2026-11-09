@@ -3,9 +3,10 @@
  * from KASSANDRA_STORAGE or the Configuration page (see backend.ts).
  */
 import type { SqlDialect } from '@kassandra/shared';
-import { DEFAULT_BACKEND, getBackendName, getSqlConnection, getSqlitePath } from './backend.js';
+import { DEFAULT_BACKEND, getBackendName, getFirestoreConnection, getSqlConnection, getSqlitePath } from './backend.js';
 import { DocumentRepository } from './documentRepository.js';
 import { FileStorage, getConfigDir } from './fileStorage.js';
+import { sharedFirestoreStorage } from './firestore/storage.js';
 import type { ConfigRepository } from './repository.js';
 import { sharedSqlRepository } from './sql/repository.js';
 import { sharedSqliteRepository } from './sqlite/repository.js';
@@ -18,6 +19,18 @@ export type RepositoryFactory = () => ConfigRepository;
 const backends = new Map<string, RepositoryFactory>([
   [DEFAULT_BACKEND, () => new DocumentRepository(new FileStorage(getConfigDir()))],
   ['sqlite', () => sharedSqliteRepository(getSqlitePath())],
+  [
+    'firestore',
+    () => {
+      const connection = getFirestoreConnection();
+      if (!connection) {
+        throw new Error(
+          'The "firestore" storage backend needs KASSANDRA_FIRESTORE_PROJECT (and KASSANDRA_FIRESTORE_CREDENTIALS), or a connection saved on the Configuration page',
+        );
+      }
+      return new DocumentRepository(sharedFirestoreStorage(connection));
+    },
+  ],
   ...SQL_DIALECTS.map((dialect): [string, RepositoryFactory] => [
     dialect,
     () => {

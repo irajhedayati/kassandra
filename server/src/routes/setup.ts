@@ -30,7 +30,7 @@ setupRouter.put('/location', async (req, res) => {
 });
 
 const storageSchema = z.object({
-  backend: z.enum(['file', 'sqlite', 'postgres', 'mysql']),
+  backend: z.enum(['file', 'sqlite', 'postgres', 'mysql', 'firestore']),
   sqlitePath: z.string().optional(),
   sql: z
     .object({
@@ -43,12 +43,19 @@ const storageSchema = z.object({
       schema: z.string().optional(),
     })
     .optional(),
+  firestore: z
+    .object({
+      projectId: z.string().optional(),
+      collection: z.string().optional(),
+      credentials: z.string().optional(),
+    })
+    .optional(),
   migrate: z.boolean().optional(),
 });
 
 setupRouter.put('/storage', async (req, res) => {
   const parsed = storageSchema.safeParse(req.body);
-  if (!parsed.success) throw new LocationError('Body must be { backend: "file" | "sqlite" | "postgres" | "mysql", sqlitePath?, sql?, migrate? }', 400);
+  if (!parsed.success) throw new LocationError('Body must be { backend: "file" | "sqlite" | "postgres" | "mysql" | "firestore", sqlitePath?, sql?, firestore?, migrate? }', 400);
   const body: ApiOk<ChangeLocationResult> = { ok: true, data: await changeStorage(parsed.data) };
   res.json(body);
 });

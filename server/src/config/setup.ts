@@ -3,10 +3,12 @@
  * (the Configuration page).
  */
 import {
+  DEFAULT_FIRESTORE_COLLECTION,
   DEFAULT_SQL_SCHEMA,
   SQL_DEFAULT_PORTS,
   type ChangeLocationResult,
   type ChangeStorageRequest,
+  type FirestoreConnectionInfo,
   type SetupInfo,
   type SqlConnectionInfo,
   type SqlDialect,
@@ -16,18 +18,23 @@ import path from 'node:path';
 import {
   defaultSqlitePath,
   getBackendName,
+  getFirestoreConnection,
+  getSavedFirestoreConnection,
   getSavedSqlConnection,
   getSqlConnection,
   getSqlUrlDialect,
   getSqlitePath,
   hasSavedBackend,
   isBackendLocked,
+  isFirestoreLocked,
   isSqlLocked,
   isSqlSchemaLocked,
   isSqlitePathLocked,
   saveBackend,
 } from './backend.js';
 import { FileStorage } from './fileStorage.js';
+import { emulatorHost, parseServiceAccount, sameFirestoreConnection, validateFirestoreConnection, type FirestoreConnection } from './firestore/connection.js';
+import { closeSharedFirestoreStorage, FirestoreStorage } from './firestore/storage.js';
 import {
   defaultConfigDir,
   ensureWritableDir,
@@ -84,6 +91,31 @@ export function getSetupInfo(): SetupInfo {
     sql: getSqlInfo(),
     sqlLocked: isSqlLocked(),
     sqlSchemaLocked: isSqlSchemaLocked(),
+    firestore: getFirestoreInfo(),
+    firestoreLocked: isFirestoreLocked(),
+    firestoreEmulator: emulatorHost(),
+  };
+}
+
+/** The Firestore settings the form starts from: the ones in use, else the last saved, else defaults. Never the key. */
+function getFirestoreInfo(): FirestoreConnectionInfo {
+  let connection: FirestoreConnection | null = null;
+  try {
+    connection = getFirestoreConnection();
+  } catch {
+    // The environment is unusable; the registry reports that when the backend is used.
+  }
+  let clientEmail: string | undefined;
+  try {
+    clientEmail = connection?.credentials ? parseServiceAccount(connection.credentials).client_email : undefined;
+  } catch {
+    clientEmail = undefined;
+  }
+  return {
+    projectId: connection?.projectId ?? '',
+    collection: connection?.collection ?? DEFAULT_FIRESTORE_COLLECTION,
+    hasCredentials: Boolean(connection?.credentials),
+    clientEmail,
   };
 }
 
@@ -172,14 +204,20 @@ export function changeStorage(request: ChangeStorageRequest): Promise<ChangeLoca
       throw new LocationError('The storage backend is set by KASSANDRA_STORAGE and cannot be changed here', 409);
     }
     const { backend, migrate = true } = request;
-    if (backend !== 'file' && backend !== 'sqlite' && !isSqlDialect(backend)) {
-      throw new LocationError('Backend must be "file", "sqlite", "postgres" or "mysql"', 400);
+    if (backend !== 'file' && backend !== 'sqlite' && backend !== 'firestore' && !isSqlDialect(backend)) {
+      throw new LocationError('Backend must be "file", "sqlite", "postgres", "mysql" or "firestore"', 400);
     }
 
     let sqlitePath: string | undefined;
     let connection: SqlConnection | undefined;
+    let firestore: FirestoreConnection | undefined;
+    let firestoreStorage: FirestoreStorage | undefined;
     let target: ConfigRepository;
-    if (backend === 'sqlite') {
+    if (backend === 'firestore') {
+      firestore = resolveFirestoreConnection(request);
+      firestoreStorage = new FirestoreStorage(firestore);
+      target = new DocumentRepository(firestoreStorage);
+    } else if (backend === 'sqlite') {
       sqlitePath = isSqlitePathLocked() ? getSqlitePath() : expandLocation(request.sqlitePath ?? defaultSqlitePath());
       target = await openSqlite(sqlitePath);
     } else if (isSqlDialect(backend)) {
@@ -194,11 +232,12 @@ export function changeStorage(request: ChangeStorageRequest): Promise<ChangeLoca
         backend === getBackendName() &&
         (backend === 'file' ||
           (backend === 'sqlite' && sqlitePath === getSqlitePath()) ||
-          (connection !== undefined && sameConnectionAsActive(connection)));
+          (connection !== undefined && sameConnectionAsActive(connection)) ||
+          (firestore !== undefined && sameFirestoreAsActive(firestore)));
       let copied = 0;
       let existing = false;
       if (!unchanged) {
-        await migrateTarget(target, connection !== undefined);
+        await migrateTarget(target, connection !== undefined || firestore !== undefined);
         existing = !(await target.isEmpty());
         if (!existing && migrate) {
           const snapshot = await getRepository().exportSnapshot();
@@ -206,16 +245,45 @@ export function changeStorage(request: ChangeStorageRequest): Promise<ChangeLoca
           copied = snapshot.settings.connections.length + snapshot.settings.saved_queries.length + snapshot.tables.length;
         }
       }
-      saveBackend({ backend, sqlitePath, sql: connection });
+      saveBackend({ backend, sqlitePath, sql: connection, firestore });
       firstRun = false;
       return { ...getSetupInfo(), copied, existing };
     } finally {
       target.close();
+      await firestoreStorage?.close();
+      closeSharedFirestoreStorage();
       // Let the next request open the database that is now active.
       closeSharedSqliteRepository();
       closeSharedSqlRepository();
     }
   });
+}
+
+function sameFirestoreAsActive(connection: FirestoreConnection): boolean {
+  const active = getBackendName() === 'firestore' ? getFirestoreConnection() : null;
+  return active !== null && sameFirestoreConnection(active, connection);
+}
+
+/**
+ * The connection to switch to: KASSANDRA_FIRESTORE_* where set, else the request.
+ * A request without a key keeps the saved one (the browser never has it).
+ */
+function resolveFirestoreConnection(request: ChangeStorageRequest): FirestoreConnection {
+  try {
+    if (isFirestoreLocked()) {
+      const fixed = getFirestoreConnection();
+      if (fixed) return fixed;
+    }
+    const given = request.firestore;
+    if (!given) throw new Error('Enter the Firestore settings');
+    return validateFirestoreConnection({
+      projectId: given.projectId ?? '',
+      credentials: given.credentials ?? getSavedFirestoreConnection()?.credentials ?? '',
+      collection: given.collection ?? '',
+    });
+  } catch (err) {
+    throw new LocationError(err instanceof Error ? err.message : String(err), 400);
+  }
 }
 
 function sameConnectionAsActive(connection: SqlConnection): boolean {
