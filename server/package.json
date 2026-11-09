@@ -15,6 +15,7 @@
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
+    "@google-cloud/firestore": "^9.4.0",
     "@kassandra/shared": "*",
     "better-sqlite3": "^13.0.3",
     "cassandra-driver": "^4.10.0",

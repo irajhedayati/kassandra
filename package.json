@@ -31,9 +31,11 @@
     "fsevents@2.3.3": true,
     "esbuild@0.18.20": true,
     "esbuild@0.25.12": true,
-    "better-sqlite3@13.0.3": true
+    "better-sqlite3@13.0.3": true,
+    "protobufjs@7.6.6": true
   },
   "dependencies": {
+    "@google-cloud/firestore": "^9.4.0",
     "@tanstack/react-query": "^5.105.3",
     "@tanstack/react-table": "^9.3.1",
     "@types/node": "^26.6.6",
