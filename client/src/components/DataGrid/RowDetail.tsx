@@ -75,13 +75,13 @@ export function RowDetail(props: Props) {
     },
   });
 
-  // Option+D / Ctrl+D opens the delete confirmation (Enter then confirms it).
+  // Option/Alt+D opens the delete confirmation (Enter then confirms it).
   // Matched on `code` because Option+D types a different character on macOS.
   const canDelete = open && !!row && mode === 'view' && !confirming;
   useEffect(() => {
     if (!canDelete) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.code !== 'KeyD' || e.shiftKey || e.metaKey || !(e.altKey || e.ctrlKey)) return;
+      if (e.code !== 'KeyD' || e.shiftKey || e.metaKey || e.ctrlKey || !e.altKey) return;
       e.preventDefault();
       setDeleteError(null);
       setConfirming(true);
@@ -140,7 +140,7 @@ export function RowDetail(props: Props) {
               className="rounded border border-red-300 dark:border-red-800 bg-white px-3 py-1.5 text-sm text-red-700 dark:text-red-300 hover:bg-red-50"
             >
               Delete
-              <kbd className="ml-1.5 text-xs text-red-400" title="Option+D / Ctrl+D">⌥D</kbd>
+              <kbd className="ml-1.5 text-xs text-red-400" title="Option+D / Alt+D">⌥D</kbd>
             </button>
             <button
               type="button"

@@ -6,8 +6,12 @@ import { useEffect, useState } from 'react';
 
 const SHORTCUTS: { keys: string[]; description: string }[] = [
   { keys: ['/'], description: 'Show this list of shortcuts' },
+  { keys: ['⌘ / Ctrl', 'D'], description: 'Open the keyspace selector' },
+  { keys: ['⌘ / Ctrl', 'T'], description: 'Open the table selector' },
+  { keys: ['⌥ / Alt', 'K'], description: 'Open the keyspace selector (when the browser reserves ⌘/Ctrl+D)' },
+  { keys: ['⌥ / Alt', 'T'], description: 'Open the table selector (when the browser reserves ⌘/Ctrl+T)' },
   { keys: ['⌘ / Ctrl', 'Enter'], description: 'Execute the query in the CQL editor' },
-  { keys: ['⌥ / Ctrl', 'D'], description: 'Delete the row open in Row detail (asks to confirm)' },
+  { keys: ['⌥ / Alt', 'D'], description: 'Delete the row open in Row detail (asks to confirm)' },
   { keys: ['Enter'], description: 'Confirm the open dialog (OK / Create / Save / Delete / Import)' },
   { keys: ['Esc'], description: 'Close this window' },
 ];
