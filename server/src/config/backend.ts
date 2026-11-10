@@ -10,13 +10,16 @@
  * selects, so it is a dotfile in the default directory. KASSANDRA_SQLITE_PATH
  * fixes the SQLite database path the same way. A PostgreSQL or MySQL connection
  * is KASSANDRA_DB_URL (with KASSANDRA_DB_SCHEMA for the PostgreSQL schema), else
- * the one saved here; since it carries a password, the pointer file is readable
- * by its owner only.
+ * the one saved here. Firestore is KASSANDRA_FIRESTORE_PROJECT, _CREDENTIALS (the
+ * service-account key or the path of its file) and _COLLECTION, else the saved
+ * one. Since a connection carries a password or key, the pointer file is
+ * readable by its owner only.
  */
 import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { SqlDialect } from '@kassandra/shared';
 import { defaultConfigDir, getConfigDir } from './location.js';
+import { readCredentials, validateFirestoreConnection, type FirestoreConnection } from './firestore/connection.js';
 import { parseConnectionUrl, validateConnection, type SqlConnection } from './sql/connection.js';
 
 export const DEFAULT_BACKEND = 'file';
@@ -29,6 +32,8 @@ export interface BackendChoice {
   sqlitePath?: string;
   /** Database connection, for the `postgres` and `mysql` backends. Contains the password. */
   sql?: SqlConnection;
+  /** Firestore project and service-account key, for the `firestore` backend. Contains the key. */
+  firestore?: FirestoreConnection;
 }
 
 const envValue = (name: string): string | null => process.env[name]?.trim() || null;
@@ -57,6 +62,20 @@ function readSqlConnection(value: unknown): SqlConnection | undefined {
   }
 }
 
+function readFirestoreConnection(value: unknown): FirestoreConnection | undefined {
+  const c = value as Partial<FirestoreConnection> | null;
+  if (!c || typeof c !== 'object') return undefined;
+  try {
+    return validateFirestoreConnection({
+      projectId: String(c.projectId ?? ''),
+      credentials: String(c.credentials ?? ''),
+      collection: String(c.collection ?? ''),
+    });
+  } catch {
+    return undefined;
+  }
+}
+
 function readPointer(): BackendChoice | null {
   try {
     const parsed = JSON.parse(readFileSync(pointerFile(), 'utf-8')) as Partial<BackendChoice>;
@@ -65,6 +84,7 @@ function readPointer(): BackendChoice | null {
           backend: parsed.backend,
           sqlitePath: typeof parsed.sqlitePath === 'string' ? parsed.sqlitePath : undefined,
           sql: readSqlConnection(parsed.sql),
+          firestore: readFirestoreConnection(parsed.firestore),
         }
       : null;
   } catch {
@@ -134,6 +154,34 @@ export function isSqlLocked(): boolean {
 /** True when KASSANDRA_DB_SCHEMA fixes the PostgreSQL schema. */
 export function isSqlSchemaLocked(): boolean {
   return envValue('KASSANDRA_DB_SCHEMA') !== null;
+}
+
+const FIRESTORE_VARIABLES = ['KASSANDRA_FIRESTORE_PROJECT', 'KASSANDRA_FIRESTORE_CREDENTIALS', 'KASSANDRA_FIRESTORE_COLLECTION'];
+
+/** True when KASSANDRA_FIRESTORE_* fix the connection. */
+export function isFirestoreLocked(): boolean {
+  return FIRESTORE_VARIABLES.some((name) => envValue(name) !== null);
+}
+
+/**
+ * The Firestore connection: what KASSANDRA_FIRESTORE_* say (each overriding the
+ * saved value), else the one saved on the Configuration page, else null.
+ * Throws if the settings in the environment are unusable. Contains the key.
+ */
+export function getFirestoreConnection(): FirestoreConnection | null {
+  const saved = readPointer()?.firestore;
+  if (!isFirestoreLocked()) return saved ?? null;
+  const credentials = envValue('KASSANDRA_FIRESTORE_CREDENTIALS');
+  return validateFirestoreConnection({
+    projectId: envValue('KASSANDRA_FIRESTORE_PROJECT') ?? saved?.projectId ?? '',
+    credentials: credentials ? readCredentials(credentials) : (saved?.credentials ?? ''),
+    collection: envValue('KASSANDRA_FIRESTORE_COLLECTION') ?? saved?.collection ?? '',
+  });
+}
+
+/** The connection saved on the Configuration page; null if none. */
+export function getSavedFirestoreConnection(): FirestoreConnection | null {
+  return readPointer()?.firestore ?? null;
 }
 
 export function saveBackend(choice: BackendChoice): void {

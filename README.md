@@ -165,6 +165,20 @@ Switching back to the files works the same way. Two environment variables fix th
 `KASSANDRA_STORAGE=sqlite` and `KASSANDRA_SQLITE_PATH=/path/to/kassandra.db`. The choice itself is remembered in
 `~/.kassandra/.backend`, which always stays in the default directory because it has to be readable before any storage is.
 
+### Firebase (Firestore) storage
+
+The configuration can also live in a Firestore collection, shared by every Kassandra pointed at it. Choose **Firebase
+(Firestore)** under *Storage* on the Configuration page and enter the project ID, a collection (default `kassandra`) and
+a service-account key (paste the JSON key file; leave it empty to use Application Default Credentials). The service
+account needs read/write access to Firestore, for example the role *Cloud Datastore User*. Each configuration document
+(`config` with the profiles, favorites and saved queries, and one `tables~<connection>-<keyspace>.<table>` document per
+table) is a Firestore document in that collection, next to the `@version` and `@lock` documents. Switching copies the
+current configuration into an empty collection; a collection that already holds one is used as is.
+
+For deployments, `KASSANDRA_STORAGE=firestore` with `KASSANDRA_FIRESTORE_PROJECT`, `KASSANDRA_FIRESTORE_CREDENTIALS`
+(the key's JSON or the path of the key file) and `KASSANDRA_FIRESTORE_COLLECTION` fix the choice and disable it in the
+UI. `FIRESTORE_EMULATOR_HOST=host:port` points Kassandra at a Firestore emulator (no key needed). The key is saved in
+`~/.kassandra/.backend` (mode 0600) and never sent to the browser.
 
 The same page has an **Appearance** setting (Light, Dark or System, which follows the operating system). It is remembered
 per browser.

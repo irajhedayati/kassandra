@@ -58,6 +58,28 @@ export interface SqlConnectionRequest {
   schema?: string;
 }
 
+/** Collection used unless another is given. */
+export const DEFAULT_FIRESTORE_COLLECTION = 'kassandra';
+
+/** How Kassandra reaches Firestore, without the service-account key. */
+export interface FirestoreConnectionInfo {
+  projectId: string;
+  collection: string;
+  /** A service-account key is saved (else Application Default Credentials are used). It is never sent to the browser. */
+  hasCredentials: boolean;
+  /** The service account's e-mail, when a key is saved. */
+  clientEmail?: string;
+}
+
+/** The Firestore settings in a PUT /api/setup/storage request. */
+export interface FirestoreConnectionRequest {
+  /** Omit to use the project of the service-account key. */
+  projectId?: string;
+  collection?: string;
+  /** Content of the service-account key file. Omit to keep the saved key. */
+  credentials?: string;
+}
+
 /** Payload of GET /api/setup. */
 export interface SetupInfo {
   /** Nothing has been configured yet; the UI shows the Configuration page first. */
@@ -67,7 +89,7 @@ export interface SetupInfo {
   defaultLocation: string;
   /** KASSANDRA_HOME fixes the location; it cannot be changed from the UI. */
   locked: boolean;
-  /** Storage backend in use: `file`, `sqlite`, `postgres` or `mysql` (or a registered connector). */
+  /** Storage backend in use: `file`, `sqlite`, `postgres`, `mysql` or `firestore` (or a registered connector). */
   backend: string;
   /** KASSANDRA_STORAGE fixes the backend; it cannot be changed from the UI. */
   backendLocked: boolean;
@@ -85,6 +107,12 @@ export interface SetupInfo {
   sqlLocked: boolean;
   /** KASSANDRA_DB_SCHEMA fixes the PostgreSQL schema. */
   sqlSchemaLocked: boolean;
+  /** Firestore settings: the ones in use if the backend is `firestore`, else the last saved, else defaults. */
+  firestore: FirestoreConnectionInfo;
+  /** KASSANDRA_FIRESTORE_PROJECT / _CREDENTIALS / _COLLECTION fix the connection. */
+  firestoreLocked: boolean;
+  /** FIRESTORE_EMULATOR_HOST is set: Firestore requests go to that emulator. */
+  firestoreEmulator: string | null;
 }
 
 /** Payload of PUT /api/setup/location and PUT /api/setup/storage. */
@@ -97,11 +125,13 @@ export interface ChangeLocationResult extends SetupInfo {
 
 /** Body of PUT /api/setup/storage. */
 export interface ChangeStorageRequest {
-  backend: 'file' | 'sqlite' | SqlDialect;
+  backend: 'file' | 'sqlite' | SqlDialect | 'firestore';
   /** Database file for `sqlite`; the default in the config directory when omitted. */
   sqlitePath?: string;
   /** Connection for `postgres` and `mysql`. Required unless KASSANDRA_DB_URL provides it. */
   sql?: SqlConnectionRequest;
+  /** Connection for `firestore`. Required unless KASSANDRA_FIRESTORE_* provides it. */
+  firestore?: FirestoreConnectionRequest;
   /** Copy the current configuration into an empty target. Default true. */
   migrate?: boolean;
 }
