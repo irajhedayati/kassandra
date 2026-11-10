@@ -4,7 +4,7 @@
  *
  * Owned by the schema lane.
  */
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPlus } from '@fortawesome/free-solid-svg-icons';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -15,7 +15,7 @@ import { useConnectionStatus } from '../../state/connection.js';
 import { useFavoriteKeyspaces } from '../../state/favorites.js';
 import { CreateTableDialog } from '../Dialogs/CreateTableDialog.js';
 import { CreateKeyspaceDialog } from '../Dialogs/CreateKeyspaceDialog.js';
-import { SearchableSelect } from './SearchableSelect.js';
+import { SearchableSelect, type SearchableSelectHandle } from './SearchableSelect.js';
 
 export function SchemaNavigator() {
   const queryClient = useQueryClient();
@@ -24,6 +24,34 @@ export function SchemaNavigator() {
   const { keyspace, table, setKeyspace, setTable } = useSelection();
   const { data: status } = useConnectionStatus();
   const { favorites } = useFavoriteKeyspaces(status?.profileName);
+
+  const keyspaceSelectRef = useRef<SearchableSelectHandle>(null);
+  const tableSelectRef = useRef<SearchableSelectHandle>(null);
+
+  // Cmd/Ctrl+D opens the keyspace selector, Cmd/Ctrl+T the table selector.
+  // Safari and some other browsers reserve those (bookmark / new tab), so
+  // Option/Alt+K and Option/Alt+T do the same. Modifier combos never type
+  // text, so they work from inputs too, except in the CQL editor where
+  // Cmd/Ctrl+D is Monaco's "add selection to next match". Alt combos match on
+  // `code` because Option+letter types a different character on macOS.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.shiftKey) return;
+      let target: 'keyspace' | 'table' | null = null;
+      if ((e.metaKey || e.ctrlKey) && !e.altKey) {
+        const key = e.key.toLowerCase();
+        target = key === 'd' ? 'keyspace' : key === 't' ? 'table' : null;
+      } else if (e.altKey && !e.metaKey && !e.ctrlKey) {
+        target = e.code === 'KeyK' ? 'keyspace' : e.code === 'KeyT' ? 'table' : null;
+      }
+      if (!target) return;
+      if ((e.target as HTMLElement | null)?.closest?.('.monaco-editor')) return;
+      e.preventDefault();
+      (target === 'keyspace' ? keyspaceSelectRef : tableSelectRef).current?.openAndFocus();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   const keyspacesQuery = useQuery<KeyspaceList>({
     queryKey: ['schema', 'keyspaces'],
@@ -71,6 +99,7 @@ export function SchemaNavigator() {
         <div className="flex items-center gap-2">
           <div className="min-w-0 flex-1">
             <SearchableSelect
+              ref={keyspaceSelectRef}
               value={keyspace}
               options={orderedKeyspaces}
               onChange={setKeyspace}
@@ -106,6 +135,7 @@ export function SchemaNavigator() {
         <div className="flex items-center gap-2">
           <div className="min-w-0 flex-1">
             <SearchableSelect
+              ref={tableSelectRef}
               value={table}
               options={tables}
               onChange={setTable}

@@ -307,7 +307,7 @@ Generating CQL does not write to Cassandra; inserts and updates take effect when
 1. Click a row in **Data Browser**.
 2. Click **Delete** in the details dialog.
 3. Confirm the deletion. This deletes the record directly and refreshes the data browser. You can also press
-   **Option+D** (macOS) or **Ctrl+D** while the details dialog is open, then confirm.
+   **Option+D** (macOS) or **Alt+D** while the details dialog is open, then confirm.
 
 ### 4. CQL Editor
 

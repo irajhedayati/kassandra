@@ -6,7 +6,7 @@
  * "Advanced Select" pattern (checkmark on selection, keyboard navigation,
  * clear button): https://preline.co/docs/components/advanced-select.html
  */
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 
 interface SearchableSelectProps {
   value: string | null;
@@ -16,13 +16,13 @@ interface SearchableSelectProps {
   onChange: (value: string | null) => void;
 }
 
-export function SearchableSelect({
-  value,
-  options,
-  placeholder,
-  disabled,
-  onChange,
-}: SearchableSelectProps) {
+export interface SearchableSelectHandle {
+  /** Opens the menu (if closed) and focuses its search box. No-op when disabled. */
+  openAndFocus: () => void;
+}
+
+export const SearchableSelect = forwardRef<SearchableSelectHandle, SearchableSelectProps>(
+  function SearchableSelect({ value, options, placeholder, disabled, onChange }, ref) {
   const [open, setOpen] = useState(false);
   const [filter, setFilter] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
@@ -71,6 +71,14 @@ export function SearchableSelect({
     setActiveIndex(0);
     requestAnimationFrame(() => inputRef.current?.focus());
   };
+
+  useImperativeHandle(ref, () => ({
+    openAndFocus: () => {
+      if (disabled) return;
+      if (open) inputRef.current?.focus();
+      else openMenu();
+    },
+  }));
 
   // Row 0 is the "clear" option; rows 1..n map to filtered[0..n-1].
   const rowCount = filtered.length + 1;
@@ -180,4 +188,4 @@ export function SearchableSelect({
       )}
     </div>
   );
-}
+});
