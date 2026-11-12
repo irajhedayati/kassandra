@@ -76,16 +76,25 @@ open [http://localhost:8501](http://localhost:8501).
 
 ### Docker Compose
 
-To launch Kassandra together with a local single-node Cassandra:
+Choose where Kassandra keeps its own configuration with a profile:
 
 ```bash
-docker compose up --build
+docker compose --profile file up --build        # JSON files
+docker compose --profile sqlite up --build      # SQLite database file
+docker compose --profile postgres up --build    # PostgreSQL, started for you
+docker compose --profile mysql up --build       # MySQL, started for you
+docker compose --profile firestore up --build   # Firestore emulator, started for you
 ```
 
 Open [http://localhost:8501](http://localhost:8501) and create a connection with host `cassandra` and port `9042` (the
 service name resolves inside the Compose network; no authentication or SSL). Cassandra can take a minute to become
-healthy before Kassandra starts. Settings and Cassandra data are kept in the `kassandra-data` and `cassandra-data`
-volumes; `docker compose down -v` removes them.
+healthy before Kassandra starts. The backend is preconfigured by the profile (so it is fixed on the Configuration page).
+
+By default Kassandra's configuration and the PostgreSQL/MySQL data are temporary (tmpfs) and gone after
+`docker compose down`. To keep them, point `KASSANDRA_DATA` (JSON files, SQLite file), `POSTGRES_DATA` or `MYSQL_DATA`
+at a local folder, e.g. `KASSANDRA_DATA=$PWD/.kassandra docker compose --profile sqlite up --build`; the folder must be
+writable by the container's user. The Firestore emulator only keeps its data in memory. Cassandra data is kept in the
+`cassandra-data` volume; `docker compose down -v` removes it.
 
 Connection hosts must be reachable from inside the container. For Cassandra running on your host with Docker Desktop,
 use `host.docker.internal`; for another container on the same Docker network, use its container name. Certificate paths

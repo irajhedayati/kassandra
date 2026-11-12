@@ -1,9 +1,39 @@
-# Kassandra + a single-node Cassandra for local use.
+# Kassandra + a single-node Cassandra for local use. Pick where Kassandra keeps its own
+# configuration (connections, favorites, saved queries) with a profile:
 #
-#   docker compose up --build
+#   docker compose --profile file up --build        JSON files
+#   docker compose --profile sqlite up --build      SQLite database file
+#   docker compose --profile postgres up --build    PostgreSQL (started for you)
+#   docker compose --profile mysql up --build       MySQL (started for you)
+#   docker compose --profile firestore up --build   Firestore emulator (started for you)
 #
-# Then open http://localhost:8501 and create a connection with host
-# "cassandra" and port 9042 (no authentication, no SSL).
+# Then open http://localhost:8501 and create a connection with host "cassandra" and
+# port 9042 (no authentication, no SSL).
+#
+# Persistence. By default everything is temporary: it lives in memory (tmpfs) and is gone
+# after `docker compose down`. To keep it, point a variable at a local folder (absolute
+# or ./relative path), or at the name of a Docker volume:
+#
+#   KASSANDRA_DATA=./kassandra-config  JSON files / SQLite file (all profiles keep
+#                                      Kassandra's own state here)
+#   POSTGRES_DATA=./pg-data            PostgreSQL data
+#   MYSQL_DATA=./mysql-data            MySQL data
+#
+#   KASSANDRA_DATA=$PWD/.kassandra docker compose --profile sqlite up --build
+#
+# Put them in a `.env` file next to this one to make them stick. The Firestore emulator
+# only keeps its data in memory, so it is always temporary. The folder must be writable by
+# the container's user. Cassandra's own data is kept in the `cassandra-data` volume
+# (`docker compose down -v` removes it).
+
+x-kassandra: &kassandra
+  build: .
+  container_name: kassandra
+  ports:
+    - "8501:8501"
+  volumes:
+    - ${KASSANDRA_DATA:-kassandra-tmp}:/etc/kassandra
+
 services:
   cassandra:
     image: cassandra:5
@@ -19,19 +49,116 @@ services:
       retries: 20
       start_period: 60s
 
-  kassandra:
-    build: .
-    container_name: kassandra
+  kassandra-file:
+    <<: *kassandra
+    profiles: ["file"]
     environment:
       KASSANDRA_HOME: /etc/kassandra
-    ports:
-      - "8501:8501"
-    volumes:
-      - kassandra-data:/etc/kassandra
+      KASSANDRA_STORAGE: file
     depends_on:
       cassandra:
         condition: service_healthy
 
+  kassandra-sqlite:
+    <<: *kassandra
+    profiles: ["sqlite"]
+    environment:
+      KASSANDRA_HOME: /etc/kassandra
+      KASSANDRA_STORAGE: sqlite
+      KASSANDRA_SQLITE_PATH: /etc/kassandra/kassandra.db
+    depends_on:
+      cassandra:
+        condition: service_healthy
+
+  kassandra-postgres:
+    <<: *kassandra
+    profiles: ["postgres"]
+    environment:
+      KASSANDRA_HOME: /etc/kassandra
+      KASSANDRA_STORAGE: postgres
+      KASSANDRA_DB_URL: postgres://postgres:kassandra@postgres:5432/kassandra
+    depends_on:
+      cassandra:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  kassandra-mysql:
+    <<: *kassandra
+    profiles: ["mysql"]
+    environment:
+      KASSANDRA_HOME: /etc/kassandra
+      KASSANDRA_STORAGE: mysql
+      KASSANDRA_DB_URL: mysql://root:kassandra@mysql:3306/kassandra
+    depends_on:
+      cassandra:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+
+  kassandra-firestore:
+    <<: *kassandra
+    profiles: ["firestore"]
+    environment:
+      KASSANDRA_HOME: /etc/kassandra
+      KASSANDRA_STORAGE: firestore
+      KASSANDRA_FIRESTORE_PROJECT: kassandra-local
+      FIRESTORE_EMULATOR_HOST: firestore:8080
+    depends_on:
+      cassandra:
+        condition: service_healthy
+      firestore:
+        condition: service_started
+
+  postgres:
+    profiles: ["postgres"]
+    image: postgres:17-alpine
+    container_name: kassandra-postgres
+    environment:
+      POSTGRES_PASSWORD: kassandra
+      POSTGRES_DB: kassandra
+    ports:
+      - "5432:5432"
+    volumes:
+      - ${POSTGRES_DATA:-postgres-tmp}:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d kassandra"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  mysql:
+    profiles: ["mysql"]
+    image: mysql:8.4
+    container_name: kassandra-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: kassandra
+      MYSQL_DATABASE: kassandra
+    ports:
+      - "3306:3306"
+    volumes:
+      - ${MYSQL_DATA:-mysql-tmp}:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -pkassandra --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  firestore:
+    profiles: ["firestore"]
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:emulators
+    container_name: kassandra-firestore
+    command: ["gcloud", "emulators", "firestore", "start", "--host-port=0.0.0.0:8080"]
+    ports:
+      - "8080:8080"
+
 volumes:
   cassandra-data:
-  kassandra-data:
+  # Temporary storage: a tmpfs mount, emptied when the last container using it stops.
+  kassandra-tmp:
+    driver_opts: {type: tmpfs, device: tmpfs}
+  postgres-tmp:
+    driver_opts: {type: tmpfs, device: tmpfs}
+  mysql-tmp:
+    driver_opts: {type: tmpfs, device: tmpfs}
