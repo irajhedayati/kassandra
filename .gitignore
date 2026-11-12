@@ -33,3 +33,4 @@ legacy/**/*.egg-info/
 **/*.swp
 
 .kassandra
+.claude

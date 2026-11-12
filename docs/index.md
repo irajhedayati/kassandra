@@ -23,10 +23,16 @@ Streamlit are no longer needed to run the current application.
   one with a per-statement report, page through results, and see when they ran and how long they took.
 - **Saved parametrized queries**: Use `:name` placeholders bound as typed parameters, and save, reopen, import, and
   export queries.
-- **Keyboard shortcuts**: Run queries, delete rows, and confirm dialogs from the keyboard; press `/` for the list.
-- **Column customization**: Configure hidden columns, JSON and enum fields, and rich per-key schemas for map columns.
+- **Keyboard shortcuts**: Open the keyspace and table selectors, run queries, delete rows, and confirm dialogs from the
+  keyboard; press `/` for the list.
+- **Column customization**: Configure hidden columns, JSON and enum fields, and rich per-key schemas for map columns,
+  and import them from another table.
+- **Configuration storage**: Keep profiles, saved queries, and column settings in JSON files, SQLite, PostgreSQL,
+  MySQL/MariaDB, or Firebase (Firestore), so a team can share one configuration.
+- **Appearance**: Light, Dark, or System theme.
 
-The bottom of the application sidebar shows the version of the running frontend build.
+The bottom of the application sidebar shows the version of the running frontend build and a **What's new** link to the
+release notes. The gear icon next to it opens the [Configuration page](#configuration).
 
 ## Installation
 
@@ -90,7 +96,7 @@ Open [http://localhost:8501](http://localhost:8501) and create a connection with
 service name resolves inside the Compose network; no authentication or SSL). Cassandra can take a minute to become
 healthy before Kassandra starts. The backend is preconfigured by the profile (so it is fixed on the Configuration page).
 
-By default Kassandra's configuration and the PostgreSQL/MySQL data are temporary (tmpfs) and gone after
+By default, Kassandra's configuration and the PostgreSQL/MySQL data are temporary (tmpfs) and gone after
 `docker compose down`. To keep them, point `KASSANDRA_DATA` (JSON files, SQLite file), `POSTGRES_DATA` or `MYSQL_DATA`
 at a local folder, e.g. `KASSANDRA_DATA=$PWD/.kassandra docker compose --profile sqlite up --build`; the folder must be
 writable by the container's user. The Firestore emulator only keeps its data in memory. Cassandra data is kept in the
@@ -151,6 +157,24 @@ helm uninstall kassandra
 
 `helm uninstall` also deletes the PersistentVolumeClaim the chart created, and with it your saved profiles. A claim
 supplied through `persistence.existingClaim` is left alone.
+
+The chart keeps the configuration in JSON files on its volume. To use another [storage backend](#storage-backends), set
+it through `env` rather than on the Configuration page (the choice made on the page is saved outside the volume and is
+lost when the pod restarts). For example, PostgreSQL with the connection URL from a Secret:
+
+```yaml
+env:
+  - name: KASSANDRA_STORAGE
+    value: postgres
+  - name: KASSANDRA_DB_URL
+    valueFrom:
+      secretKeyRef:
+        name: kassandra-db
+        key: url   # postgres://user:password@host:5432/kassandra
+```
+
+With PostgreSQL, MySQL, or Firestore the configuration does not live on the volume, so `persistence.enabled=false` is
+fine.
 
 ## User Guide
 
@@ -220,8 +244,7 @@ connection profile and appear first in the keyspace selector.
   filters. Most columns use equality filters; map columns also offer *Key = value*, *Contains key*, and *Contains
   value*. The generated query uses `ALLOW FILTERING`, which can scan substantial data for non-key columns.
 - **Generate CQL**: Next to **Apply**, sends a `SELECT` with the *applied* filters (not edits you have not applied yet)
-  to
-  the CQL editor below, where you can review, change and run it.
+  to the CQL editor below, where you can review, change and run it.
 - **Sort and filter the loaded page**: Click a column header to sort ascending, click again for descending, and a third
   time to clear. Type in the box under a header to filter that column. These apply only to the rows already loaded on
   the current page, do not query Cassandra, and reset when you switch tables. Use the filters above the grid to search
@@ -230,7 +253,7 @@ connection profile and appear first in the keyspace selector.
 - **Pagination**: Choose 10, 25, or 50 **Rows per page**. Use **Next page** to continue and **Reset** to return to the
   first page.
 - **Refresh**: The button above the grid reloads the current page and its schema and metadata.
-- **Selection**: Click a row to open its details dialog. Primary and clustering key columns are marked `(pk)` and `(ck)`
+- **Selection**: Click a row to open its details' dialog. Primary and clustering key columns are marked `(pk)` and `(ck)`
   in the grid.
 
 #### Creating keyspaces and tables
@@ -301,7 +324,7 @@ review the statements, and execute them to save the changes.
 
 #### Updating records
 
-1. Click a row in **Data Browser** to open its details dialog.
+1. Click a row in **Data Browser** to open its details' dialog.
 2. Click **Edit** and change the desired values. Primary key fields are read-only.
 3. Click **Generate CQL** to send the changes to the CQL editor.
 4. Review the generated statements and click **Execute Query** to apply them.
@@ -314,7 +337,7 @@ Generating CQL does not write to Cassandra; inserts and updates take effect when
 #### Deleting records
 
 1. Click a row in **Data Browser**.
-2. Click **Delete** in the details dialog.
+2. Click **Delete** in the details' dialog.
 3. Confirm the deletion. This deletes the record directly and refreshes the data browser. You can also press
    **Option+D** (macOS) or **Alt+D** while the details dialog is open, then confirm.
 
@@ -362,7 +385,7 @@ Semicolons inside string literals, quoted identifiers, and comments do not split
 block counts as a single statement. Each execution may contain **at most one `SELECT`**; with more, nothing runs and
 the message names the offending statements.
 
-The **execution report** has one line per statement, numbered by its position in the editor and labelled with its
+The **execution report** has one line per statement, numbered by its position in the editor and labeled with its
 command (`#2 DELETE`):
 
 | Color            | State                                           |
@@ -380,7 +403,7 @@ happened:
   `SELECT`, never the other statements).
 - **INSERT**: the number of rows inserted (one per statement).
 - **DELETE**: the number of rows deleted, or cells when the statement names columns (`DELETE a, b FROM ...`).
-  Cassandra does not report this, so Kassandra counts the rows matching the `WHERE` clause just before running the
+  Cassandra does not report this, so Kassandra counts the rows matching the `WHERE` clause just before running to
   delete. If that count is unavailable the line just says "Deleted".
 - Statements with an `IF` condition that was not met are reported as "Not applied".
 
@@ -405,10 +428,9 @@ inside string literals, quoted identifiers, and comments are ignored.
 #### Formatting
 
 **Format CQL** (next to **Save query**) rewrites the query in the editor for readability: clauses such as `FROM`,
-`WHERE`
-and `ORDER BY` start new lines, `AND` conditions and long column lists are indented, and `CREATE TABLE` columns go one
-per
-line. CQL keywords (`SELECT`, `FROM`, `WHERE`, `PRIMARY KEY`, `USING TTL`, `COUNT(*)`, ...) are written in upper case;
+`WHERE` and `ORDER BY` start new lines, `AND` conditions and long column lists are indented, and `CREATE TABLE` columns
+go one per line. CQL keywords (`SELECT`, `FROM`, `WHERE`, `PRIMARY KEY`, `USING TTL`, `COUNT(*)`, ...) are written in
+upper case;
 identifiers, data types, function names such as `now()`, quoted names, string literals, comments, `:name` parameters and
 the order of statements are left exactly as written. It does not run or save anything, and **Undo** in the editor brings
 the previous text back.
@@ -421,7 +443,8 @@ the previous text back.
   **Delete** removes it after confirmation.
 - **Export** downloads all saved queries as JSON and **Import** loads a JSON file, for sharing with teammates.
 
-Saved queries are kept in `config.json` under `saved_queries`.
+Saved queries are kept in the [configuration storage](#storage-backends) (with JSON files, in `config.json` under
+`saved_queries`).
 
 ![Saving and reopening a query](images/saved-query.gif)
 
@@ -437,10 +460,17 @@ Press **/** anywhere outside a text field to open the shortcut list; **Esc** clo
 | Shortcut               | Action                                                      |
 |------------------------|-------------------------------------------------------------|
 | `/`                    | Show the list of shortcuts                                  |
+| `Cmd`/`Ctrl` + `D`     | Open the keyspace selector                                  |
+| `Cmd`/`Ctrl` + `T`     | Open the table selector                                     |
+| `Option`/`Alt` + `K`   | Open the keyspace selector (when the browser reserves `D`)  |
+| `Option`/`Alt` + `T`   | Open the table selector (when the browser reserves `T`)     |
 | `Cmd`/`Ctrl` + `Enter` | Execute the statements in the CQL editor                    |
-| `Option`/`Ctrl` + `D`  | Delete the row open in the details dialog (asks to confirm) |
+| `Option`/`Alt` + `D`   | Delete the row open in the details dialog (asks to confirm) |
 | `Enter`                | Confirm the open dialog (OK, Create, Save, Delete, Import)  |
 | `Esc`                  | Close the shortcut list                                     |
+
+Some browsers, Safari among them, keep `Cmd`/`Ctrl` + `D` (bookmark) and `Cmd`/`Ctrl` + `T` (new tab) for themselves;
+use the `Option`/`Alt` aliases there.
 
 ![Keyboard shortcuts](images/keyboard-shortcuts.png)
 
@@ -461,27 +491,98 @@ customize how Kassandra displays and edits columns:
 Click **Save** to persist these settings, or **Cancel** to discard pending changes. These settings customize Kassandra's
 interface; they do not alter the Cassandra table schema.
 
+Settings are kept per connection and table. To reuse them, for example for the same table on another connection, click
+**Import schema** and choose that table's metadata file (`tables/<connection>-<keyspace>.<table>.json` in the
+configuration directory). The file must be valid metadata and every column in it must exist in the current table; if the
+table already has settings, they are replaced only after you confirm.
+
 ## Configuration
 
-Connection profiles, column metadata, saved queries, and favorite keyspaces are stored on the server in
-`~/.kassandra/config.json`. Set `KASSANDRA_HOME` to use a different directory. The Node.js application reads the
-existing configuration format and fills missing profile fields with defaults.
+Kassandra keeps connection profiles, favorite keyspaces, saved queries, and column metadata on the server. Where it
+keeps them, and the theme, are set on the **Configuration** page: the gear icon at the bottom of the sidebar.
 
-By default, the configuration is kept in files (the file backend). KASSANDRA_STORAGE selects a different storage backend
-by name; if the name is unknown, the server fails with an error that lists the available backends. KASSANDRA_HOME and
-the Configuration page's location setting apply only to the file backend.
+### First run
 
-### SQLite storage
+The first time Kassandra starts with no configuration, it opens the Configuration page instead of the application, so
+you can choose where to keep the configuration before anything is written. Accept the default (JSON files in
+`~/.kassandra`) or pick another location or storage backend, then continue. The page is skipped when the location or the
+backend is fixed by an environment variable (`KASSANDRA_HOME`, `KASSANDRA_STORAGE`), as in the Helm chart and the Docker
+Compose profiles, or when a configuration already exists.
 
-Instead of JSON files, the configuration can live in a single SQLite database with a relational schema (tables for
-connections and their hosts, favorite keyspaces, saved queries and their parameters, and per-table column metadata). Choose **SQLite** under *Storage* on the
-Configuration page (the gear icon in the sidebar) and set the database file; the default is `kassandra.db` in the
-configuration directory. The schema is created and upgraded automatically at startup. Switching copies the current configuration into the database if it is empty (clear the checkbox
-to start empty); a database that already holds a configuration is used as is, and the old JSON files are left in place.
-Switching back to the files works the same way. Two environment variables fix the choice and disable it in the UI:
-`KASSANDRA_STORAGE=sqlite` and `KASSANDRA_SQLITE_PATH=/path/to/kassandra.db`. The choice itself is remembered in
-`~/.kassandra/.backend`, which always stays in the default directory because it has to be readable before any storage is.
+### Appearance
 
+**Appearance** chooses **Light**, **Dark**, or **System** (follows the operating system). It is remembered per browser,
+not in the configuration.
+
+### Storage backends
+
+| Backend                  | Where the configuration lives                    | Fixed with                                                              |
+|--------------------------|--------------------------------------------------|-------------------------------------------------------------------------|
+| **JSON files** (default) | `config.json` and `tables/*.json` in a directory | `KASSANDRA_HOME`                                                        |
+| **SQLite**               | One database file                                | `KASSANDRA_STORAGE=sqlite`, `KASSANDRA_SQLITE_PATH`                     |
+| **PostgreSQL**           | Tables in a schema of a PostgreSQL database      | `KASSANDRA_STORAGE=postgres`, `KASSANDRA_DB_URL`, `KASSANDRA_DB_SCHEMA` |
+| **MySQL / MariaDB**      | Tables in a MySQL or MariaDB database            | `KASSANDRA_STORAGE=mysql`, `KASSANDRA_DB_URL`                           |
+| **Firebase (Firestore)** | Documents in a Firestore collection              | `KASSANDRA_STORAGE=firestore`, `KASSANDRA_FIRESTORE_*`                  |
+
+Choose the backend under **Storage** on the Configuration page. When you switch, Kassandra copies the current
+configuration into the new storage if it is empty (clear the **Copy the current configuration** checkbox to start
+empty); a storage that already holds a configuration is used as is. The previous storage is always left in place, so you
+can switch back. PostgreSQL, MySQL, and Firestore can be shared by several Kassandra instances, for example by a team.
+
+Environment variables fix a setting and disable it on the page; this is the way to configure a deployment. If
+`KASSANDRA_STORAGE` names an unknown backend, the server stops with an error listing the available ones. The choice made
+on the page is remembered in `~/.kassandra/.backend`, which always stays in the default directory because it has to be
+readable before any storage is. Database passwords and Firestore keys are saved in that file with mode `0600` and are
+never sent back to the browser: the password field shows that one is saved, and leaving it empty keeps it.
+
+#### JSON files
+
+The default. Profiles, favorites, and saved queries are in `config.json`; column metadata is one file per connection and
+table in `tables/` (`<connection>-<keyspace>.<table>.json`; characters other than letters, digits and `_` are
+percent-encoded). The directory is `KASSANDRA_HOME` if set, else the **Location** chosen on the Configuration page, else
+`~/.kassandra`. Choosing an empty location copies the current configuration there (the old files are left in place); a
+location that already holds a configuration is used as is.
+
+#### SQLite
+
+A single database file with a relational schema (connections and their hosts, favorite keyspaces, saved queries and
+their parameters, and per-table column metadata). Set the **Database file**; the default is `kassandra.db` in the
+configuration directory. The schema is created and upgraded automatically at startup.
+
+#### PostgreSQL and MySQL / MariaDB
+
+Enter the **Host**, **Port** (default `5432` or `3306`), **Database**, **User**, and **Password**, and tick **TLS** to
+encrypt the connection and verify the server certificate. For PostgreSQL, the tables go in **Schema** (default
+`public`),
+which is created if it does not exist. For MySQL, the database must already exist; the tables are created in it. The
+user needs permission to create tables. Kassandra checks the connection before switching; if it fails, the previous
+storage stays active.
+
+For deployments, set `KASSANDRA_STORAGE=postgres` or `mysql` and `KASSANDRA_DB_URL`, for example
+`postgres://user:password@db.example.com:5432/kassandra` or `mysql://user:password@db.example.com:3306/kassandra`, plus
+`KASSANDRA_DB_SCHEMA` for the PostgreSQL schema.
+
+#### Firebase (Firestore)
+
+Enter the **Project ID**, a **Collection** (default `kassandra`), and a **Service-account key** (paste the JSON key
+file;
+leave it empty to use Application Default Credentials). The service account needs read/write access to Firestore, for
+example the role *Cloud Datastore User*. The `config` document and one `tables~<connection>-<keyspace>.<table>` document
+per table are stored in the collection, next to `@version` and `@lock` documents.
+
+For deployments, set `KASSANDRA_STORAGE=firestore` with `KASSANDRA_FIRESTORE_PROJECT`, `KASSANDRA_FIRESTORE_CREDENTIALS`
+(the key's JSON or the path of the key file), and `KASSANDRA_FIRESTORE_COLLECTION`. `FIRESTORE_EMULATOR_HOST=host:port`
+points Kassandra at a Firestore emulator, which needs no key.
+
+### Upgrading
+
+Kassandra upgrades an older configuration automatically when it starts, and a lock stops two Kassandra instances sharing
+the same storage from upgrading it at once. SQLite, PostgreSQL, and MySQL upgrade their schema. JSON files and Firestore
+record the version that last wrote them; before upgrading, Kassandra copies every document to `backups/<old version>/`
+in the same storage (a `backups` directory for JSON files).
+
+Upgrading from 1.5.0 moves column metadata out of `config.json` into per-table files. Because 1.5.0 did not record which
+connection the metadata belonged to, it is copied to every connection.
 
 For source installations, `HOST` and `PORT` control the server's listening address and port; defaults are `127.0.0.1`
 and `8501`. The Docker image sets `HOST=0.0.0.0` so the published port is reachable.

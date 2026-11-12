@@ -14,8 +14,9 @@ Explore keyspaces and tables, inspect and modify data, run CQL, and manage Cassa
 
 [![GitHub Release](https://img.shields.io/github/v/release/irajhedayati/kassandra)](https://github.com/irajhedayati/kassandra/releases)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
-[![CI](https://github.com/irajhedayati/kassandra/actions/workflows/docker-image.yml/badge.svg)](https://github.com/irajhedayati/kassandra/actions/workflows/ci.yml)
-[![CI](https://github.com/irajhedayati/kassandra/actions/workflows/release.yml/badge.svg)](https://github.com/irajhedayati/kassandra/actions/workflows/ci.yml)
+[![Tests](https://github.com/irajhedayati/kassandra/actions/workflows/test.yml/badge.svg)](https://github.com/irajhedayati/kassandra/actions/workflows/test.yml)
+[![Docker Image CI](https://github.com/irajhedayati/kassandra/actions/workflows/docker-image.yml/badge.svg)](https://github.com/irajhedayati/kassandra/actions/workflows/docker-image.yml)
+[![Release](https://github.com/irajhedayati/kassandra/actions/workflows/release.yml/badge.svg)](https://github.com/irajhedayati/kassandra/actions/workflows/release.yml)
 [![Open Issues](https://img.shields.io/github/issues/irajhedayati/kassandra)](https://github.com/irajhedayati/kassandra/issues)
 [![Last Commit](https://img.shields.io/github/last-commit/irajhedayati/kassandra)](https://github.com/irajhedayati/kassandra/commits)
 
@@ -74,8 +75,10 @@ Explore keyspaces and tables, inspect and modify data, run CQL, and manage Cassa
 | **Create Keyspaces & Tables**    | Guided dialogs with a live CQL preview and built-in help.                |
 | **Schema-aware CRUD**            | Insert, update, and delete rows through schema-driven forms.             |
 | **CQL Editor**                   | Run one or many CQL statements, with `:param` binding and saved queries. |
-| **Keyboard Shortcuts**           | Run queries, delete rows, and confirm dialogs from the keyboard (`/`).   |
+| **Keyboard Shortcuts**           | Jump to keyspaces and tables, run queries, and more (`/` for the list).  |
 | **Connection Profiles**          | Save and switch between Cassandra cluster connections.                   |
+| **Shared Configuration**         | Keep settings in files, SQLite, PostgreSQL, MySQL/MariaDB, or Firestore. |
+| **Light & Dark Themes**          | Light, Dark, or follow the operating system.                             |
 | **Datacenter-aware Routing**     | Prefer a selected local DC and fall back to remote DCs when necessary.   |
 | **DC Validation & Autocomplete** | Discover available datacenters and prevent invalid DC configuration.     |
 | **Docker Ready**                 | Run Kassandra locally or as a self-hosted container.                     |
@@ -86,7 +89,7 @@ Explore keyspaces and tables, inspect and modify data, run CQL, and manage Cassa
 ## Quick Start
 
 ```bash
-docker run --rm --name kassandra --publish 8501:8501 --volume /Users/iraj/.kassandra:/root/.kassandra hedayati/kassandra
+docker run --rm --name kassandra --publish 8501:8501 --volume "$HOME/.kassandra:/root/.kassandra" hedayati/kassandra
 ```
 
 ---
@@ -137,55 +140,33 @@ docker build -t kassandra .
 docker run -p 8501:8501 kassandra
 ```
 
-To launch Kassandra together with a local Cassandra, run `docker compose up --build`
-(see [docs/index.md](docs/index.md#docker-compose)).
+To launch Kassandra together with a local Cassandra, pick where Kassandra keeps its configuration with a profile:
+
+```bash
+docker compose --profile file up --build        # JSON files (also: sqlite, postgres, mysql, firestore)
+```
+
+The `postgres`, `mysql` and `firestore` profiles also start that database or the Firestore emulator. The configuration
+is temporary unless you set `KASSANDRA_DATA` (and `POSTGRES_DATA` / `MYSQL_DATA`) to a local folder; see
+[Docker Compose](docs/index.md#docker-compose).
 
 ## Configuration
 
-Connection profiles are persisted to `~/.kassandra/config.json`. Per-column metadata is kept separately, one file per
-connection and table, in `~/.kassandra/tables/` (`<connection>-<keyspace>.<table>.json`; characters other than letters,
-digits and `_` are percent-encoded).
+Kassandra keeps connection profiles, favorite keyspaces, saved queries and column settings on the server. The first time
+it starts it asks where to keep them; the gear icon at the bottom of the sidebar reopens that **Configuration** page,
+which also has the **Appearance** setting (Light, Dark or System).
 
-The first time Kassandra starts it asks where to keep these files (default `~/.kassandra`); the gear icon at the bottom of
-the sidebar reopens that page. Choosing an empty location copies the current configuration there (the old files are left
-in place); a location that already holds a configuration is used as is. Setting the `KASSANDRA_HOME` environment variable
-fixes the location, skips the first-run page and disables the setting in the UI (the Docker image and Helm chart do this).
-By default, the configuration is kept in files (the file backend). KASSANDRA_STORAGE selects a different storage backend
-by name; if the name is unknown, the server fails with an error that lists the available backends. KASSANDRA_HOME and
-the Configuration page's location setting apply only to the file backend.
+| Storage backend          | Set on the Configuration page, or fix it with                                 |
+|--------------------------|-------------------------------------------------------------------------------|
+| **JSON files** (default) | `KASSANDRA_HOME` (default `~/.kassandra`)                                     |
+| **SQLite**               | `KASSANDRA_STORAGE=sqlite`, `KASSANDRA_SQLITE_PATH`                           |
+| **PostgreSQL**           | `KASSANDRA_STORAGE=postgres`, `KASSANDRA_DB_URL`, `KASSANDRA_DB_SCHEMA`       |
+| **MySQL / MariaDB**      | `KASSANDRA_STORAGE=mysql`, `KASSANDRA_DB_URL`                                 |
+| **Firebase (Firestore)** | `KASSANDRA_STORAGE=firestore`, `KASSANDRA_FIRESTORE_*`                        |
 
-### SQLite storage
-
-Instead of JSON files, the configuration can live in a single SQLite database with a relational schema (tables for
-connections and their hosts, favorite keyspaces, saved queries and their parameters, and per-table column metadata). Choose **SQLite** under *Storage* on the
-Configuration page (the gear icon in the sidebar) and set the database file; the default is `kassandra.db` in the
-configuration directory. The schema is created and upgraded automatically at startup. Switching copies the current configuration into the database if it is empty (clear the checkbox
-to start empty); a database that already holds a configuration is used as is, and the old JSON files are left in place.
-Switching back to the files works the same way. Two environment variables fix the choice and disable it in the UI:
-`KASSANDRA_STORAGE=sqlite` and `KASSANDRA_SQLITE_PATH=/path/to/kassandra.db`. The choice itself is remembered in
-`~/.kassandra/.backend`, which always stays in the default directory because it has to be readable before any storage is.
-
-### Firebase (Firestore) storage
-
-The configuration can also live in a Firestore collection, shared by every Kassandra pointed at it. Choose **Firebase
-(Firestore)** under *Storage* on the Configuration page and enter the project ID, a collection (default `kassandra`) and
-a service-account key (paste the JSON key file; leave it empty to use Application Default Credentials). The service
-account needs read/write access to Firestore, for example the role *Cloud Datastore User*. Each configuration document
-(`config` with the profiles, favorites and saved queries, and one `tables~<connection>-<keyspace>.<table>` document per
-table) is a Firestore document in that collection, next to the `@version` and `@lock` documents. Switching copies the
-current configuration into an empty collection; a collection that already holds one is used as is.
-
-For deployments, `KASSANDRA_STORAGE=firestore` with `KASSANDRA_FIRESTORE_PROJECT`, `KASSANDRA_FIRESTORE_CREDENTIALS`
-(the key's JSON or the path of the key file) and `KASSANDRA_FIRESTORE_COLLECTION` fix the choice and disable it in the
-UI. `FIRESTORE_EMULATOR_HOST=host:port` points Kassandra at a Firestore emulator (no key needed). The key is saved in
-`~/.kassandra/.backend` (mode 0600) and never sent to the browser.
-
-The same page has an **Appearance** setting (Light, Dark or System, which follows the operating system). It is remembered
-per browser.
-
-On the **Table Schema** tab, **Import schema** copies one of those files onto the current table (for example the same
-table of another connection). The file must be valid metadata whose columns all exist in the table; existing metadata is
-only replaced after you confirm.
+Switching copies the current configuration into an empty storage and leaves the old one in place. PostgreSQL, MySQL and
+Firestore can be shared by a whole team. Passwords and service-account keys stay on the server. Older configurations
+are upgraded automatically at startup. See [Configuration](docs/index.md#configuration) in the user guide for details.
 
 ### Datacenter selection
 
@@ -207,7 +188,7 @@ The form auto-completes the field from the currently-connected cluster's DC list
 already connected to a cluster), so you don't have to memorize names. Programmatically, the list is also exposed at
 `GET /api/profiles/datacenters` while connected.
 
-See [docs/index.md](docs/index.md) for the user guide and the [v1.5.0 release notes](docs/release-notes/v1.5.0.md) for the latest changes.
+See [docs/index.md](docs/index.md) for the user guide and the [v1.6.0 release notes](docs/release-notes/v1.6.0.md) for the latest changes.
 
 ## Contributing
 
