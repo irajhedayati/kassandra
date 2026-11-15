@@ -22,7 +22,7 @@
     "clean": "npm run clean --ws --if-present && rm -rf node_modules"
   },
   "devDependencies": {
-    "concurrently": "^10.0.6",
+    "concurrently": "^10.0.7",
     "typescript": "^7.0.2",
     "vitest": "^5.1.0"
   },
