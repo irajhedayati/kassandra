@@ -17,7 +17,7 @@
   "dependencies": {
     "@google-cloud/firestore": "^9.4.0",
     "@kassandra/shared": "*",
-    "better-sqlite3": "^13.0.3",
+    "better-sqlite3": "^13.2.0",
     "cassandra-driver": "^4.10.0",
     "cors": "^2.8.5",
     "drizzle-orm": "^0.45.4",
