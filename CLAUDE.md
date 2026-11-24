@@ -42,7 +42,10 @@ docker run -p 8501:8501 kassandra
 ```
 
 Unit tests use Vitest, one config-free `test` script per workspace (`shared`, `server`, `client`); `*.integration.test.ts`
-files are left out of it and need Docker (`npm run test:integration`). There is no linting configuration in this project.
+files are left out of it and need Docker (`npm run test:integration`). Client component tests (`*.test.tsx`) start with
+`// @vitest-environment jsdom` and use the helpers in `client/src/test/` (`renderWithProviders`, `mockApi`, which fails
+the test on any unlisted API request, `waitForQuery`, and a Monaco stand-in); see "Client tests" in CONTRIBUTING.md.
+There is no linting configuration in this project.
 
 ## Architecture
 
