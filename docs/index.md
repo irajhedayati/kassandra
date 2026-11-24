@@ -11,25 +11,34 @@ Streamlit are no longer needed to run the current application.
 
 ## Features
 
-- **Connection management**: Create, edit, delete, and import profiles with authentication, SSL, and optional local
-  datacenter selection.
+- **Connection management**: Create, edit, delete, and import profiles with authentication, SSL, consistency,
+  timeout, and protocol version settings. Connect, stop a slow attempt, or reconnect at any time.
+- **Per-tab connections**: Each browser tab has its own connection, so you can work with several clusters at once.
+- **Datacenter-aware routing**: Prefer a local datacenter and fall back to remote ones only when needed. Datacenter
+  names autocomplete from the connected cluster, and an unknown name is rejected with the list of valid ones.
 - **Schema explorer**: Search keyspaces and tables, refresh schema lists, and favorite keyspaces.
-- **Keyspace and table creation**: Create keyspaces and tables from guided dialogs with a live CQL preview.
+- **Keyspace and table creation**: Create keyspaces and tables from guided dialogs with validation, built-in help, and a
+  live CQL preview.
 - **Data browser**: Browse paginated rows, apply column filters (including map keys and values), sort and filter the
-  loaded page, copy rows as MD, CSV, TSV, or JSON, and inspect individual records in an inline row detail panel.
-- **Schema-driven forms**: Generate INSERT and UPDATE statements for review and execution in the CQL editor.
+  loaded page, copy rows as MD, CSV, TSV, or JSON, and open individual records in a details dialog.
+- **Schema-driven forms**: Generate INSERT and UPDATE statements for review and execution in the CQL editor, with
+  type-aware inputs and entry-by-entry editors for map, list, and set columns.
 - **Record deletion**: Delete a selected row after confirmation.
+- **Prepared statements**: Values are always bound as parameters, never pasted into the CQL text.
 - **CQL editor**: Write queries with syntax highlighting and completion, run several `;`-separated statements one by
-  one with a per-statement report, page through results, and see when they ran and how long they took.
-- **Saved parametrized queries**: Use `:name` placeholders bound as typed parameters, and save, reopen, import, and
-  export queries.
+  one with a per-statement report, page through results, copy them, and see when they ran and how long they took.
+- **CQL formatting**: Reformat a query for readability with one click.
+- **Saved parametrized queries**: Use `:name` placeholders bound as typed parameters, and save, reopen, edit, import,
+  and export queries.
 - **Keyboard shortcuts**: Open the keyspace and table selectors, run queries, delete rows, and confirm dialogs from the
   keyboard; press `/` for the list.
 - **Column customization**: Configure hidden columns, JSON and enum fields, and rich per-key schemas for map columns,
   and import them from another table.
 - **Configuration storage**: Keep profiles, saved queries, and column settings in JSON files, SQLite, PostgreSQL,
   MySQL/MariaDB, or Firebase (Firestore), so a team can share one configuration.
+- **Automatic upgrades**: Older configurations are backed up and migrated when Kassandra starts.
 - **Appearance**: Light, Dark, or System theme.
+- **Deployment**: Run from source, in Docker or Docker Compose, or on Kubernetes with the Helm chart.
 
 The bottom of the application sidebar shows the version of the running frontend build and a **What's new** link to the
 release notes. The gear icon next to it opens the [Configuration page](#configuration).
