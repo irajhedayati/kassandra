@@ -11,6 +11,7 @@
 import type { ConfigStorage, LockOptions } from '../storage.js';
 import { compareVersions, getAppVersion, initConfigVersion } from '../version.js';
 import { migration as v1_6_0 } from './v1_6_0.js';
+import { migration as v1_7_0 } from './v1_7_0.js';
 
 export interface Migration {
   /** Version the configuration is at after `up` has run. */
@@ -20,7 +21,7 @@ export interface Migration {
 }
 
 /** Oldest first. */
-export const MIGRATIONS: Migration[] = [v1_6_0];
+export const MIGRATIONS: Migration[] = [v1_6_0, v1_7_0];
 
 const BACKUPS_PREFIX = 'backups/';
 

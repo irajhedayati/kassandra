@@ -24,6 +24,8 @@ export function SchemaNavigator() {
   const { keyspace, table, setKeyspace, setTable } = useSelection();
   const { data: status } = useConnectionStatus();
   const { favorites } = useFavoriteKeyspaces(status?.profileName);
+  // Read-only profiles can't create keyspaces or tables (the server refuses it too).
+  const readOnly = !!status?.readOnly;
 
   const keyspaceSelectRef = useRef<SearchableSelectHandle>(null);
   const tableSelectRef = useRef<SearchableSelectHandle>(null);
@@ -113,15 +115,17 @@ export function SchemaNavigator() {
               }
             />
           </div>
-          <button
-            type="button"
-            onClick={() => setCreateOpen(true)}
-            aria-label="Create keyspace"
-            title="Create keyspace"
-            className="rounded-md border border-ink-700 px-2.5 py-2 text-xs text-ink-300 transition hover:bg-ink-800"
-          >
-            <FontAwesomeIcon icon={faPlus} />
-          </button>
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={() => setCreateOpen(true)}
+              aria-label="Create keyspace"
+              title="Create keyspace"
+              className="rounded-md border border-ink-700 px-2.5 py-2 text-xs text-ink-300 transition hover:bg-ink-800"
+            >
+              <FontAwesomeIcon icon={faPlus} />
+            </button>
+          )}
         </div>
         {keyspacesQuery.isError && (
           <p className="text-xs text-red-400">
@@ -151,16 +155,18 @@ export function SchemaNavigator() {
               }
             />
           </div>
-          <button
-            type="button"
-            onClick={() => setCreateTableOpen(true)}
-            disabled={!keyspace}
-            aria-label="Create table"
-            title={keyspace ? 'Create table' : 'Select a keyspace first'}
-            className="rounded-md border border-ink-700 px-2.5 py-2 text-xs text-ink-300 transition hover:bg-ink-800 disabled:opacity-50"
-          >
-            <FontAwesomeIcon icon={faPlus} />
-          </button>
+          {!readOnly && (
+            <button
+              type="button"
+              onClick={() => setCreateTableOpen(true)}
+              disabled={!keyspace}
+              aria-label="Create table"
+              title={keyspace ? 'Create table' : 'Select a keyspace first'}
+              className="rounded-md border border-ink-700 px-2.5 py-2 text-xs text-ink-300 transition hover:bg-ink-800 disabled:opacity-50"
+            >
+              <FontAwesomeIcon icon={faPlus} />
+            </button>
+          )}
         </div>
         {tablesQuery.isError && (
           <p className="text-xs text-red-400">
@@ -169,11 +175,11 @@ export function SchemaNavigator() {
         )}
       </div>
       <CreateTableDialog
-        open={createTableOpen}
+        open={createTableOpen && !readOnly}
         keyspace={keyspace}
         onClose={() => setCreateTableOpen(false)}
       />
-      <CreateKeyspaceDialog open={createOpen} onClose={() => setCreateOpen(false)} />
+      <CreateKeyspaceDialog open={createOpen && !readOnly} onClose={() => setCreateOpen(false)} />
     </div>
   );
 }

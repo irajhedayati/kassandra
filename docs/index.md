@@ -13,6 +13,8 @@ Streamlit are no longer needed to run the current application.
 
 - **Connection management**: Create, edit, delete, and import profiles with authentication, SSL, consistency,
   timeout, and protocol version settings. Connect, stop a slow attempt, or reconnect at any time.
+- **Read-only profiles**: Browse a production cluster safely; the server runs only `SELECT`, `USE` and `LIST`
+  statements and refuses row and schema changes.
 - **Per-tab connections**: Each browser tab has its own connection, so you can work with several clusters at once.
 - **Datacenter-aware routing**: Prefer a local datacenter and fall back to remote ones only when needed. Datacenter
   names autocomplete from the connected cluster, and an unknown name is rejected with the list of valid ones.
@@ -203,6 +205,7 @@ fine.
     - **Consistency**, **Timeout (s)**, and **Protocol version**: Adjust to match your cluster.
     - **Local datacenter (optional)**: Enter a cluster datacenter name to prefer nodes in that datacenter. Leave empty
       for no datacenter preference. An unknown name produces a connection error listing available datacenters.
+    - **Read-only**: Only allow reads while connected with this profile; see [Read-only profiles](#read-only-profiles).
 3. Click **Create**.
 
 ![Connection profile dialog](1.create-connection.png)
@@ -223,6 +226,28 @@ Reloading a tab keeps its connection; opening a new tab starts disconnected. Pro
 queries are shared by all tabs. A connection that has been idle for two hours is closed by the server (set
 `KASSANDRA_SESSION_IDLE_MINUTES` to change this), after which you need to connect again. Duplicating a tab in the
 browser copies its connection identity, so use a new tab or window instead.
+
+#### Read-only profiles
+
+![Image4.png](Image4.png)
+![Image3.png](Image3.png)
+
+Tick **Read-only** in a profile to browse a cluster, such as production, without the risk of changing it. While
+connected with a read-only profile:
+
+- The CQL editor runs only `SELECT`, `USE` and `LIST` (`LIST ROLES`, `LIST USERS`, `LIST PERMISSIONS`) statements.
+  Anything else, including `INSERT`, `UPDATE`, `DELETE`, `BEGIN BATCH`, `TRUNCATE`, `GRANT`, and `CREATE`, `ALTER` or
+  `DROP`, is refused before it reaches Cassandra, and the execution report says why. As with any failed statement, the
+  run stops there: the statements before it have run, and those after it are skipped.
+- The **Insert Record** tab, **Edit** and **Delete** in the row details, and the **+** buttons that create keyspaces
+  and tables are hidden.
+- The sidebar shows a **Read-only** badge next to the connection status.
+
+Browsing, filtering, copying rows and Kassandra's own settings (column settings in Table Info, saved queries and
+favorites) work as usual. The check is made by the Kassandra server, not just hidden in the browser, but it is not a
+Cassandra permission: for a hard guarantee, also connect with a Cassandra role that only has `SELECT` permission.
+
+Existing profiles stay writable after upgrading. To change the setting, disconnect, then edit the profile.
 
 #### Importing connection profiles
 

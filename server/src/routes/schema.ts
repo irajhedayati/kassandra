@@ -9,6 +9,8 @@
  *   POST /keyspaces/:ks/tables              → CREATE TABLE; ApiOk<{ table }>
  *   GET /keyspaces/:ks/tables/:t            → ApiOk<TableSchema>
  *
+ * The POST routes are refused (403) while the connected profile is read-only.
+ *
  * Owns: src/cassandra/schema.ts.
  */
 import { Router, type Request, type Response, type NextFunction } from 'express';
@@ -22,7 +24,7 @@ import type {
   TableSchema,
 } from '@kassandra/shared';
 import { buildCreateKeyspaceCql } from '../cassandra/keyspace.js';
-import { requireSession } from '../cassandra/state.js';
+import { requireSession, requireWritableSession } from '../cassandra/state.js';
 import {
   getKeyspaces,
   getTables,
@@ -65,7 +67,7 @@ schemaRouter.post(
     next: NextFunction,
   ) => {
     try {
-      const ctx = requireSession();
+      const ctx = requireWritableSession('Creating keyspaces');
       const body = req.body as CreateKeyspaceRequest;
       const cql = buildCreateKeyspaceCql(body);
       await ctx.client.execute(cql);
@@ -94,7 +96,7 @@ schemaRouter.post(
   '/keyspaces/:keyspace/tables',
   async (req: Request, res: Response<ApiOk<{ table: string }>>, next: NextFunction) => {
     try {
-      const ctx = requireSession();
+      const ctx = requireWritableSession('Creating tables');
       const keyspace = requireStringParam(req, 'keyspace');
       const body = { ...(req.body as CreateTableRequest), keyspace };
       let cql: string;

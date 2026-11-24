@@ -214,6 +214,7 @@ export class SqliteRepository implements ConfigRepository {
       connection_timeout: row.connectionTimeout,
       protocol_version: row.protocolVersion,
       local_datacenter: row.localDatacenter,
+      read_only: row.readOnly,
     });
   }
 
@@ -231,6 +232,7 @@ export class SqliteRepository implements ConfigRepository {
       connectionTimeout: profile.connection_timeout,
       protocolVersion: profile.protocol_version,
       localDatacenter: profile.local_datacenter,
+      readOnly: profile.read_only,
     };
     // An upsert, not delete + insert: replacing the row would cascade to the profile's favorites and metadata.
     tx.insert(s.connections).values(values).onConflictDoUpdate({ target: s.connections.name, set: values }).run();

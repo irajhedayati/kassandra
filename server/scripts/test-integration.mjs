@@ -5,7 +5,11 @@
  * started on a random local port, waited for until it accepts connections, and
  * removed however the run ends. vitest then runs once with
  * KASSANDRA_TEST_POSTGRES_URL / KASSANDRA_TEST_MYSQL_URL / FIRESTORE_EMULATOR_HOST
- * set, and every test runs against each database.
+ * set, and every test runs against each database. The test files run one after
+ * another (--no-file-parallelism): they share each server, and Kysely's PostgreSQL
+ * introspection looks at the tables of every schema, so a file dropping its
+ * throwaway schema while another file migrates would fail that migration with
+ * `schema "kassandra_test_..." does not exist`.
  *
  * Needs the Docker CLI and a running daemon. Options, all environment variables:
  *   KASSANDRA_TEST_DIALECTS         comma separated subset to test, e.g. `postgres` (`firestore` is the emulator)
@@ -125,7 +129,7 @@ async function startContainer(name, database) {
 
 function runVitest(env, filters, extraArgs) {
   return new Promise((resolve) => {
-    const child = spawn('npx', ['--no-install', 'vitest', 'run', ...filters, ...extraArgs], {
+    const child = spawn('npx', ['--no-install', 'vitest', 'run', '--no-file-parallelism', ...filters, ...extraArgs], {
       stdio: 'inherit',
       env: { ...process.env, ...env },
     });

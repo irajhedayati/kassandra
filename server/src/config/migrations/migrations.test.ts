@@ -5,9 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DEFAULT_PROFILE } from '@kassandra/shared';
 import { FileStorage } from '../fileStorage.js';
 import { readTableMetadata, writeTableMetadata } from '../tables.js';
+import { compareVersions } from '../version.js';
 import { MIGRATIONS, runMigrations, type Migration } from './index.js';
 
 const profile = (name: string) => ({ ...DEFAULT_PROFILE, name });
+/** The shipped migrations up to and including `version`, as a release of that version runs them. */
+const upTo = (version: string) => MIGRATIONS.filter((m) => compareVersions(m.version, version) <= 0);
 
 describe('config migrations', () => {
   let dir: string;
@@ -40,7 +43,7 @@ describe('config migrations', () => {
       await writeConfig(legacyConfig(['c1', 'c2']));
       await storage.setVersion('1.5.0');
 
-      expect(await run(MIGRATIONS, '1.6.0')).toEqual(['1.6.0']);
+      expect(await run(upTo('1.6.0'), '1.6.0')).toEqual(['1.6.0']);
 
       for (const c of ['c1', 'c2']) {
         expect(await meta(c, 'ks', 't')).toEqual({ a: { hide: true } });
@@ -57,7 +60,7 @@ describe('config migrations', () => {
       await writeConfig(legacyConfig(['c1']));
       await storage.setVersion('1.5.0');
       await writeTableMetadata(storage, 'c1', 'ks', 'old', { a: { hide: true } });
-      await run(MIGRATIONS, '1.6.0');
+      await run(upTo('1.6.0'), '1.6.0');
       const backup = path.join(dir, 'backups', '1.5.0');
       const saved = JSON.parse(fs.readFileSync(path.join(backup, 'config.json'), 'utf-8'));
       expect(saved.table_metadata).toHaveProperty(['ks.t']);
@@ -69,7 +72,7 @@ describe('config migrations', () => {
       await writeConfig(legacyConfig(['c1']));
       await storage.setVersion('1.5.0');
       await writeTableMetadata(storage, 'c1', 'ks', 't', { a: { hide: false } });
-      await run(MIGRATIONS, '1.6.0');
+      await run(upTo('1.6.0'), '1.6.0');
       expect(await meta('c1', 'ks', 't')).toEqual({ a: { hide: false } });
     });
 
@@ -77,7 +80,7 @@ describe('config migrations', () => {
       const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
       await writeConfig(legacyConfig([]));
       await storage.setVersion('1.5.0');
-      await run(MIGRATIONS, '1.6.0');
+      await run(upTo('1.6.0'), '1.6.0');
       expect(warn).toHaveBeenCalled();
       expect(await readConfig()).not.toHaveProperty('table_metadata');
       expect(fs.existsSync(path.join(dir, 'backups', '1.5.0', 'config.json'))).toBe(true);
@@ -85,23 +88,88 @@ describe('config migrations', () => {
 
     it('treats a config without a version as 1.5.0', async () => {
       await writeConfig(legacyConfig(['c1']));
-      expect(await run(MIGRATIONS, '1.6.0')).toEqual(['1.6.0']);
+      expect(await run(upTo('1.6.0'), '1.6.0')).toEqual(['1.6.0']);
       expect(await meta('c1', 'ks', 't')).toEqual({ a: { hide: true } });
     });
 
     it('is a no-op on an already-migrated config', async () => {
       await writeConfig({ ...legacyConfig(['c1']), table_metadata: undefined });
       await storage.setVersion('1.6.0');
-      expect(await run(MIGRATIONS, '1.6.0')).toEqual([]);
+      expect(await run(upTo('1.6.0'), '1.6.0')).toEqual([]);
       expect(fs.existsSync(path.join(dir, 'backups'))).toBe(false);
     });
 
     it('fails clearly when config cannot be parsed, leaving the version alone', async () => {
       fs.writeFileSync(path.join(dir, 'config.json'), '{nope');
       await storage.setVersion('1.5.0');
-      await expect(run(MIGRATIONS, '1.6.0')).rejects.toThrow(/Could not back up/);
+      await expect(run(upTo('1.6.0'), '1.6.0')).rejects.toThrow(/Could not back up/);
       expect(await storage.getVersion()).toBe('1.5.0');
       expect(fs.existsSync(path.join(dir, '.migrate.lock'))).toBe(false);
+    });
+  });
+
+  describe('1.6.0 -> 1.7.0', () => {
+    // A 1.6.0 config: profiles without read_only.
+    const v160Profile = (name: string) => {
+      const { read_only: _, ...rest } = profile(name);
+      return rest;
+    };
+    const v160Config = (connections: object[]) => ({
+      connections,
+      last_connection_name: 'c1',
+      favorite_keyspaces: { c1: ['ks'] },
+      saved_queries: [],
+    });
+
+    it('adds read_only: false to every profile, keeps the rest, bumps the version', async () => {
+      await writeConfig(v160Config([v160Profile('c1'), { ...v160Profile('c2'), port: 9142 }]));
+      await storage.setVersion('1.6.0');
+
+      expect(await run(upTo('1.7.0'), '1.7.0')).toEqual(['1.7.0']);
+
+      const after = await readConfig();
+      expect(after.connections).toEqual([
+        { ...v160Profile('c1'), read_only: false },
+        { ...v160Profile('c2'), port: 9142, read_only: false },
+      ]);
+      expect(after.last_connection_name).toBe('c1');
+      expect(after.favorite_keyspaces).toEqual({ c1: ['ks'] });
+      expect(await storage.getVersion()).toBe('1.7.0');
+      expect(fs.existsSync(path.join(dir, 'backups', '1.6.0', 'config.json'))).toBe(true);
+    });
+
+    it('keeps a read_only value that is already there', async () => {
+      await writeConfig(v160Config([{ ...v160Profile('c1'), read_only: true }, v160Profile('c2')]));
+      await storage.setVersion('1.6.0');
+      await run(upTo('1.7.0'), '1.7.0');
+      const after = await readConfig();
+      expect((after.connections as { read_only: boolean }[]).map((c) => c.read_only)).toEqual([true, false]);
+    });
+
+    it('upgrades a 1.5.0 config through 1.6.0 and 1.7.0 in order', async () => {
+      await writeConfig({
+        ...v160Config([v160Profile('c1')]),
+        table_metadata: { 'ks.t': { a: { hide: true } } },
+      });
+      await storage.setVersion('1.5.0');
+      expect(await run(upTo('1.7.0'), '1.7.0')).toEqual(['1.6.0', '1.7.0']);
+      const after = await readConfig();
+      expect(after).not.toHaveProperty('table_metadata');
+      expect(after.connections).toEqual([{ ...v160Profile('c1'), read_only: false }]);
+      expect(await meta('c1', 'ks', 't')).toEqual({ a: { hide: true } });
+    });
+
+    it('does not create a config when there is none', async () => {
+      await storage.setVersion('1.6.0');
+      expect(await run(upTo('1.7.0'), '1.7.0')).toEqual(['1.7.0']);
+      expect(await storage.list('config')).toEqual([]);
+    });
+
+    it('is a no-op on an already-migrated config', async () => {
+      await writeConfig(v160Config([profile('c1')]));
+      await storage.setVersion('1.7.0');
+      expect(await run(upTo('1.7.0'), '1.7.0')).toEqual([]);
+      expect(fs.existsSync(path.join(dir, 'backups'))).toBe(false);
     });
   });
 

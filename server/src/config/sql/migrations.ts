@@ -8,7 +8,8 @@
  *  - MySQL ignores a column-level REFERENCES, so foreign keys are table constraints;
  *  - MySQL cannot index unbounded `text`, so indexed columns are varchar(190)
  *    (190 characters keep a composite key within InnoDB's 3072 byte limit);
- *  - MySQL gives `text` no default value, so no column has one: the repository always supplies them;
+ *  - MySQL gives `text` no default value, so no column has one: the repository always supplies them (the
+ *    exception is a column added to an existing table, which needs a default for the rows already there);
  *  - MySQL tables use a binary, case-sensitive and trailing-space-sensitive collation like PostgreSQL;
  *  - MySQL commits DDL as it goes, so every statement is `if not exists` and a half-applied migration can be rerun.
  */
@@ -173,6 +174,22 @@ export function createMigrations(dialect: SqlDialect): Record<string, Migration>
           .addColumn('taken_at', 'bigint', (c) => c.notNull())
           .addPrimaryKeyConstraint('lock_pk', ['id'])
           .addCheckConstraint('lock_single_row', sql`id = 1`)
+          .execute();
+      },
+    },
+
+    '0001_read_only': {
+      // ConnectionProfile.read_only (1.7.0).
+      async up(db: Kysely<any>) {
+        // MySQL has no `add column if not exists` (MariaDB does), so check first; the migration can then be rerun.
+        const schema = mysql ? sql`database()` : sql`current_schema()`;
+        const { rows } = await sql<{ n: number | string }>`
+          select count(*) as n from information_schema.columns
+          where table_schema = ${schema} and table_name = 'connections' and column_name = 'read_only'`.execute(db);
+        if (Number(rows[0]?.n ?? 0) > 0) return;
+        await db.schema
+          .alterTable('connections')
+          .addColumn('read_only', 'boolean', (c) => c.notNull().defaultTo(false))
           .execute();
       },
     },

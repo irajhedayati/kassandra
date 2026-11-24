@@ -5,6 +5,9 @@
  *   - Edit  → swaps the read-only view for the UpdateForm (Lane D).
  *   - Delete → opens ConfirmDelete; on confirm, calls deleteRow, invalidates
  *              the data query, and closes the panel.
+ *
+ * With a read-only connection profile there is no Edit or Delete (the server
+ * refuses them too), only the view.
  */
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -15,6 +18,7 @@ import { ConfirmDelete } from '../Dialogs/ConfirmDelete.js';
 import { DynamicForm } from '../Forms/DynamicForm.js';
 import { UpdateForm } from '../Forms/UpdateForm.js';
 import { useEnterToConfirm } from '../../utils/useEnterToConfirm.js';
+import { useConnectionStatus } from '../../state/connection.js';
 
 interface Props {
   open: boolean;
@@ -33,6 +37,7 @@ export function RowDetail(props: Props) {
   const [confirming, setConfirming] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+  const readOnly = !!useConnectionStatus().data?.readOnly;
 
   useEffect(() => {
     if (open) {
@@ -42,7 +47,7 @@ export function RowDetail(props: Props) {
 
   useEffect(() => {
     setMode('view');
-  }, [row]);
+  }, [row, readOnly]);
 
   const primaryKeys = useMemo<Row>(() => {
     if (!row) return {};
@@ -77,7 +82,7 @@ export function RowDetail(props: Props) {
 
   // Option/Alt+D opens the delete confirmation (Enter then confirms it).
   // Matched on `code` because Option+D types a different character on macOS.
-  const canDelete = open && !!row && mode === 'view' && !confirming;
+  const canDelete = open && !!row && mode === 'view' && !confirming && !readOnly;
   useEffect(() => {
     if (!canDelete) return;
     const handler = (e: KeyboardEvent) => {
@@ -129,7 +134,12 @@ export function RowDetail(props: Props) {
           )}
         </div>
 
-        {mode === 'view' && (
+        {mode === 'view' && readOnly && (
+          <footer className="border-t border-slate-200 px-6 py-3 text-sm text-slate-500">
+            This connection profile is read-only, so rows can't be edited or deleted.
+          </footer>
+        )}
+        {mode === 'view' && !readOnly && (
           <footer className="flex items-center justify-end gap-2 border-t border-slate-200 px-6 py-3">
             <button
               type="button"
@@ -154,7 +164,7 @@ export function RowDetail(props: Props) {
       </div>
 
       <ConfirmDelete
-        open={confirming}
+        open={confirming && !readOnly}
         keys={primaryKeys}
         loading={deleteMutation.isPending}
         errorMessage={deleteError}

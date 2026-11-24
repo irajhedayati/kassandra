@@ -2,6 +2,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import Database from 'better-sqlite3';
+import { drizzle } from 'drizzle-orm/better-sqlite3';
+import { migrate as applyDrizzleMigrations } from 'drizzle-orm/better-sqlite3/migrator';
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_PROFILE } from '@kassandra/shared';
 import { describeRepositoryContract } from '../repository.contract.js';
@@ -34,7 +36,7 @@ describe('SqliteRepository', () => {
   it('creates the relational tables with their foreign keys from the SQL migrations', () =>
     withDb(async (file) => {
       const repo = new SqliteRepository(file);
-      expect(await repo.migrate()).toEqual(['0000_init']);
+      expect(await repo.migrate()).toEqual(['0000_init', '0001_read_only']);
       expect(await repo.migrate()).toEqual([]);
       repo.close();
       const db = new Database(file, { readonly: true });
@@ -61,6 +63,38 @@ describe('SqliteRepository', () => {
       expect(fks('app_state')).toMatchObject([{ table: 'connections', on_delete: 'SET NULL' }]);
       expect(fks('column_metadata')).toMatchObject([{ table: 'table_metadata', on_delete: 'CASCADE' }]);
       db.close();
+    }));
+
+  it('upgrades a database from before read-only profiles, keeping its profiles writable', () =>
+    withDb(async (file, dir) => {
+      // A database as 1.6.0 left it: only the first migration applied, one profile.
+      const folder = path.join(dir, 'drizzle-1.6.0');
+      const shipped = path.resolve(import.meta.dirname, '../../../drizzle');
+      fs.mkdirSync(path.join(folder, 'meta'), { recursive: true });
+      fs.copyFileSync(path.join(shipped, '0000_init.sql'), path.join(folder, '0000_init.sql'));
+      const journal = JSON.parse(fs.readFileSync(path.join(shipped, 'meta', '_journal.json'), 'utf-8'));
+      journal.entries = journal.entries.slice(0, 1);
+      fs.writeFileSync(path.join(folder, 'meta', '_journal.json'), JSON.stringify(journal));
+      const old = new Database(file);
+      applyDrizzleMigrations(drizzle(old), { migrationsFolder: folder });
+      old
+        .prepare(
+          `INSERT INTO connections (name, port, ssl_protocol, consistency_level, connection_timeout, protocol_version)
+           VALUES ('prod', 9042, 'PROTOCOL_TLS', 'LOCAL_ONE', 5, 4)`,
+        )
+        .run();
+      old.prepare("INSERT INTO connection_hosts (connection_name, position, host) VALUES ('prod', 0, 'h1')").run();
+      old.close();
+
+      const repo = new SqliteRepository(file);
+      try {
+        expect(await repo.migrate()).toEqual(['0001_read_only']);
+        expect(await repo.getProfile('prod')).toMatchObject({ name: 'prod', hosts: ['h1'], read_only: false });
+        await repo.upsertProfile({ ...(await repo.getProfile('prod'))!, read_only: true });
+        expect((await repo.getProfile('prod'))!.read_only).toBe(true);
+      } finally {
+        repo.close();
+      }
     }));
 
   it('cascades a connection delete through every dependent table', () =>

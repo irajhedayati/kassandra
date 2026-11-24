@@ -9,7 +9,8 @@
  *   DELETE /:ks/:t/rows         → body: { keys }                              → QueryResponse
  *
  * All routes:
- *   - Call `requireSession()` first.
+ *   - Call `requireSession()` first; the write routes call `requireWritableSession()`,
+ *     which also refuses (403) while the connected profile is read-only.
  *   - Validate the body with zod.
  *   - On success, return a QueryResponse envelope (`success: true|false`).
  *   - On unhandled error, return `{ success: false, message }` with the error's
@@ -18,7 +19,7 @@
 import { Router, type Request, type Response } from 'express';
 import { z } from 'zod';
 import type { QueryResponse, Row } from '@kassandra/shared';
-import { requireSession } from '../cassandra/state.js';
+import { requireSession, requireWritableSession } from '../cassandra/state.js';
 import { getTableSchema } from '../cassandra/schema.js';
 import { CassandraRepository } from '../cassandra/repository.js';
 
@@ -133,7 +134,7 @@ dataRouter.post(
   runQuery(async (req) => {
     const { keyspace, table } = paramsKsT(req);
     const body = insertBodySchema.parse(req.body ?? {});
-    const ctx = requireSession();
+    const ctx = requireWritableSession('Inserting rows');
     const schema = await getTableSchema(ctx.client, keyspace, table);
     const repo = new CassandraRepository(ctx.client);
     const out = await repo.insertRow(schema, body.values as Row);
@@ -154,7 +155,7 @@ dataRouter.put(
   runQuery(async (req) => {
     const { keyspace, table } = paramsKsT(req);
     const body = updateBodySchema.parse(req.body ?? {});
-    const ctx = requireSession();
+    const ctx = requireWritableSession('Updating rows');
     const schema = await getTableSchema(ctx.client, keyspace, table);
     const repo = new CassandraRepository(ctx.client);
     const out = await repo.updateRow(
@@ -179,7 +180,7 @@ dataRouter.delete(
   runQuery(async (req) => {
     const { keyspace, table } = paramsKsT(req);
     const body = deleteBodySchema.parse(req.body ?? {});
-    const ctx = requireSession();
+    const ctx = requireWritableSession('Deleting rows');
     const schema = await getTableSchema(ctx.client, keyspace, table);
     const repo = new CassandraRepository(ctx.client);
     const out = await repo.deleteRow(schema, body.keys as Row);

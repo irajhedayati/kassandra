@@ -228,6 +228,7 @@ export class SqlRepository implements ConfigRepository {
       connection_timeout: row.connection_timeout,
       protocol_version: row.protocol_version,
       local_datacenter: row.local_datacenter,
+      read_only: Boolean(row.read_only), // MySQL returns 0/1
     });
   }
 
@@ -245,6 +246,7 @@ export class SqlRepository implements ConfigRepository {
       connection_timeout: profile.connection_timeout,
       protocol_version: profile.protocol_version,
       local_datacenter: profile.local_datacenter,
+      read_only: profile.read_only,
     };
     // An upsert, not delete + insert: replacing the row would cascade to the profile's favorites and metadata.
     const insert = tx.insertInto('connections').values(values);

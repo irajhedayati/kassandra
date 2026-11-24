@@ -15,7 +15,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
 import type { NextFunction, Request, Response } from 'express';
 import type { Client as CassandraClient } from 'cassandra-driver';
-import type { ConnectionProfile } from '@kassandra/shared';
+import { readOnlyMessage, type ConnectionProfile } from '@kassandra/shared';
 
 export const SESSION_HEADER = 'x-kassandra-session';
 /** Used for requests without the header (curl, scripts), which then share one connection. */
@@ -82,6 +82,21 @@ export function requireSession(): ActiveConnection {
   if (!active) {
     const err = new Error('Not connected. Connect to a Cassandra cluster first.');
     (err as { status?: number }).status = 409;
+    throw err;
+  }
+  return active;
+}
+
+/**
+ * Like `requireSession()`, for routes that change data or schema: also throws
+ * a 403 when the connected profile is read-only. `action` names what was
+ * refused, e.g. "Inserting rows".
+ */
+export function requireWritableSession(action: string): ActiveConnection {
+  const active = requireSession();
+  if (active.profile.read_only) {
+    const err = new Error(readOnlyMessage(action));
+    (err as { status?: number }).status = 403;
     throw err;
   }
   return active;
