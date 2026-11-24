@@ -68,21 +68,31 @@ Explore keyspaces and tables, inspect and modify data, run CQL, and manage Cassa
 
 ## Features
 
-| Feature                          | Description                                                              |
-|----------------------------------|--------------------------------------------------------------------------|
-| **Schema Browser**               | Explore keyspaces, tables, columns, partition keys, and clustering keys. |
-| **Data Browser**                 | Inspect table data; filter, sort, and copy rows (MD/CSV/TSV/JSON).       |
-| **Create Keyspaces & Tables**    | Guided dialogs with a live CQL preview and built-in help.                |
-| **Schema-aware CRUD**            | Insert, update, and delete rows through schema-driven forms.             |
-| **CQL Editor**                   | Run one or many CQL statements, with `:param` binding and saved queries. |
-| **Keyboard Shortcuts**           | Jump to keyspaces and tables, run queries, and more (`/` for the list).  |
-| **Connection Profiles**          | Save and switch between Cassandra cluster connections.                   |
-| **Shared Configuration**         | Keep settings in files, SQLite, PostgreSQL, MySQL/MariaDB, or Firestore. |
-| **Light & Dark Themes**          | Light, Dark, or follow the operating system.                             |
-| **Datacenter-aware Routing**     | Prefer a selected local DC and fall back to remote DCs when necessary.   |
-| **DC Validation & Autocomplete** | Discover available datacenters and prevent invalid DC configuration.     |
-| **Docker Ready**                 | Run Kassandra locally or as a self-hosted container.                     |
-| **Open Source**                  | MIT licensed and built for community contribution.                       |
+| Feature                          | Description                                                                            |
+|----------------------------------|----------------------------------------------------------------------------------------|
+| **Connection Profiles**          | Save and switch clusters, with auth, SSL, consistency, timeout, and protocol settings. |
+| **Profile Import**               | Import connection profiles from a JSON file or pasted JSON.                            |
+| **Per-tab Connections**          | Each browser tab has its own connection, so you can use several clusters at once.      |
+| **Datacenter-aware Routing**     | Prefer a selected local DC and fall back to remote DCs when necessary.                 |
+| **DC Validation & Autocomplete** | Discover available datacenters and prevent invalid DC configuration.                   |
+| **Schema Browser**               | Search keyspaces and tables, see partition and clustering keys, and star favorites.    |
+| **Create Keyspaces & Tables**    | Guided dialogs with validation, a live CQL preview, and built-in help.                 |
+| **Data Browser**                 | Page through rows, filter by column (including map keys and values), and sort.         |
+| **Copy Results**                 | Copy rows from the grid or the CQL results as MD, CSV, TSV, or JSON.                   |
+| **Schema-aware CRUD**            | Insert, update, and delete rows through forms built from the table schema.             |
+| **Collection Editors**           | Edit map, list, and set columns entry by entry, with type-aware inputs.                |
+| **Prepared Statements**          | Values are always bound as parameters, never pasted into the CQL text.                 |
+| **CQL Editor**                   | Monaco editor with completion; run many statements with a per-statement report.        |
+| **Parametrized Queries**         | Use `:name` placeholders, bound as typed parameters.                                   |
+| **Saved Queries**                | Save, reopen, and edit queries; share them with JSON export and import.                |
+| **CQL Formatting**               | Reformat a query for readability with one click.                                       |
+| **Column Customization**         | Hide columns, show text as JSON or enum, and define key schemas for map columns.       |
+| **Keyboard Shortcuts**           | Jump to keyspaces and tables, run queries, and more (`/` for the list).                |
+| **Shared Configuration**         | Keep settings in files, SQLite, PostgreSQL, MySQL/MariaDB, or Firestore.               |
+| **Automatic Upgrades**           | Older configurations are backed up and migrated at startup.                            |
+| **Light & Dark Themes**          | Light, Dark, or follow the operating system.                                           |
+| **Docker & Kubernetes**          | Run locally, in Docker or Docker Compose, or on Kubernetes with the Helm chart.        |
+| **Open Source**                  | MIT licensed and built for community contribution.                                     |
 
 ---
 
