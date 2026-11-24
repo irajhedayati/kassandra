@@ -229,6 +229,9 @@ browser copies its connection identity, so use a new tab or window instead.
 
 #### Read-only profiles
 
+![Image4.png](Image4.png)
+![Image3.png](Image3.png)
+
 Tick **Read-only** in a profile to browse a cluster, such as production, without the risk of changing it. While
 connected with a read-only profile:
 
