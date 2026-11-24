@@ -34,6 +34,49 @@ As a **v0.2.0 Beta** project, we are especially grateful for help with bug fixes
 
 ---
 
+## 🧩 Client tests
+
+`npm run test -w @kassandra/client` runs two kinds of tests, side by side with the code they test:
+
+* **Utility tests** (`client/src/utils/*.test.ts`) test plain functions and run in Node.
+* **Component tests** (`*.test.tsx`) render React components in [jsdom](https://github.com/jsdom/jsdom) with
+  [Testing Library](https://testing-library.com/docs/react-testing-library/intro/) and check what the user sees and
+  does. Start the file with `// @vitest-environment jsdom` (the test scripts have no Vitest config, so each file says
+  which environment it needs) and import everything from `client/src/test/index.js`:
+
+```tsx
+// @vitest-environment jsdom
+import { connectionStatus, mockApi, ok, renderWithProviders, screen, waitForQuery } from '../../test/index.js';
+
+it('hides Edit for read-only profiles', async () => {
+  mockApi({ 'GET /api/profiles/status': ok(connectionStatus({ readOnly: true })) });
+  const { queryClient, user } = renderWithProviders(<RowDetail {...props} />);
+  await waitForQuery(queryClient, ['connection', 'status']);
+  expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
+});
+```
+
+The helpers in `client/src/test/`:
+
+* `renderWithProviders(ui)` renders inside a fresh TanStack Query client (no retries) and returns Testing Library's
+  result plus `queryClient` and a user-event `user`.
+* `mockApi(routes)` replaces `fetch` for the test. Routes are `'<METHOD> <path>'` (without the query string) and
+  reply with `ok(data)`, `apiError(message, status)`, `queryResult(response)` or a function of the request;
+  `api.set()` changes a route mid-test and `api.calls()` returns the requests made. **A request for a route that
+  isn't listed fails the test** with a message naming it, even when the component swallows the error, so a test lists
+  every API call it relies on.
+* `waitForQuery(queryClient, key)` waits until a query has loaded and the components have re-rendered. Use it before
+  asserting something a component also shows while the data is still loading (for example, buttons that read-only
+  profiles hide).
+* `connectionStatus(overrides)` is a connected `/api/profiles/status` reply.
+* Components that use Monaco (the CQL editor, JSON fields) need `vi.mock('@monaco-editor/react', () =>
+  import('../test/monaco.js'))` in the test file. The editor becomes a `<textarea>` labelled "Code editor".
+
+After each test the rendered components are unmounted, the Zustand stores and browser storage are reset and
+`fetch` is restored (`client/src/test/setup.ts`), so tests don't depend on each other.
+
+---
+
 ## 🔄 Changing the configuration format
 
 Kassandra keeps its configuration (connection profiles, saved queries, per-table metadata) behind the `ConfigRepository`
