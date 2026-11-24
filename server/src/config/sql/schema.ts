@@ -38,6 +38,7 @@ export interface ConnectionsTable {
   connection_timeout: number;
   protocol_version: number;
   local_datacenter: string;
+  read_only: boolean;
 }
 
 export interface ConnectionHostsTable {

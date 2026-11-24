@@ -58,6 +58,7 @@ interface FormState {
   connection_timeout: number;
   protocol_version: number;
   local_datacenter: string;
+  read_only: boolean;
 }
 
 function profileToForm(profile: ConnectionProfile | null): FormState {
@@ -76,6 +77,7 @@ function profileToForm(profile: ConnectionProfile | null): FormState {
     connection_timeout: base.connection_timeout,
     protocol_version: base.protocol_version,
     local_datacenter: base.local_datacenter,
+    read_only: base.read_only,
   };
 }
 
@@ -117,6 +119,7 @@ function validate(form: FormState): { profile: ConnectionProfile } | { error: st
     connection_timeout: form.connection_timeout,
     protocol_version: form.protocol_version,
     local_datacenter: form.local_datacenter.trim(),
+    read_only: form.read_only,
   };
   return { profile };
 }
@@ -406,6 +409,22 @@ export function ConnectionForm({ open, onClose, initial }: Props) {
               fall back to remote DCs if the local one is unreachable.
             </p>
           </Field>
+
+          <div className="text-sm">
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={form.read_only}
+                onChange={(e) => update('read_only', e.target.checked)}
+              />
+              Read-only
+            </label>
+            <p className="mt-1 text-xs text-slate-500">
+              Only SELECT and USE statements run, and rows, keyspaces and tables
+              can't be changed. Kassandra enforces this; for a hard guarantee, also
+              connect with a Cassandra role that only has SELECT permission.
+            </p>
+          </div>
 
           <div className="flex items-center justify-between border-t border-slate-200 pt-3">
             <div>

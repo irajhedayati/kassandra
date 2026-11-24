@@ -18,9 +18,12 @@ type Tab = 'data' | 'insert' | 'info';
 export function App() {
   const { data: status } = useConnectionStatus();
   const connected = !!status?.connected;
+  // Read-only profiles have no Insert Record tab (the server refuses inserts too).
+  const readOnly = !!status?.readOnly;
   const { keyspace, table } = useSelection();
   const { isFavorite, toggleFavorite } = useFavoriteKeyspaces(status?.profileName);
-  const [tab, setTab] = useState<Tab>('data');
+  const [selectedTab, setTab] = useState<Tab>('data');
+  const tab: Tab = readOnly && selectedTab === 'insert' ? 'data' : selectedTab;
   const setup = useSetup();
   const [showConfig, setShowConfig] = useState(false);
 
@@ -121,9 +124,11 @@ export function App() {
                   <TabButton active={tab === 'data'} onClick={() => setTab('data')}>
                     Data Browser
                   </TabButton>
-                  <TabButton active={tab === 'insert'} onClick={() => setTab('insert')}>
-                    Insert Record
-                  </TabButton>
+                  {!readOnly && (
+                    <TabButton active={tab === 'insert'} onClick={() => setTab('insert')}>
+                      Insert Record
+                    </TabButton>
+                  )}
                   <TabButton active={tab === 'info'} onClick={() => setTab('info')}>
                     Table Info
                   </TabButton>

@@ -30,6 +30,7 @@ export const connections = sqliteTable('connections', {
   connectionTimeout: integer('connection_timeout').notNull(),
   protocolVersion: integer('protocol_version').notNull(),
   localDatacenter: text('local_datacenter').notNull().default(''),
+  readOnly: integer('read_only', { mode: 'boolean' }).notNull().default(false),
 });
 
 export const connectionHosts = sqliteTable(

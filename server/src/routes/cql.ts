@@ -7,11 +7,16 @@
  *
  * Mirrors `legacy/src/database/connection.py:execute_cql`. Empty query
  * yields a success envelope with rows=[] and message='Empty query'.
+ *
+ * While the connected profile is read-only, a request containing any statement
+ * other than SELECT or USE is refused as a whole (403, `success: false`);
+ * see `findReadOnlyViolation` in @kassandra/shared.
  */
 import { Router } from 'express';
 import { z } from 'zod';
 import {
   buildDeleteCountQuery,
+  findReadOnlyViolation,
   splitCqlStatements,
   toPositional,
   type QueryResponse,
@@ -47,6 +52,15 @@ cqlRouter.post('/', async (req, res, next) => {
       };
       res.json(empty);
       return;
+    }
+
+    if (ctx.profile.read_only) {
+      const violation = findReadOnlyViolation(body.query);
+      if (violation) {
+        const refused: QueryResponse = { success: false, message: violation.message };
+        res.status(403).json(refused);
+        return;
+      }
     }
 
     // `:name` parameters are rewritten to positional `?` and bound as typed

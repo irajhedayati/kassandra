@@ -50,6 +50,13 @@ export interface ConnectionProfile {
    * matching legacy behavior).
    */
   local_datacenter: string;
+  /**
+   * While connected with this profile the server only runs reads: the CQL
+   * editor accepts SELECT and USE statements only, and row writes and schema
+   * changes are refused. Enforced by Kassandra; a Cassandra role with only
+   * SELECT permission is the stronger guarantee.
+   */
+  read_only: boolean;
 }
 
 export interface ColumnMetadata {
@@ -101,6 +108,8 @@ export interface ConnectionStatus {
   connected: boolean;
   profileName: string | null;
   keyspace: string | null;
+  /** The connected profile is read-only (see `ConnectionProfile.read_only`); false when not connected. */
+  readOnly: boolean;
 }
 
 export const DEFAULT_PROFILE: ConnectionProfile = {
@@ -120,4 +129,5 @@ export const DEFAULT_PROFILE: ConnectionProfile = {
   // during option validation.
   protocol_version: 4,
   local_datacenter: '',
+  read_only: false,
 };

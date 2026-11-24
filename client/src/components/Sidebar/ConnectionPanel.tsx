@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faFileImport, faPlug, faPlugCircleXmark, faRotate, faSpinner } from '@fortawesome/free-solid-svg-icons';
+import { faFileImport, faLock, faPlug, faPlugCircleXmark, faRotate, faSpinner } from '@fortawesome/free-solid-svg-icons';
 import type { ConnectionProfile, ConnectionStatus } from '@kassandra/shared';
 import {
   connect,
@@ -221,6 +221,17 @@ export function ConnectionPanel() {
               {' '}
               · keyspace <strong className="text-green-200">{status.keyspace}</strong>
             </>
+          )}
+          {status.readOnly && (
+            <div className="mt-1.5">
+              <span
+                className="inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-400/15 px-2 py-0.5 font-medium text-amber-200"
+                title="This profile is read-only: only SELECT and USE statements run, and rows and schema can't be changed."
+              >
+                <FontAwesomeIcon icon={faLock} />
+                Read-only
+              </span>
+            </div>
           )}
         </div>
       )}

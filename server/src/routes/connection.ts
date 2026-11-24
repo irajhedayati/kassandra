@@ -67,6 +67,8 @@ const ProfileSchema = z.object({
   connection_timeout: z.number().int().min(1).max(300),
   protocol_version: z.number().int().min(1).max(5),
   local_datacenter: z.string(),
+  // Optional so profiles exported before read-only profiles existed still import.
+  read_only: z.boolean().default(false),
 }) satisfies z.ZodType<ConnectionProfile>;
 
 const ConnectBodySchema = z.object({

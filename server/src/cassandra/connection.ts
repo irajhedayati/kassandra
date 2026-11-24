@@ -180,7 +180,7 @@ export async function connect(
     return {
       ok: false,
       message: 'Connection cancelled',
-      status: { connected: false, profileName: null, keyspace: null },
+      status: { connected: false, profileName: null, keyspace: null, readOnly: false },
     };
   };
   // Shutting the client down makes a pending client.connect() reject promptly.
@@ -215,7 +215,7 @@ async function establish(
     return {
       ok: false,
       message: `Connection failed: ${message}`,
-      status: { connected: false, profileName: null, keyspace: null },
+      status: { connected: false, profileName: null, keyspace: null, readOnly: false },
     };
   }
 
@@ -238,7 +238,7 @@ async function establish(
         message:
           `Datacenter "${localDc}" is not present in the cluster. ` +
           `Available: ${available.join(', ')}.`,
-        status: { connected: false, profileName: null, keyspace: null },
+        status: { connected: false, profileName: null, keyspace: null, readOnly: false },
       };
     }
   }
@@ -260,7 +260,7 @@ async function establish(
       return {
         ok: false,
         message: `Connected, but failed to USE keyspace "${profile.default_keyspace}": ${message}`,
-        status: { connected: false, profileName: null, keyspace: null },
+        status: { connected: false, profileName: null, keyspace: null, readOnly: false },
       };
     }
   }
@@ -272,14 +272,14 @@ async function establish(
   return {
     ok: true,
     message: `Connected to ${profile.hosts.join(', ')}`,
-    status: { connected: true, profileName: profile.name, keyspace },
+    status: { connected: true, profileName: profile.name, keyspace, readOnly: profile.read_only },
   };
 }
 
 export async function disconnect(): Promise<ConnectionStatus> {
   const active = getActive();
   if (!active) {
-    return { connected: false, profileName: null, keyspace: null };
+    return { connected: false, profileName: null, keyspace: null, readOnly: false };
   }
   try {
     await active.client.shutdown();
@@ -287,15 +287,16 @@ export async function disconnect(): Promise<ConnectionStatus> {
     console.warn('[kassandra] error during shutdown:', err);
   }
   clearActive();
-  return { connected: false, profileName: null, keyspace: null };
+  return { connected: false, profileName: null, keyspace: null, readOnly: false };
 }
 
 export function status(): ConnectionStatus {
   const active = getActive();
-  if (!active) return { connected: false, profileName: null, keyspace: null };
+  if (!active) return { connected: false, profileName: null, keyspace: null, readOnly: false };
   return {
     connected: true,
     profileName: active.profile.name,
     keyspace: active.keyspace,
+    readOnly: active.profile.read_only,
   };
 }

@@ -105,6 +105,7 @@ export function describeRepositoryContract(
             connection_timeout: 12,
             protocol_version: 4,
             local_datacenter: 'dc1',
+            read_only: true,
           });
           await r.upsertProfile(full);
           expect(await r.getProfile('prod')).toEqual(full);
