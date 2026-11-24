@@ -71,7 +71,7 @@ for (const { dialect, url } of testTargets()) {
       try {
         const repo = new SqlRepository(ns.connection);
         try {
-          expect(await repo.migrate()).toEqual(['0000_init']);
+          expect(await repo.migrate()).toEqual(['0000_init', '0001_read_only']);
           expect(await repo.migrate()).toEqual([]);
         } finally {
           await repo.destroy();
@@ -206,8 +206,29 @@ for (const { dialect, url } of testTargets()) {
         // MySQL commits DDL as it goes, so a crash can leave some tables; recreate that state.
         await ns.query(`DELETE FROM ${ns.ref('kysely_migration')}`);
         await ns.query(`DROP TABLE ${ns.ref('lock')}`);
-        expect(await repo.migrate()).toEqual(['0000_init']);
+        // Both rerun: 0000_init recreates the missing table, 0001_read_only finds its column already there.
+        expect(await repo.migrate()).toEqual(['0000_init', '0001_read_only']);
         await (await repo.lock())();
+        await repo.upsertProfile({ ...profile('p'), read_only: true });
+        expect((await repo.getProfile('p'))!.read_only).toBe(true);
+      }));
+
+    it('upgrades a database from before read-only profiles, keeping its profiles writable', () =>
+      withRepository(async (repo, ns) => {
+        // Put the database back where 1.6.0 left it: no read_only column, 0001 not recorded, one profile.
+        await ns.query(`DELETE FROM ${ns.ref('kysely_migration')} WHERE name = '0001_read_only'`);
+        await ns.query(`ALTER TABLE ${ns.ref('connections')} DROP COLUMN read_only`);
+        await ns.query(
+          `INSERT INTO ${ns.ref('connections')} (name, port, username, password, ssl_enabled, ssl_protocol, ssl_cert_path,
+             default_keyspace, consistency_level, connection_timeout, protocol_version, local_datacenter)
+           VALUES ('prod', 9042, '', '', false, 'PROTOCOL_TLS', '', '', 'LOCAL_ONE', 5, 4, '')`,
+        );
+        await ns.query(`INSERT INTO ${ns.ref('connection_hosts')} (connection_name, position, host) VALUES ('prod', 0, 'h1')`);
+
+        expect(await repo.migrate()).toEqual(['0001_read_only']);
+        expect(await repo.getProfile('prod')).toMatchObject({ name: 'prod', hosts: ['h1'], read_only: false });
+        await repo.upsertProfile({ ...(await repo.getProfile('prod'))!, read_only: true });
+        expect((await repo.getProfile('prod'))!.read_only).toBe(true);
       }));
 
     it('rolls a failed operation back completely', () =>
