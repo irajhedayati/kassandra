@@ -52,7 +52,7 @@ export interface ConnectionProfile {
   local_datacenter: string;
   /**
    * While connected with this profile the server only runs reads: the CQL
-   * editor accepts SELECT and USE statements only, and row writes and schema
+   * editor accepts SELECT, USE and LIST statements only, and row writes and schema
    * changes are refused. Enforced by Kassandra; a Cassandra role with only
    * SELECT permission is the stronger guarantee.
    */

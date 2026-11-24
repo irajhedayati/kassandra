@@ -13,8 +13,8 @@ Streamlit are no longer needed to run the current application.
 
 - **Connection management**: Create, edit, delete, and import profiles with authentication, SSL, consistency,
   timeout, and protocol version settings. Connect, stop a slow attempt, or reconnect at any time.
-- **Read-only profiles**: Browse a production cluster safely; the server runs only `SELECT` and `USE` statements and
-  refuses row and schema changes.
+- **Read-only profiles**: Browse a production cluster safely; the server runs only `SELECT`, `USE` and `LIST`
+  statements and refuses row and schema changes.
 - **Per-tab connections**: Each browser tab has its own connection, so you can work with several clusters at once.
 - **Datacenter-aware routing**: Prefer a local datacenter and fall back to remote ones only when needed. Datacenter
   names autocomplete from the connected cluster, and an unknown name is rejected with the list of valid ones.
@@ -235,9 +235,10 @@ browser copies its connection identity, so use a new tab or window instead.
 Tick **Read-only** in a profile to browse a cluster, such as production, without the risk of changing it. While
 connected with a read-only profile:
 
-- The CQL editor runs only `SELECT` and `USE` statements. Anything else, including `INSERT`, `UPDATE`, `DELETE`,
-  `BEGIN BATCH`, `TRUNCATE`, and `CREATE`, `ALTER` or `DROP`, is refused before it reaches Cassandra, and the execution
-  report says why. When an execution has several statements, nothing runs if any of them is refused.
+- The CQL editor runs only `SELECT`, `USE` and `LIST` (`LIST ROLES`, `LIST USERS`, `LIST PERMISSIONS`) statements.
+  Anything else, including `INSERT`, `UPDATE`, `DELETE`, `BEGIN BATCH`, `TRUNCATE`, `GRANT`, and `CREATE`, `ALTER` or
+  `DROP`, is refused before it reaches Cassandra, and the execution report says why. As with any failed statement, the
+  run stops there: the statements before it have run, and those after it are skipped.
 - The **Insert Record** tab, **Edit** and **Delete** in the row details, and the **+** buttons that create keyspaces
   and tables are hidden.
 - The sidebar shows a **Read-only** badge next to the connection status.

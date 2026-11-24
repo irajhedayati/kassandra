@@ -72,7 +72,7 @@ Explore keyspaces and tables, inspect and modify data, run CQL, and manage Cassa
 |----------------------------------|----------------------------------------------------------------------------------------|
 | **Connection Profiles**          | Save and switch clusters, with auth, SSL, consistency, timeout, and protocol settings. |
 | **Profile Import**               | Import connection profiles from a JSON file or pasted JSON.                            |
-| **Read-only Profiles**           | Browse production safely: only SELECT and USE run; writes are refused.                 |
+| **Read-only Profiles**           | Browse production safely: only SELECT, USE and LIST run; writes are refused.           |
 | **Per-tab Connections**          | Each browser tab has its own connection, so you can use several clusters at once.      |
 | **Datacenter-aware Routing**     | Prefer a selected local DC and fall back to remote DCs when necessary.                 |
 | **DC Validation & Autocomplete** | Discover available datacenters and prevent invalid DC configuration.                   |

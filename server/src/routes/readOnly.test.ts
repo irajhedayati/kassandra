@@ -71,10 +71,12 @@ describe('read-only connection profiles', () => {
       expect(json.data).toEqual({ connected: true, profileName: 'prod', keyspace: 'ks', readOnly: true });
     });
 
-    it('runs SELECT and USE statements', async () => {
+    it('runs SELECT, USE and LIST statements', async () => {
       expect(await cql('SELECT * FROM ks.t')).toMatchObject({ status: 200, json: { success: true } });
       expect(await cql('use ks')).toMatchObject({ status: 200, json: { success: true } });
-      expect(executed()).toEqual(['SELECT * FROM ks.t', 'use ks']);
+      expect(await cql('LIST ROLES')).toMatchObject({ status: 200, json: { success: true } });
+      expect(await cql('list all permissions of alice')).toMatchObject({ status: 200, json: { success: true } });
+      expect(executed()).toEqual(['SELECT * FROM ks.t', 'use ks', 'LIST ROLES', 'list all permissions of alice']);
     });
 
     it('refuses writes and schema changes in the CQL editor without sending them to Cassandra', async () => {
@@ -91,7 +93,7 @@ describe('read-only connection profiles', () => {
         expect(status).toBe(403);
         expect(json).toEqual({
           success: false,
-          message: `This connection profile is read-only: ${command} is not allowed. Only SELECT and USE statements can run.`,
+          message: `This connection profile is read-only: ${command} is not allowed. Only SELECT, USE and LIST statements can run.`,
         });
       }
       expect(executed()).toEqual([]);
@@ -127,7 +129,7 @@ describe('read-only connection profiles', () => {
         expect(res.status).toBe(403);
         expect(res.json).toEqual({
           success: false,
-          message: `This connection profile is read-only: ${action} is not allowed. Only SELECT and USE statements can run.`,
+          message: `This connection profile is read-only: ${action} is not allowed. Only SELECT, USE and LIST statements can run.`,
         });
       }
       expect(execute).not.toHaveBeenCalled();

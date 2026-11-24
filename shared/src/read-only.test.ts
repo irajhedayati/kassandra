@@ -4,15 +4,27 @@ import { findReadOnlyViolation, isReadOnlyCommand, readOnlyMessage } from './rea
 const refused = (cql: string) => findReadOnlyViolation(cql)?.statement.command ?? null;
 
 describe('read-only statement filter', () => {
-  it('allows SELECT and USE in any case', () => {
-    for (const cql of ['SELECT * FROM ks.t', 'select a from t where k = 1', 'Select JSON * FROM t', 'USE ks', 'use "Ks"']) {
+  it('allows SELECT, USE and LIST in any case', () => {
+    for (const cql of [
+      'SELECT * FROM ks.t',
+      'select a from t where k = 1',
+      'Select JSON * FROM t',
+      'USE ks',
+      'use "Ks"',
+      'LIST ROLES',
+      'list roles of alice NORECURSIVE',
+      'LIST USERS',
+      'LIST ALL PERMISSIONS',
+      'list all permissions on keyspace ks of alice',
+      'LIST SELECT ON ks.t OF bob',
+    ]) {
       expect(findReadOnlyViolation(cql)).toBeNull();
     }
     expect(isReadOnlyCommand('select')).toBe(true);
   });
 
   it('allows several reads in one request', () => {
-    expect(findReadOnlyViolation('USE ks; SELECT * FROM t; SELECT count(*) FROM u;')).toBeNull();
+    expect(findReadOnlyViolation('USE ks; SELECT * FROM t; SELECT count(*) FROM u; LIST ROLES;')).toBeNull();
   });
 
   it('allows empty and comment-only input', () => {
@@ -48,8 +60,13 @@ describe('read-only statement filter', () => {
     expect(refused("BEGIN BATCH INSERT INTO t (k, v) VALUES (1, 'SELECT'); APPLY BATCH")).toBe('BATCH');
   });
 
+  it('refuses role and permission changes next to the LIST commands', () => {
+    expect(refused('LIST ROLES; DROP ROLE alice')).toBe('DROP');
+    expect(refused("ALTER ROLE alice WITH PASSWORD = 'x'")).toBe('ALTER');
+    expect(refused('GRANT ALL PERMISSIONS ON ALL KEYSPACES TO alice')).toBe('GRANT');
+  });
+
   it('refuses commands it does not know (deny by default)', () => {
-    expect(refused('LIST ROLES')).toBe('LIST');
     expect(refused('DESCRIBE KEYSPACES')).toBe('DESCRIBE');
     expect(refused('FROBNICATE everything')).toBe('FROBNICATE');
   });
@@ -74,7 +91,7 @@ describe('read-only statement filter', () => {
 
   it('explains the refusal', () => {
     expect(findReadOnlyViolation('TRUNCATE t')?.message).toBe(
-      'This connection profile is read-only: TRUNCATE is not allowed. Only SELECT and USE statements can run.',
+      'This connection profile is read-only: TRUNCATE is not allowed. Only SELECT, USE and LIST statements can run.',
     );
     expect(readOnlyMessage()).toBe('This connection profile is read-only.');
   });

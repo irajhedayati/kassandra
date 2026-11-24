@@ -420,7 +420,7 @@ export function ConnectionForm({ open, onClose, initial }: Props) {
               Read-only
             </label>
             <p className="mt-1 text-xs text-slate-500">
-              Only SELECT and USE statements run, and rows, keyspaces and tables
+              Only SELECT, USE and LIST statements run, and rows, keyspaces and tables
               can't be changed. Kassandra enforces this; for a hard guarantee, also
               connect with a Cassandra role that only has SELECT permission.
             </p>

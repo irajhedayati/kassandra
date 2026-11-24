@@ -6,12 +6,13 @@
  * else is refused, including statements this module doesn't recognize, so new
  * CQL commands are denied by default. `BEGIN [UNLOGGED|COUNTER] BATCH ... APPLY
  * BATCH` is classified as BATCH, and a batch only holds writes, so it is refused
- * as a whole.
+ * as a whole. Every LIST command (LIST ROLES, LIST USERS, LIST PERMISSIONS,
+ * LIST <permission> ON ... OF ...) only reads roles and permissions.
  */
 import { splitCqlStatements, type CqlStatement } from './cql-statements.js';
 
 /** Commands allowed while connected with a read-only profile. */
-export const READ_ONLY_COMMANDS: readonly string[] = ['SELECT', 'USE'];
+export const READ_ONLY_COMMANDS: readonly string[] = ['SELECT', 'USE', 'LIST'];
 
 export function isReadOnlyCommand(command: string): boolean {
   return READ_ONLY_COMMANDS.includes(command.toUpperCase());
@@ -41,5 +42,6 @@ export function findReadOnlyViolation(cql: string): ReadOnlyViolation | null {
 export function readOnlyMessage(what?: string): string {
   const base = 'This connection profile is read-only';
   if (!what) return `${base}.`;
-  return `${base}: ${what} is not allowed. Only ${READ_ONLY_COMMANDS.join(' and ')} statements can run.`;
+  const allowed = `${READ_ONLY_COMMANDS.slice(0, -1).join(', ')} and ${READ_ONLY_COMMANDS.at(-1)}`;
+  return `${base}: ${what} is not allowed. Only ${allowed} statements can run.`;
 }

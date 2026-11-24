@@ -226,7 +226,7 @@ export function ConnectionPanel() {
             <div className="mt-1.5">
               <span
                 className="inline-flex items-center gap-1 rounded-full border border-amber-400/40 bg-amber-400/15 px-2 py-0.5 font-medium text-amber-200"
-                title="This profile is read-only: only SELECT and USE statements run, and rows and schema can't be changed."
+                title="This profile is read-only: only SELECT, USE and LIST statements run, and rows and schema can't be changed."
               >
                 <FontAwesomeIcon icon={faLock} />
                 Read-only

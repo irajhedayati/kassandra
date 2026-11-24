@@ -9,7 +9,7 @@
  * yields a success envelope with rows=[] and message='Empty query'.
  *
  * While the connected profile is read-only, a request containing any statement
- * other than SELECT or USE is refused as a whole (403, `success: false`);
+ * other than SELECT, USE or LIST is refused as a whole (403, `success: false`);
  * see `findReadOnlyViolation` in @kassandra/shared.
  */
 import { Router } from 'express';
