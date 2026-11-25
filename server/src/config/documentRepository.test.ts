@@ -31,4 +31,36 @@ describe('DocumentRepository layout', () => {
       fs.rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it('keeps each profile\'s history in its own file and leaves config.json alone when recording', async () => {
+    const dir = tmp();
+    try {
+      const repo = new DocumentRepository(new FileStorage(dir));
+      await repo.migrate();
+      await repo.upsertProfile({ ...DEFAULT_PROFILE, name: 'my cluster' });
+      const configFile = path.join(dir, 'config.json');
+      const before = fs.statSync(configFile).mtimeMs;
+      const entry = await repo.addHistoryEntry({
+        profile: 'my cluster',
+        query: 'SELECT 1',
+        params: [],
+        started_at: '2026-01-01T00:00:00.000Z',
+        duration_ms: 1,
+        statements: 1,
+        outcome: 'success',
+        error: null,
+      });
+      expect(fs.readdirSync(path.join(dir, 'history'))).toEqual(['my%20cluster.json']);
+      expect(JSON.parse(fs.readFileSync(path.join(dir, 'history', 'my%20cluster.json'), 'utf-8'))).toEqual({
+        entries: [entry],
+      });
+      expect(fs.statSync(configFile).mtimeMs).toBe(before);
+      expect(JSON.parse(fs.readFileSync(configFile, 'utf-8'))).not.toHaveProperty('history');
+
+      await repo.clearHistory('my cluster');
+      expect(fs.readdirSync(path.join(dir, 'history'))).toEqual([]);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });

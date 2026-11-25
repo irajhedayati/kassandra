@@ -38,7 +38,8 @@ export class TableFileError extends Error {
   }
 }
 
-function encodePart(value: string): string {
+/** `value` percent-encoded down to [A-Za-z0-9_], for use as (part of) a storage key segment. */
+export function encodePart(value: string): string {
   return value.replace(/[^A-Za-z0-9_]/gu, (c) =>
     [...Buffer.from(c)].map((b) => `%${b.toString(16).toUpperCase().padStart(2, '0')}`).join(''),
   );

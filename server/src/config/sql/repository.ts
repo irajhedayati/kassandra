@@ -11,9 +11,30 @@
  * them in the database, which must exist.
  */
 import crypto from 'node:crypto';
-import { Kysely, sql, type InsertResult, type Selectable } from 'kysely';
+import { Kysely, sql, type InsertResult, type Selectable, type SelectQueryBuilder } from 'kysely';
 import { Migrator } from 'kysely/migration';
-import type { ColumnMetadata, ConnectionProfile, SavedQuery, SavedQueryInput } from '@kassandra/shared';
+import type {
+  ColumnMetadata,
+  ConnectionProfile,
+  QueryHistoryEntry,
+  QueryHistoryInput,
+  QueryHistoryListOptions,
+  QueryHistoryOutcome,
+  QueryHistoryPage,
+  SavedQuery,
+  SavedQueryInput,
+} from '@kassandra/shared';
+import {
+  decodeCursor,
+  HistoryError,
+  historyLimit,
+  historyPageSize,
+  LIKE_ESCAPE,
+  likePattern,
+  newHistoryEntry,
+  searchTerm,
+  toPage,
+} from '../history.js';
 import {
   normalizeProfile,
   SavedQueryError,
@@ -134,15 +155,21 @@ export class SqlRepository implements ConfigRepository {
     for (const { columns: _count, ...ref } of await this.listTables()) {
       tables.push({ ...ref, columns: await this.getTableMetadata(ref) });
     }
+    const connections = await this.listProfiles();
+    const history: QueryHistoryEntry[] = [];
+    for (const { name } of connections) {
+      history.push(...(await this.toHistory(this.db, await this.newestFirst(this.historyOf(this.db, name)).execute())));
+    }
     return {
       version: await this.getVersion(),
       settings: {
-        connections: await this.listProfiles(),
+        connections,
         last_connection_name: await this.getLastConnection(),
         favorite_keyspaces: favorites,
         saved_queries: await this.listSavedQueries(),
       },
       tables,
+      history,
     };
   }
 
@@ -162,6 +189,9 @@ export class SqlRepository implements ConfigRepository {
       for (const query of snapshot.settings.saved_queries) await this.writeNewQuery(tx, query);
       for (const { columns, ...ref } of snapshot.tables) {
         if (known.has(ref.connection)) await this.writeTable(tx, ref, columns);
+      }
+      for (const entry of snapshot.history) {
+        if (known.has(entry.profile)) await this.writeHistoryEntry(tx, entry);
       }
       if (snapshot.version) await this.setVersionRow(tx, snapshot.version);
     });
@@ -293,7 +323,7 @@ export class SqlRepository implements ConfigRepository {
   }
 
   async deleteProfile(name: string): Promise<void> {
-    // Hosts, favorites and table metadata go with it (ON DELETE CASCADE); the last connection is cleared (SET NULL).
+    // Hosts, favorites, table metadata and history go with it (ON DELETE CASCADE); the last connection is cleared (SET NULL).
     await this.db.deleteFrom('connections').where('name', '=', name).execute();
   }
 
@@ -640,6 +670,125 @@ export class SqlRepository implements ConfigRepository {
       table: r.table_name,
       columns: Number(r.columns),
     }));
+  }
+
+  // --- query history -----------------------------------------------------------------------
+
+  private historyOf(tx: Db, profile: string) {
+    return tx.selectFrom('query_history').selectAll().where('connection_name', '=', profile);
+  }
+
+  /** In the history order (see history.ts): newest first, ties by descending id (byte-wise). */
+  private newestFirst<O>(
+    query: SelectQueryBuilder<Database, 'query_history', O>,
+  ): SelectQueryBuilder<Database, 'query_history', O> {
+    return query.orderBy('started_at', 'desc').orderBy(byText(this.connection, 'id'), 'desc');
+  }
+
+  private async toHistory(tx: Db, rows: Selectable<Database['query_history']>[]): Promise<QueryHistoryEntry[]> {
+    if (rows.length === 0) return [];
+    const params = groupBy(
+      await tx
+        .selectFrom('query_history_params')
+        .selectAll()
+        .where(
+          'entry_id',
+          'in',
+          rows.map((r) => r.id),
+        )
+        .orderBy('position')
+        .execute(),
+      (p) => p.entry_id,
+    );
+    return rows.map((row) => ({
+      id: row.id,
+      profile: row.connection_name,
+      query: row.query,
+      params: (params.get(row.id) ?? []).map(({ name, type, value }) => ({ name, type, value })),
+      started_at: new Date(Number(row.started_at)).toISOString(), // bigint: a string from pg
+      duration_ms: row.duration_ms,
+      statements: row.statements,
+      outcome: row.outcome as QueryHistoryOutcome,
+      error: row.error,
+    }));
+  }
+
+  private async writeHistoryEntry(tx: Db, entry: QueryHistoryEntry): Promise<void> {
+    await tx
+      .insertInto('query_history')
+      .values({
+        id: entry.id,
+        connection_name: entry.profile,
+        query: entry.query,
+        started_at: Date.parse(entry.started_at),
+        duration_ms: entry.duration_ms,
+        statements: entry.statements,
+        outcome: entry.outcome,
+        error: entry.error,
+      })
+      .execute();
+    if (entry.params.length > 0) {
+      await tx
+        .insertInto('query_history_params')
+        .values(entry.params.map(({ name, type, value }, position) => ({ entry_id: entry.id, position, name, type, value })))
+        .execute();
+    }
+  }
+
+  async addHistoryEntry(input: QueryHistoryInput): Promise<QueryHistoryEntry> {
+    const entry = newHistoryEntry(input);
+    await this.db.transaction().execute(async (tx) => {
+      if (!(await tx.selectFrom('connections').select('name').where('name', '=', entry.profile).executeTakeFirst())) {
+        throw new HistoryError(`Unknown connection "${entry.profile}"`, 404);
+      }
+      await this.writeHistoryEntry(tx, entry);
+      // Not OFFSET in SQL: MySQL only allows it with a LIMIT. A profile holds at most one entry over the cap anyway.
+      const ids = await this.newestFirst(
+        tx.selectFrom('query_history').select('id').where('connection_name', '=', entry.profile),
+      ).execute();
+      const dropped = ids.slice(historyLimit()).map((r) => r.id);
+      // Their parameters go with them (ON DELETE CASCADE).
+      if (dropped.length > 0) await tx.deleteFrom('query_history').where('id', 'in', dropped).execute();
+    });
+    return entry;
+  }
+
+  async listHistory(profile: string, options: QueryHistoryListOptions = {}): Promise<QueryHistoryPage> {
+    const cursor = options.cursor ? decodeCursor(options.cursor) : null;
+    const term = searchTerm(options);
+    const size = historyPageSize(options.limit);
+    let query = this.historyOf(this.db, profile);
+    if (cursor) {
+      query = query.where((eb) =>
+        eb.or([
+          eb('started_at', '<', cursor.startedAt),
+          eb.and([
+            eb('started_at', '=', cursor.startedAt),
+            sql<boolean>`${byText(this.connection, 'id')} < ${cursor.id}`,
+          ]),
+        ]),
+      );
+    }
+    if (term !== null) {
+      query = query.where(
+        sql<boolean>`lower(${sql.ref('query')}) like ${likePattern(term)} escape ${sql.raw(`'${LIKE_ESCAPE}'`)}`,
+      );
+    }
+    const rows = await this.newestFirst(query).limit(size + 1).execute();
+    return toPage(await this.toHistory(this.db, rows), size);
+  }
+
+  async deleteHistoryEntry(profile: string, id: string): Promise<void> {
+    const result = await this.db
+      .deleteFrom('query_history')
+      .where('connection_name', '=', profile)
+      .where('id', '=', id)
+      .executeTakeFirst();
+    if (result.numDeletedRows === 0n) throw new HistoryError('History entry not found', 404);
+  }
+
+  async clearHistory(profile: string): Promise<void> {
+    await this.db.deleteFrom('query_history').where('connection_name', '=', profile).execute();
   }
 }
 

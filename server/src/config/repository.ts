@@ -1,12 +1,13 @@
 /**
  * What Kassandra persists, as the operations the application needs: connection
- * profiles, the last connection, favorite keyspaces, saved queries and
- * per-table column metadata, plus the version of the data and a cross-process
- * lock. A backend implements this interface; how it lays the data out is its
- * own business:
+ * profiles, the last connection, favorite keyspaces, saved queries, per-table
+ * column metadata and the query history of each profile, plus the version of
+ * the data and a cross-process lock. A backend implements this interface; how
+ * it lays the data out is its own business:
  *
- *   DocumentRepository  JSON documents on top of any ConfigStorage (files by default)
+ *   DocumentRepository  JSON documents on top of any ConfigStorage (files, Firestore)
  *   SqliteRepository    a relational schema managed with Drizzle migrations
+ *   SqlRepository       the same schema on PostgreSQL / MySQL, managed with Kysely migrations
  *
  * Operations are individually atomic but not serialized against each other;
  * store.ts funnels every call through one queue so read-modify-write backends
@@ -16,6 +17,10 @@ import type {
   AppSettings,
   ColumnMetadata,
   ConnectionProfile,
+  QueryHistoryEntry,
+  QueryHistoryInput,
+  QueryHistoryListOptions,
+  QueryHistoryPage,
   SavedQuery,
   SavedQueryInput,
 } from '@kassandra/shared';
@@ -40,6 +45,8 @@ export interface ConfigSnapshot {
   version: string | null;
   settings: AppSettings;
   tables: (TableRef & { columns: TableColumns })[];
+  /** Every profile's history: profiles in their list order, each newest first. */
+  history: QueryHistoryEntry[];
 }
 
 export interface LockOptions {
@@ -72,7 +79,10 @@ export interface ConfigRepository {
   /** True when nothing (no profile, query, favorite or metadata) is stored. */
   isEmpty(): Promise<boolean>;
   exportSnapshot(): Promise<ConfigSnapshot>;
-  /** Add everything in `snapshot` to this (empty, migrated) backend. Entries for unknown connections are skipped. */
+  /**
+   * Add everything in `snapshot` to this (empty, migrated) backend, keeping ids.
+   * Favorites, tables and history of unknown connections are skipped.
+   */
   importSnapshot(snapshot: ConfigSnapshot): Promise<void>;
   /**
    * Exclusive lock across processes sharing this backend. Waits for the holder,
@@ -89,7 +99,7 @@ export interface ConfigRepository {
   getProfile(name: string): Promise<ConnectionProfile | null>;
   /** Insert, or replace the profile with the same name (keeping its place in the list). */
   upsertProfile(profile: ConnectionProfile): Promise<ConnectionProfile>;
-  /** Also removes the profile's favorites and table metadata, and clears it as the last connection. */
+  /** Also removes the profile's favorites, table metadata and query history, and clears it as the last connection. */
   deleteProfile(name: string): Promise<void>;
   /** Name of the last connection, '' if none. */
   getLastConnection(): Promise<string>;
@@ -124,6 +134,24 @@ export interface ConfigRepository {
   replaceTableMetadata(ref: TableRef, columns: TableColumns): Promise<void>;
   /** Every table that has metadata. */
   listTables(): Promise<TableSummary[]>;
+
+  // --- query history (see history.ts) ------------------------------------------------------
+
+  /**
+   * Record a run for `input.profile` and return it with its id. Drops the
+   * profile's oldest entries beyond historyLimit(). Rejects with HistoryError
+   * 404 for an unknown profile, 400 for an unparseable `started_at`.
+   */
+  addHistoryEntry(input: QueryHistoryInput): Promise<QueryHistoryEntry>;
+  /**
+   * One page of the profile's history, newest first (ties by descending id),
+   * optionally only queries containing `search` (case-insensitive). Rejects
+   * with HistoryError 400 for a cursor this backend did not hand out.
+   */
+  listHistory(profile: string, options?: QueryHistoryListOptions): Promise<QueryHistoryPage>;
+  /** Rejects with HistoryError 404 if the profile has no such entry. */
+  deleteHistoryEntry(profile: string, id: string): Promise<void>;
+  clearHistory(profile: string): Promise<void>;
 }
 
 /** Coerce a partial profile (hand-edited file, older version) into a full one by filling in defaults. */

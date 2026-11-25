@@ -36,7 +36,7 @@ describe('SqliteRepository', () => {
   it('creates the relational tables with their foreign keys from the SQL migrations', () =>
     withDb(async (file) => {
       const repo = new SqliteRepository(file);
-      expect(await repo.migrate()).toEqual(['0000_init', '0001_read_only']);
+      expect(await repo.migrate()).toEqual(['0000_init', '0001_read_only', '0002_query_history']);
       expect(await repo.migrate()).toEqual([]);
       repo.close();
       const db = new Database(file, { readonly: true });
@@ -53,6 +53,8 @@ describe('SqliteRepository', () => {
           'lock',
           'map_entry_enum_values',
           'meta',
+          'query_history',
+          'query_history_params',
           'saved_queries',
           'saved_query_params',
           'table_metadata',
@@ -62,6 +64,10 @@ describe('SqliteRepository', () => {
       expect(fks('favorite_keyspaces')).toMatchObject([{ table: 'connections', on_delete: 'CASCADE' }]);
       expect(fks('app_state')).toMatchObject([{ table: 'connections', on_delete: 'SET NULL' }]);
       expect(fks('column_metadata')).toMatchObject([{ table: 'table_metadata', on_delete: 'CASCADE' }]);
+      expect(fks('query_history')).toMatchObject([{ table: 'connections', on_delete: 'CASCADE' }]);
+      expect(fks('query_history_params')).toMatchObject([{ table: 'query_history', on_delete: 'CASCADE' }]);
+      const index = db.prepare('PRAGMA index_info(query_history_connection_started_at)').all() as { name: string }[];
+      expect(index.map((c) => c.name)).toEqual(['connection_name', 'started_at']);
       db.close();
     }));
 
@@ -88,10 +94,11 @@ describe('SqliteRepository', () => {
 
       const repo = new SqliteRepository(file);
       try {
-        expect(await repo.migrate()).toEqual(['0001_read_only']);
+        expect(await repo.migrate()).toEqual(['0001_read_only', '0002_query_history']);
         expect(await repo.getProfile('prod')).toMatchObject({ name: 'prod', hosts: ['h1'], read_only: false });
         await repo.upsertProfile({ ...(await repo.getProfile('prod'))!, read_only: true });
         expect((await repo.getProfile('prod'))!.read_only).toBe(true);
+        expect((await repo.listHistory('prod')).entries).toEqual([]);
       } finally {
         repo.close();
       }
@@ -108,10 +115,20 @@ describe('SqliteRepository', () => {
         { connection: 'p', keyspace: 'ks', table: 't' },
         { c: { enum_values: ['a'], map_schema: [{ key: 'k', label: 'K', enum_values: ['1'] }] } },
       );
+      await repo.addHistoryEntry({
+        profile: 'p',
+        query: 'SELECT * FROM t WHERE id = :id',
+        params: [{ name: 'id', type: 'int', value: '1' }],
+        started_at: new Date().toISOString(),
+        duration_ms: 1,
+        statements: 1,
+        outcome: 'success',
+        error: null,
+      });
       await repo.deleteProfile('p');
       repo.close();
       const db = new Database(file, { readonly: true });
-      for (const t of ['connection_hosts', 'favorite_keyspaces', 'table_metadata', 'column_metadata', 'column_enum_values', 'column_map_entries', 'map_entry_enum_values']) {
+      for (const t of ['connection_hosts', 'favorite_keyspaces', 'table_metadata', 'column_metadata', 'column_enum_values', 'column_map_entries', 'map_entry_enum_values', 'query_history', 'query_history_params']) {
         expect((db.prepare(`SELECT count(*) AS n FROM ${t}`).get() as { n: number }).n, t).toBe(0);
       }
       db.close();
