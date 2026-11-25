@@ -5,6 +5,7 @@
  *   connections ─┬─ connection_hosts
  *                ├─ favorite_keyspaces
  *                ├─ app_state.last_connection          (at most one row)
+ *                ├─ query_history ── query_history_params
  *                └─ table_metadata ── column_metadata ─┬─ column_enum_values
  *                                                      └─ column_map_entries ── map_entry_enum_values
  *   saved_queries ── saved_query_params
@@ -109,6 +110,26 @@ export interface MapEntryEnumValuesTable {
   value: string;
 }
 
+export interface QueryHistoryTable {
+  id: string;
+  connection_name: string;
+  query: string;
+  /** Epoch milliseconds. */
+  started_at: BigInt;
+  duration_ms: number;
+  statements: number;
+  outcome: string;
+  error: string | null;
+}
+
+export interface QueryHistoryParamsTable {
+  entry_id: string;
+  position: number;
+  name: string;
+  type: string;
+  value: string;
+}
+
 export interface MetaTable {
   name: string;
   value: string;
@@ -132,6 +153,8 @@ export interface Database {
   column_enum_values: ColumnEnumValuesTable;
   column_map_entries: ColumnMapEntriesTable;
   map_entry_enum_values: MapEntryEnumValuesTable;
+  query_history: QueryHistoryTable;
+  query_history_params: QueryHistoryParamsTable;
   meta: MetaTable;
   lock: LockTable;
 }

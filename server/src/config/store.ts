@@ -1,6 +1,6 @@
 /**
  * The application's view of persisted settings (connection profiles,
- * favorites, saved queries) and per-table column metadata: every operation is
+ * favorites, saved queries), per-table column metadata and query history: every operation is
  * forwarded to the active ConfigRepository, one at a time (see serial.ts) so
  * read-modify-write backends cannot lose concurrent updates.
  *
@@ -9,16 +9,21 @@
 import type {
   ColumnMetadata,
   ConnectionProfile,
+  QueryHistoryEntry,
+  QueryHistoryInput,
+  QueryHistoryListOptions,
+  QueryHistoryPage,
   SavedQuery,
   SavedQueryInput,
   TableMetadataFile,
 } from '@kassandra/shared';
+import { HistoryError } from './history.js';
 import { getRepository } from './registry.js';
 import { SavedQueryError, type TableColumns, type TableRef } from './repository.js';
 import { serialize } from './serial.js';
 import { tableFileName } from './tables.js';
 
-export { SavedQueryError };
+export { HistoryError, SavedQueryError };
 
 export function listProfiles(): Promise<ConnectionProfile[]> {
   return serialize(() => getRepository().listProfiles());
@@ -112,6 +117,22 @@ export function deleteSavedQuery(id: string): Promise<void> {
 /** Upsert by name: existing queries with the same name are overwritten. */
 export function importSavedQueries(inputs: SavedQueryInput[]): Promise<{ created: number; updated: number }> {
   return serialize(() => getRepository().importSavedQueries(inputs));
+}
+
+export function addHistoryEntry(input: QueryHistoryInput): Promise<QueryHistoryEntry> {
+  return serialize(() => getRepository().addHistoryEntry(input));
+}
+
+export function listHistory(profileName: string, options?: QueryHistoryListOptions): Promise<QueryHistoryPage> {
+  return serialize(() => getRepository().listHistory(profileName, options));
+}
+
+export function deleteHistoryEntry(profileName: string, id: string): Promise<void> {
+  return serialize(() => getRepository().deleteHistoryEntry(profileName, id));
+}
+
+export function clearHistory(profileName: string): Promise<void> {
+  return serialize(() => getRepository().clearHistory(profileName));
 }
 
 export type { TableRef };

@@ -8,6 +8,7 @@
  * Keys:
  *   config                      connection profiles, favorites, saved queries
  *   tables/<conn>-<ks>.<table>  per-table column metadata (see tables.ts)
+ *   history/<conn>              a profile's query history (see history.ts)
  *   backups/<version>/<key>     copies made before a migration
  *
  * Keys are `/`-separated segments of [A-Za-z0-9_%.-]; implementations may

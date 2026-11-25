@@ -3,12 +3,38 @@
  *
  *   config                       AppSettings: profiles, last connection, favorites, saved queries
  *   tables/<conn>-<ks>.<table>   per-table column metadata (see tables.ts)
+ *   history/<conn>               the profile's query history (see history.ts)
  *
  * Every mutation reads a whole document, changes it and writes it back, so the
  * caller must not run them concurrently (store.ts serializes them).
  */
 import crypto from 'node:crypto';
-import type { AppSettings, ColumnMetadata, ConnectionProfile, SavedQuery, SavedQueryInput } from '@kassandra/shared';
+import type {
+  AppSettings,
+  ColumnMetadata,
+  ConnectionProfile,
+  QueryHistoryEntry,
+  QueryHistoryInput,
+  QueryHistoryListOptions,
+  QueryHistoryPage,
+  SavedQuery,
+  SavedQueryInput,
+} from '@kassandra/shared';
+import {
+  compareHistory,
+  decodeCursor,
+  historyKey,
+  HistoryError,
+  historyLimit,
+  historyPageSize,
+  isAfter,
+  matchesSearch,
+  newHistoryEntry,
+  readHistory,
+  searchTerm,
+  toPage,
+  writeHistory,
+} from './history.js';
 import { runMigrations } from './migrations/index.js';
 import {
   normalizeProfile,
@@ -112,7 +138,9 @@ export class DocumentRepository implements ConfigRepository {
       const { columns: _count, ...ref } = summary;
       tables.push({ ...ref, columns: await this.getTableMetadata(ref) });
     }
-    return { version: await this.storage.getVersion(), settings, tables };
+    const history: QueryHistoryEntry[] = [];
+    for (const { name } of settings.connections) history.push(...(await readHistory(this.storage, name)));
+    return { version: await this.storage.getVersion(), settings, tables, history };
   }
 
   async importSnapshot(snapshot: ConfigSnapshot): Promise<void> {
@@ -126,6 +154,11 @@ export class DocumentRepository implements ConfigRepository {
     for (const { columns, ...ref } of snapshot.tables) {
       if (known.has(ref.connection)) await writeTableMetadata(this.storage, ref.connection, ref.keyspace, ref.table, columns);
     }
+    const history = new Map<string, QueryHistoryEntry[]>();
+    for (const entry of snapshot.history) {
+      if (known.has(entry.profile)) history.set(entry.profile, [...(history.get(entry.profile) ?? []), entry]);
+    }
+    for (const [profile, entries] of history) await writeHistory(this.storage, profile, entries);
     if (snapshot.version) await this.storage.setVersion(snapshot.version);
   }
 
@@ -161,6 +194,7 @@ export class DocumentRepository implements ConfigRepository {
     delete settings.favorite_keyspaces[name];
     await this.save(settings);
     await deleteConnectionTables(this.storage, name);
+    await this.storage.delete(historyKey(name));
   }
 
   async getLastConnection(): Promise<string> {
@@ -278,5 +312,38 @@ export class DocumentRepository implements ConfigRepository {
       table,
       columns,
     }));
+  }
+
+  // --- query history -----------------------------------------------------------------------
+
+  async addHistoryEntry(input: QueryHistoryInput): Promise<QueryHistoryEntry> {
+    const entry = newHistoryEntry(input);
+    if (!(await this.load()).connections.some((c) => c.name === entry.profile)) {
+      throw new HistoryError(`Unknown connection "${entry.profile}"`, 404);
+    }
+    const entries = [entry, ...(await readHistory(this.storage, entry.profile))].sort(compareHistory);
+    await writeHistory(this.storage, entry.profile, entries.slice(0, historyLimit()));
+    return entry;
+  }
+
+  async listHistory(profile: string, options: QueryHistoryListOptions = {}): Promise<QueryHistoryPage> {
+    const cursor = options.cursor ? decodeCursor(options.cursor) : null;
+    const term = searchTerm(options);
+    const size = historyPageSize(options.limit);
+    const rows = (await readHistory(this.storage, profile)).filter(
+      (e) => (cursor === null || isAfter(e, cursor)) && matchesSearch(e, term),
+    );
+    return toPage(rows.slice(0, size + 1), size);
+  }
+
+  async deleteHistoryEntry(profile: string, id: string): Promise<void> {
+    const entries = await readHistory(this.storage, profile);
+    const remaining = entries.filter((e) => e.id !== id);
+    if (remaining.length === entries.length) throw new HistoryError('History entry not found', 404);
+    await writeHistory(this.storage, profile, remaining);
+  }
+
+  async clearHistory(profile: string): Promise<void> {
+    await this.storage.delete(historyKey(profile));
   }
 }

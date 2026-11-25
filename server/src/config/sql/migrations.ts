@@ -23,6 +23,13 @@ async function mysqlCollation(db: Kysely<any>): Promise<string> {
   return /mariadb/i.test(rows[0]?.v ?? '') ? 'utf8mb4_nopad_bin' : 'utf8mb4_0900_bin';
 }
 
+async function mysqlIndexExists(db: Kysely<any>, table: string, index: string): Promise<boolean> {
+  const { rows } = await sql<{ n: number | string }>`
+    select count(*) as n from information_schema.statistics
+    where table_schema = database() and table_name = ${table} and index_name = ${index}`.execute(db);
+  return Number(rows[0]?.n ?? 0) > 0;
+}
+
 export function createMigrations(dialect: SqlDialect): Record<string, Migration> {
   const mysql = dialect === 'mysql';
   const key = mysql ? sql`varchar(190)` : 'text';
@@ -190,6 +197,48 @@ export function createMigrations(dialect: SqlDialect): Record<string, Migration>
         await db.schema
           .alterTable('connections')
           .addColumn('read_only', 'boolean', (c) => c.notNull().defaultTo(false))
+          .execute();
+      },
+    },
+
+    '0002_query_history': {
+      // Query history per connection (1.7.0); see config/history.ts.
+      async up(db: Kysely<any>) {
+        const options = mysql ? sql`engine = InnoDB default charset = utf8mb4 collate ${sql.raw(await mysqlCollation(db))}` : null;
+        const table = (name: string) => {
+          const builder = db.schema.createTable(name).ifNotExists();
+          return options ? builder.modifyEnd(options) : builder;
+        };
+
+        await table('query_history')
+          .addColumn('id', key, (c) => c.notNull())
+          .addColumn('connection_name', key, (c) => c.notNull())
+          .addColumn('query', longText, (c) => c.notNull())
+          .addColumn('started_at', 'bigint', (c) => c.notNull())
+          .addColumn('duration_ms', 'integer', (c) => c.notNull())
+          .addColumn('statements', 'integer', (c) => c.notNull())
+          .addColumn('outcome', key, (c) => c.notNull())
+          .addColumn('error', longText)
+          .addPrimaryKeyConstraint('query_history_pk', ['id'])
+          .addForeignKeyConstraint('query_history_connection_fk', ['connection_name'], 'connections', ['name'], cascade)
+          .execute();
+        // MySQL has no `create index if not exists` (MariaDB does), so check first; the migration can then be rerun.
+        const index = 'query_history_connection_started_at';
+        if (!mysql || !(await mysqlIndexExists(db, 'query_history', index))) {
+          const create = db.schema.createIndex(index).on('query_history').columns(['connection_name', 'started_at']);
+          await (mysql ? create : create.ifNotExists()).execute();
+        }
+
+        await table('query_history_params')
+          .addColumn('entry_id', key, (c) => c.notNull())
+          .addColumn('position', 'integer', (c) => c.notNull())
+          .addColumn('name', key, (c) => c.notNull())
+          .addColumn('type', 'text', (c) => c.notNull())
+          .addColumn('value', longText, (c) => c.notNull())
+          .addPrimaryKeyConstraint('query_history_params_pk', ['entry_id', 'position'])
+          .addForeignKeyConstraint('query_history_params_entry_fk', ['entry_id'], 'query_history', ['id'], (cb) =>
+            cb.onDelete('cascade'),
+          )
           .execute();
       },
     },

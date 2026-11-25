@@ -4,7 +4,13 @@
  * migrated repository; the suite migrates it before each test.
  */
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_PROFILE, type ColumnMetadata, type ConnectionProfile } from '@kassandra/shared';
+import {
+  DEFAULT_PROFILE,
+  type ColumnMetadata,
+  type ConnectionProfile,
+  type QueryHistoryEntry,
+  type QueryHistoryInput,
+} from '@kassandra/shared';
 import type { ConfigRepository, TableRef } from './repository.js';
 
 export interface RepositoryHarness {
@@ -25,6 +31,31 @@ const query = (name: string, extra = {}) => ({
   paramTypes: { id: 'uuid' },
   ...extra,
 });
+/** A history entry for `profile` that started `minute` minutes into 2026-01-01 UTC. */
+const run = (profile: string, minute: number, extra: Partial<QueryHistoryInput> = {}): QueryHistoryInput => ({
+  profile,
+  query: `SELECT * FROM t${minute}`,
+  params: [],
+  started_at: new Date(Date.UTC(2026, 0, 1, 0, minute)).toISOString(),
+  duration_ms: 5,
+  statements: 1,
+  outcome: 'success',
+  error: null,
+  ...extra,
+});
+const queries = (entries: QueryHistoryEntry[]) => entries.map((e) => e.query);
+
+/** Run `fn` with KASSANDRA_HISTORY_LIMIT set to `limit`, restoring it afterwards. */
+async function withHistoryLimit(limit: string, fn: () => Promise<void>): Promise<void> {
+  const before = process.env.KASSANDRA_HISTORY_LIMIT;
+  process.env.KASSANDRA_HISTORY_LIMIT = limit;
+  try {
+    await fn();
+  } finally {
+    if (before === undefined) delete process.env.KASSANDRA_HISTORY_LIMIT;
+    else process.env.KASSANDRA_HISTORY_LIMIT = before;
+  }
+}
 
 export function describeRepositoryContract(
   name: string,
@@ -143,30 +174,39 @@ export function describeRepositoryContract(
           expect(await r.getLastConnection()).toBe('');
         }));
 
-      it("deleting a profile removes its favorites and table metadata, and only its own", () =>
+      it("deleting a profile removes its favorites, table metadata and history, and only its own", () =>
         withRepository(async (r) => {
           for (const n of ['c1', 'c1-x']) {
             await r.upsertProfile(profile(n));
             await r.addFavoriteKeyspace(n, 'ks');
             await r.setColumnMetadata(ref(n), 'a', { hide: true });
+            await r.addHistoryEntry(run(n, 1, { params: [{ name: 'id', type: 'int', value: '1' }] }));
           }
           await r.deleteProfile('c1');
           expect(await r.getProfile('c1')).toBeNull();
           expect(await r.getFavoriteKeyspaces('c1')).toEqual([]);
           expect(await r.getTableMetadata(ref('c1'))).toEqual({});
+          expect((await r.listHistory('c1')).entries).toEqual([]);
           expect(await r.getFavoriteKeyspaces('c1-x')).toEqual(['ks']);
           expect(await r.getTableMetadata(ref('c1-x'))).toEqual({ a: { hide: true } });
           expect((await r.listTables()).map((t) => t.connection)).toEqual(['c1-x']);
+          expect(queries((await r.listHistory('c1-x')).entries)).toEqual(['SELECT * FROM t1']);
+
+          // A profile created again under the same name starts with no history.
+          await r.upsertProfile(profile('c1'));
+          expect((await r.listHistory('c1')).entries).toEqual([]);
         }));
 
-      it('keeps favorites and metadata when a profile is updated', () =>
+      it('keeps favorites, metadata and history when a profile is updated', () =>
         withRepository(async (r) => {
           await r.upsertProfile(profile('p'));
           await r.addFavoriteKeyspace('p', 'ks');
           await r.setColumnMetadata(ref('p'), 'a', { hide: true });
+          const entry = await r.addHistoryEntry(run('p', 1));
           await r.upsertProfile(profile('p', { port: 1 }));
           expect(await r.getFavoriteKeyspaces('p')).toEqual(['ks']);
           expect(await r.getTableMetadata(ref('p'))).toEqual({ a: { hide: true } });
+          expect((await r.listHistory('p')).entries).toEqual([entry]);
         }));
     });
 
@@ -297,6 +337,213 @@ export function describeRepositoryContract(
         }));
     });
 
+    describe('query history', () => {
+      it('records every field and assigns ids', () =>
+        withRepository(async (r) => {
+          await r.upsertProfile(profile('p'));
+          const input = run('p', 1, {
+            query: "SELECT * FROM t WHERE id = :id AND name = :name;\nUPDATE t SET a = 1 WHERE id = :id",
+            params: [
+              { name: 'name', type: 'text', value: "it's \"quoted\"" },
+              { name: 'id', type: 'uuid', value: '7f3c1a52-08d4-4f0e-9a3a-0a3c1b5f9e11' },
+            ],
+            started_at: '2026-03-04T05:06:07.089+02:00',
+            duration_ms: 1234,
+            statements: 2,
+            outcome: 'partial',
+            error: 'Invalid column name a',
+          });
+          const a = await r.addHistoryEntry(input);
+          const b = await r.addHistoryEntry(run('p', 2, { outcome: 'failed', error: 'boom' }));
+          expect(a.id).toEqual(expect.any(String));
+          expect(a.id).not.toBe(b.id);
+          // started_at is normalized to UTC.
+          expect(a).toEqual({ ...input, id: a.id, started_at: '2026-03-04T03:06:07.089Z' });
+          expect((await r.listHistory('p')).entries).toEqual([a, b]);
+        }));
+
+      it('lists newest first whatever the insertion order, per profile', () =>
+        withRepository(async (r) => {
+          await r.upsertProfile(profile('p'));
+          await r.upsertProfile(profile('q'));
+          for (const minute of [3, 1, 4, 2]) await r.addHistoryEntry(run('p', minute));
+          await r.addHistoryEntry(run('q', 9));
+          expect(queries((await r.listHistory('p')).entries)).toEqual([
+            'SELECT * FROM t4',
+            'SELECT * FROM t3',
+            'SELECT * FROM t2',
+            'SELECT * FROM t1',
+          ]);
+          expect(queries((await r.listHistory('q')).entries)).toEqual(['SELECT * FROM t9']);
+          expect(await r.listHistory('nobody')).toEqual({ entries: [], next_cursor: null });
+        }));
+
+      it('orders entries that started at the same time by descending id', () =>
+        withRepository(async (r) => {
+          await r.upsertProfile(profile('p'));
+          const same = [];
+          for (let i = 0; i < 4; i++) same.push(await r.addHistoryEntry(run('p', 1, { query: `q${i}` })));
+          const ids = (await r.listHistory('p')).entries.map((e) => e.id);
+          expect(ids).toEqual(same.map((e) => e.id).sort().reverse());
+          // ... and pages through them without skipping or repeating any.
+          const first = await r.listHistory('p', { limit: 2 });
+          const second = await r.listHistory('p', { limit: 2, cursor: first.next_cursor });
+          expect([...first.entries, ...second.entries].map((e) => e.id)).toEqual(ids);
+        }));
+
+      it('keeps only the newest KASSANDRA_HISTORY_LIMIT entries per profile', () =>
+        withRepository(async (r) => {
+          await r.upsertProfile(profile('p'));
+          await r.upsertProfile(profile('q'));
+          await withHistoryLimit('3', async () => {
+            for (const minute of [5, 1, 4]) await r.addHistoryEntry(run('p', minute));
+            await r.addHistoryEntry(run('q', 0));
+            await r.addHistoryEntry(run('p', 2, { params: [{ name: 'x', type: 'int', value: '1' }] })); // drops t1
+            await r.addHistoryEntry(run('p', 6)); // drops t2 (and its parameters)
+            expect(queries((await r.listHistory('p')).entries)).toEqual([
+              'SELECT * FROM t6',
+              'SELECT * FROM t5',
+              'SELECT * FROM t4',
+            ]);
+            // An entry older than everything kept is dropped straight away.
+            await r.addHistoryEntry(run('p', 0));
+            expect((await r.listHistory('p')).entries).toHaveLength(3);
+            expect(queries((await r.listHistory('q')).entries)).toEqual(['SELECT * FROM t0']);
+          });
+        }));
+
+      it('caps at 200 entries by default', () =>
+        withRepository(async (r) => {
+          await r.upsertProfile(profile('p'));
+          await withHistoryLimit('', async () => {
+            for (let minute = 0; minute < 201; minute++) await r.addHistoryEntry(run('p', minute));
+          });
+          const page = await r.listHistory('p', { limit: 500 });
+          expect(page.entries).toHaveLength(200);
+          expect(page.entries.at(-1)!.query).toBe('SELECT * FROM t1');
+        }));
+
+      it('pages with a cursor', () =>
+        withRepository(async (r) => {
+          await r.upsertProfile(profile('p'));
+          for (let minute = 1; minute <= 5; minute++) await r.addHistoryEntry(run('p', minute));
+          const first = await r.listHistory('p', { limit: 2 });
+          expect(queries(first.entries)).toEqual(['SELECT * FROM t5', 'SELECT * FROM t4']);
+          expect(first.next_cursor).toEqual(expect.any(String));
+          const second = await r.listHistory('p', { limit: 2, cursor: first.next_cursor });
+          expect(queries(second.entries)).toEqual(['SELECT * FROM t3', 'SELECT * FROM t2']);
+          const third = await r.listHistory('p', { limit: 2, cursor: second.next_cursor });
+          expect(queries(third.entries)).toEqual(['SELECT * FROM t1']);
+          expect(third.next_cursor).toBeNull();
+          // A page that ends exactly on the last entry has no next page either.
+          expect((await r.listHistory('p', { limit: 5 })).next_cursor).toBeNull();
+          // Entries added since do not shift the pages that follow a cursor.
+          await r.addHistoryEntry(run('p', 9));
+          expect(queries((await r.listHistory('p', { limit: 2, cursor: first.next_cursor })).entries)).toEqual([
+            'SELECT * FROM t3',
+            'SELECT * FROM t2',
+          ]);
+          // The default page size is 50.
+          for (let minute = 10; minute < 70; minute++) await r.addHistoryEntry(run('p', minute));
+          expect((await r.listHistory('p')).entries).toHaveLength(50);
+        }));
+
+      it('rejects a cursor it did not hand out', () =>
+        withRepository(async (r) => {
+          await r.upsertProfile(profile('p'));
+          await expect(r.listHistory('p', { cursor: 'not a cursor' })).rejects.toMatchObject({ status: 400 });
+          await expect(
+            r.listHistory('p', { cursor: Buffer.from('{"a":1}').toString('base64url') }),
+          ).rejects.toMatchObject({ status: 400 });
+        }));
+
+      it('searches the query text, ignoring case and taking wildcards literally', () =>
+        withRepository(async (r) => {
+          await r.upsertProfile(profile('p'));
+          await r.upsertProfile(profile('q'));
+          const texts = [
+            'SELECT * FROM users',
+            "select name from Users where name = '50%_off'",
+            'INSERT INTO orders (id) VALUES (1)',
+            'SELECT * FROM user_roles',
+            'SELECT * FROM userXroles',
+            "SELECT * FROM t WHERE city = 'ÉVORA'",
+            'SELECT 1 FROM t WHERE a!b = 1',
+          ];
+          for (const [minute, query] of texts.entries()) await r.addHistoryEntry(run('p', minute, { query }));
+          await r.addHistoryEntry(run('q', 0, { query: 'SELECT * FROM users' }));
+          const search = async (term: string, limit?: number) =>
+            queries((await r.listHistory('p', { search: term, limit })).entries);
+
+          expect(await search('USERS')).toEqual([texts[1], texts[0]]);
+          expect(await search('user_')).toEqual([texts[3]]);
+          expect(await search('50%_')).toEqual([texts[1]]);
+          expect(await search('%')).toEqual([texts[1]]);
+          expect(await search('a!b')).toEqual([texts[6]]);
+          expect(await search('évora')).toEqual([texts[5]]);
+          expect(await search('nothing like it')).toEqual([]);
+          expect(await search('')).toHaveLength(texts.length);
+
+          // Paging within the results.
+          const first = await r.listHistory('p', { search: 'select', limit: 2 });
+          expect(queries(first.entries)).toEqual([texts[6], texts[5]]);
+          const rest = await r.listHistory('p', { search: 'select', limit: 10, cursor: first.next_cursor });
+          expect(queries(rest.entries)).toEqual([texts[4], texts[3], texts[1], texts[0]]);
+          expect(rest.next_cursor).toBeNull();
+        }));
+
+      it('deletes one entry of a profile', () =>
+        withRepository(async (r) => {
+          await r.upsertProfile(profile('p'));
+          await r.upsertProfile(profile('q'));
+          const a = await r.addHistoryEntry(run('p', 1, { params: [{ name: 'x', type: 'int', value: '1' }] }));
+          const b = await r.addHistoryEntry(run('p', 2));
+          const other = await r.addHistoryEntry(run('q', 3));
+          await r.deleteHistoryEntry('p', a.id);
+          expect((await r.listHistory('p')).entries).toEqual([b]);
+          await expect(r.deleteHistoryEntry('p', a.id)).rejects.toMatchObject({ status: 404 });
+          await expect(r.deleteHistoryEntry('p', other.id)).rejects.toMatchObject({ status: 404 });
+          expect((await r.listHistory('q')).entries).toEqual([other]);
+          await r.deleteHistoryEntry('p', b.id);
+          expect((await r.listHistory('p')).entries).toEqual([]);
+        }));
+
+      it("clears a profile's history and only its own", () =>
+        withRepository(async (r) => {
+          await r.upsertProfile(profile('p'));
+          await r.upsertProfile(profile('q'));
+          await r.addHistoryEntry(run('p', 1, { params: [{ name: 'x', type: 'int', value: '1' }] }));
+          await r.addHistoryEntry(run('p', 2));
+          await r.addHistoryEntry(run('q', 3));
+          await r.clearHistory('p');
+          expect((await r.listHistory('p')).entries).toEqual([]);
+          expect(queries((await r.listHistory('q')).entries)).toEqual(['SELECT * FROM t3']);
+          await r.clearHistory('p');
+          await r.clearHistory('nobody');
+          await r.addHistoryEntry(run('p', 4));
+          expect(queries((await r.listHistory('p')).entries)).toEqual(['SELECT * FROM t4']);
+        }));
+
+      it('rejects entries for unknown profiles and unparseable start times', () =>
+        withRepository(async (r) => {
+          await r.upsertProfile(profile('p'));
+          await expect(r.addHistoryEntry(run('ghost', 1))).rejects.toMatchObject({ status: 404 });
+          await expect(r.addHistoryEntry(run('p', 1, { started_at: 'yesterday' }))).rejects.toMatchObject({ status: 400 });
+          expect((await r.listHistory('p')).entries).toEqual([]);
+          expect((await r.listHistory('ghost')).entries).toEqual([]);
+        }));
+
+      it('handles unusual profile names', () =>
+        withRepository(async (r) => {
+          const odd = "it's a-b.c/d é";
+          await r.upsertProfile(profile(odd));
+          const entry = await r.addHistoryEntry(run(odd, 1));
+          expect((await r.listHistory(odd)).entries).toEqual([entry]);
+          await r.deleteProfile(odd);
+          expect((await r.listHistory(odd)).entries).toEqual([]);
+        }));
+    });
+
     describe('snapshots', () => {
       it('copies everything to another repository, including ids, order and nested metadata', () =>
         withRepository(async (r) => {
@@ -310,8 +557,12 @@ export function describeRepositoryContract(
             status: { enum_values: ['x', 'y'] },
             m: { map_schema: [{ key: 'k', label: 'K', enum_values: ['1'] }] },
           });
+          const h1 = await r.addHistoryEntry(run('a', 1, { params: [{ name: 'id', type: 'int', value: '7' }] }));
+          const h2 = await r.addHistoryEntry(run('a', 2, { outcome: 'failed', error: 'nope' }));
+          const h3 = await r.addHistoryEntry(run('b', 3));
           const snapshot = await r.exportSnapshot();
           expect(snapshot.settings.saved_queries).toEqual([q]);
+          expect(snapshot.history).toEqual([h2, h1, h3]);
           expect(snapshot.version).not.toBeNull();
 
           const other = await create();
@@ -320,13 +571,14 @@ export function describeRepositoryContract(
             await other.repository.importSnapshot(snapshot);
             const copy = await other.repository.exportSnapshot();
             expect(copy).toEqual(snapshot);
+            expect((await other.repository.listHistory('a')).entries).toEqual([h2, h1]);
             expect(await other.repository.isEmpty()).toBe(false);
           } finally {
             await other.cleanup();
           }
         }));
 
-      it('skips favorites and tables of connections that do not exist', () =>
+      it('skips favorites, tables and history of connections that do not exist', () =>
         withRepository(async (r) => {
           await r.importSnapshot({
             version: null,
@@ -340,8 +592,14 @@ export function describeRepositoryContract(
               { ...ref('a'), columns: { c: { hide: true } } },
               { ...ref('ghost'), columns: { c: { hide: true } } },
             ],
+            history: [
+              { ...run('a', 1), id: 'h-a' },
+              { ...run('ghost', 2), id: 'h-ghost' },
+            ],
           });
           expect(await r.getLastConnection()).toBe('');
+          expect((await r.listHistory('a')).entries.map((e) => e.id)).toEqual(['h-a']);
+          expect((await r.exportSnapshot()).history.map((e) => e.id)).toEqual(['h-a']);
           expect(await r.getFavoriteKeyspaces('a')).toEqual(['k']);
           expect((await r.listTables()).map((t) => t.connection)).toEqual(['a']);
         }));

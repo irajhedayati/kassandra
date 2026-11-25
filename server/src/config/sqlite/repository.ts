@@ -12,10 +12,31 @@ import { mkdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import Database from 'better-sqlite3';
-import { and, asc, count, eq, inArray, lt, max, ne, sql } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, lt, max, ne, or, sql } from 'drizzle-orm';
 import { drizzle, type BetterSQLite3Database } from 'drizzle-orm/better-sqlite3';
 import { migrate as applyMigrations } from 'drizzle-orm/better-sqlite3/migrator';
-import type { ColumnMetadata, ConnectionProfile, SavedQuery, SavedQueryInput } from '@kassandra/shared';
+import type {
+  ColumnMetadata,
+  ConnectionProfile,
+  QueryHistoryEntry,
+  QueryHistoryInput,
+  QueryHistoryListOptions,
+  QueryHistoryOutcome,
+  QueryHistoryPage,
+  SavedQuery,
+  SavedQueryInput,
+} from '@kassandra/shared';
+import {
+  decodeCursor,
+  HistoryError,
+  historyLimit,
+  historyPageSize,
+  LIKE_ESCAPE,
+  likePattern,
+  newHistoryEntry,
+  searchTerm,
+  toPage,
+} from '../history.js';
 import {
   normalizeProfile,
   SavedQueryError,
@@ -36,6 +57,9 @@ type Db = BetterSQLite3Database;
 type Tx = Parameters<Parameters<Db['transaction']>[0]>[0];
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** The history order (see history.ts): newest first, ties by descending id. */
+const newestFirst = [desc(s.queryHistory.startedAt), desc(s.queryHistory.id)];
 
 /** Group `rows` by `key`, keeping their order. */
 function groupBy<T, K>(rows: T[], key: (row: T) => K): Map<K, T[]> {
@@ -60,6 +84,10 @@ export class SqliteRepository implements ConfigRepository {
       this.sqlite.pragma('busy_timeout = 5000');
       this.sqlite.pragma('journal_mode = WAL');
       this.sqlite.pragma('foreign_keys = ON');
+      // SQLite's lower() only folds ASCII; history search folds case like JavaScript (and PostgreSQL, MySQL) do.
+      this.sqlite.function('kassandra_lower', { deterministic: true }, (v: unknown) =>
+        typeof v === 'string' ? v.toLowerCase() : v,
+      );
     } catch (err) {
       this.sqlite.close();
       throw err;
@@ -133,15 +161,27 @@ export class SqliteRepository implements ConfigRepository {
     for (const { columns: _count, ...ref } of await this.listTables()) {
       tables.push({ ...ref, columns: await this.getTableMetadata(ref) });
     }
+    const connections = await this.listProfiles();
+    const history: QueryHistoryEntry[] = [];
+    for (const { name } of connections) {
+      const rows = this.db
+        .select()
+        .from(s.queryHistory)
+        .where(eq(s.queryHistory.connectionName, name))
+        .orderBy(...newestFirst)
+        .all();
+      history.push(...this.toHistory(this.db, rows));
+    }
     return {
       version: await this.getVersion(),
       settings: {
-        connections: await this.listProfiles(),
+        connections,
         last_connection_name: await this.getLastConnection(),
         favorite_keyspaces: favorites,
         saved_queries: await this.listSavedQueries(),
       },
       tables,
+      history,
     };
   }
 
@@ -161,6 +201,9 @@ export class SqliteRepository implements ConfigRepository {
       for (const query of snapshot.settings.saved_queries) this.writeNewQuery(tx, query);
       for (const { columns, ...ref } of snapshot.tables) {
         if (known.has(ref.connection)) this.writeTable(tx, ref, columns);
+      }
+      for (const entry of snapshot.history) {
+        if (known.has(entry.profile)) this.writeHistoryEntry(tx, entry);
       }
       if (snapshot.version) this.setVersionRow(snapshot.version);
     });
@@ -277,7 +320,7 @@ export class SqliteRepository implements ConfigRepository {
   }
 
   async deleteProfile(name: string): Promise<void> {
-    // Hosts, favorites and table metadata go with it (ON DELETE CASCADE); the last connection is cleared (SET NULL).
+    // Hosts, favorites, table metadata and history go with it (ON DELETE CASCADE); the last connection is cleared (SET NULL).
     this.db.delete(s.connections).where(eq(s.connections.name, name)).run();
   }
 
@@ -606,6 +649,117 @@ export class SqliteRepository implements ConfigRepository {
       .groupBy(s.tableMetadata.id)
       .orderBy(asc(s.tableMetadata.connectionName), asc(s.tableMetadata.keyspace), asc(s.tableMetadata.tableName))
       .all();
+  }
+
+  // --- query history -----------------------------------------------------------------------
+
+  private toHistory(tx: Db | Tx, rows: (typeof s.queryHistory.$inferSelect)[]): QueryHistoryEntry[] {
+    if (rows.length === 0) return [];
+    const params = groupBy(
+      tx
+        .select()
+        .from(s.queryHistoryParams)
+        .where(
+          inArray(
+            s.queryHistoryParams.entryId,
+            rows.map((r) => r.id),
+          ),
+        )
+        .orderBy(asc(s.queryHistoryParams.position))
+        .all(),
+      (p) => p.entryId,
+    );
+    return rows.map((row) => ({
+      id: row.id,
+      profile: row.connectionName,
+      query: row.query,
+      params: (params.get(row.id) ?? []).map(({ name, type, value }) => ({ name, type, value })),
+      started_at: new Date(row.startedAt).toISOString(),
+      duration_ms: row.durationMs,
+      statements: row.statements,
+      outcome: row.outcome as QueryHistoryOutcome,
+      error: row.error,
+    }));
+  }
+
+  private writeHistoryEntry(tx: Tx, entry: QueryHistoryEntry): void {
+    tx.insert(s.queryHistory)
+      .values({
+        id: entry.id,
+        connectionName: entry.profile,
+        query: entry.query,
+        startedAt: Date.parse(entry.started_at),
+        durationMs: entry.duration_ms,
+        statements: entry.statements,
+        outcome: entry.outcome,
+        error: entry.error,
+      })
+      .run();
+    if (entry.params.length > 0) {
+      tx.insert(s.queryHistoryParams)
+        .values(entry.params.map(({ name, type, value }, position) => ({ entryId: entry.id, position, name, type, value })))
+        .run();
+    }
+  }
+
+  async addHistoryEntry(input: QueryHistoryInput): Promise<QueryHistoryEntry> {
+    const entry = newHistoryEntry(input);
+    this.db.transaction((tx) => {
+      if (!tx.select().from(s.connections).where(eq(s.connections.name, entry.profile)).get()) {
+        throw new HistoryError(`Unknown connection "${entry.profile}"`, 404);
+      }
+      this.writeHistoryEntry(tx, entry);
+      // Not OFFSET in SQL: Drizzle omits a LIMIT of -1, and SQLite only allows OFFSET with one. A profile holds at
+      // most one entry over the cap anyway.
+      const dropped = tx
+        .select({ id: s.queryHistory.id })
+        .from(s.queryHistory)
+        .where(eq(s.queryHistory.connectionName, entry.profile))
+        .orderBy(...newestFirst)
+        .all()
+        .slice(historyLimit())
+        .map((r) => r.id);
+      // Their parameters go with them (ON DELETE CASCADE).
+      if (dropped.length > 0) tx.delete(s.queryHistory).where(inArray(s.queryHistory.id, dropped)).run();
+    });
+    return entry;
+  }
+
+  async listHistory(profile: string, options: QueryHistoryListOptions = {}): Promise<QueryHistoryPage> {
+    const cursor = options.cursor ? decodeCursor(options.cursor) : null;
+    const term = searchTerm(options);
+    const size = historyPageSize(options.limit);
+    const h = s.queryHistory;
+    const rows = this.db
+      .select()
+      .from(h)
+      .where(
+        and(
+          eq(h.connectionName, profile),
+          cursor
+            ? or(lt(h.startedAt, cursor.startedAt), and(eq(h.startedAt, cursor.startedAt), lt(h.id, cursor.id)))
+            : undefined,
+          term !== null
+            ? sql`kassandra_lower(${h.query}) like ${likePattern(term)} escape ${sql.raw(`'${LIKE_ESCAPE}'`)}`
+            : undefined,
+        ),
+      )
+      .orderBy(...newestFirst)
+      .limit(size + 1)
+      .all();
+    return toPage(this.toHistory(this.db, rows), size);
+  }
+
+  async deleteHistoryEntry(profile: string, id: string): Promise<void> {
+    const result = this.db
+      .delete(s.queryHistory)
+      .where(and(eq(s.queryHistory.connectionName, profile), eq(s.queryHistory.id, id)))
+      .run();
+    if (result.changes === 0) throw new HistoryError('History entry not found', 404);
+  }
+
+  async clearHistory(profile: string): Promise<void> {
+    this.db.delete(s.queryHistory).where(eq(s.queryHistory.connectionName, profile)).run();
   }
 }
 

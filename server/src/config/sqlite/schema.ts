@@ -4,6 +4,7 @@
  *   connections ─┬─ connection_hosts
  *                ├─ favorite_keyspaces
  *                ├─ app_state.last_connection          (at most one row)
+ *                ├─ query_history ── query_history_params
  *                └─ table_metadata ── column_metadata ─┬─ column_enum_values
  *                                                      └─ column_map_entries ── map_entry_enum_values
  *   saved_queries ── saved_query_params
@@ -15,7 +16,7 @@
  * in server/drizzle together with it.
  */
 import { sql } from 'drizzle-orm';
-import { check, integer, primaryKey, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core';
+import { check, index, integer, primaryKey, sqliteTable, text, unique } from 'drizzle-orm/sqlite-core';
 
 export const connections = sqliteTable('connections', {
   name: text('name').primaryKey(),
@@ -158,6 +159,40 @@ export const mapEntryEnumValues = sqliteTable(
       .notNull()
       .references(() => columnMapEntries.id, { onDelete: 'cascade' }),
     position: integer('position').notNull(),
+    value: text('value').notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.entryId, t.position] })],
+);
+
+/** One query run of a connection (see config/history.ts); the newest historyLimit() per connection are kept. */
+export const queryHistory = sqliteTable(
+  'query_history',
+  {
+    id: text('id').primaryKey(),
+    connectionName: text('connection_name')
+      .notNull()
+      .references(() => connections.name, { onDelete: 'cascade', onUpdate: 'cascade' }),
+    query: text('query').notNull(),
+    /** Epoch milliseconds. */
+    startedAt: integer('started_at').notNull(),
+    durationMs: integer('duration_ms').notNull(),
+    statements: integer('statements').notNull(),
+    outcome: text('outcome').notNull(),
+    error: text('error'),
+  },
+  (t) => [index('query_history_connection_started_at').on(t.connectionName, t.startedAt)],
+);
+
+/** The `:parameters` a history entry ran with, in order. */
+export const queryHistoryParams = sqliteTable(
+  'query_history_params',
+  {
+    entryId: text('entry_id')
+      .notNull()
+      .references(() => queryHistory.id, { onDelete: 'cascade' }),
+    position: integer('position').notNull(),
+    name: text('name').notNull(),
+    type: text('type').notNull(),
     value: text('value').notNull(),
   },
   (t) => [primaryKey({ columns: [t.entryId, t.position] })],

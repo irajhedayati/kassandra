@@ -550,18 +550,22 @@ not in the configuration.
 
 ### Storage backends
 
-| Backend                  | Where the configuration lives                    | Fixed with                                                              |
-|--------------------------|--------------------------------------------------|-------------------------------------------------------------------------|
-| **JSON files** (default) | `config.json` and `tables/*.json` in a directory | `KASSANDRA_HOME`                                                        |
-| **SQLite**               | One database file                                | `KASSANDRA_STORAGE=sqlite`, `KASSANDRA_SQLITE_PATH`                     |
-| **PostgreSQL**           | Tables in a schema of a PostgreSQL database      | `KASSANDRA_STORAGE=postgres`, `KASSANDRA_DB_URL`, `KASSANDRA_DB_SCHEMA` |
-| **MySQL / MariaDB**      | Tables in a MySQL or MariaDB database            | `KASSANDRA_STORAGE=mysql`, `KASSANDRA_DB_URL`                           |
-| **Firebase (Firestore)** | Documents in a Firestore collection              | `KASSANDRA_STORAGE=firestore`, `KASSANDRA_FIRESTORE_*`                  |
+| Backend                  | Where the configuration lives                                      | Fixed with                                                              |
+|--------------------------|--------------------------------------------------------------------|-------------------------------------------------------------------------|
+| **JSON files** (default) | `config.json`, `tables/*.json` and `history/*.json` in a directory | `KASSANDRA_HOME`                                                        |
+| **SQLite**               | One database file                                                  | `KASSANDRA_STORAGE=sqlite`, `KASSANDRA_SQLITE_PATH`                     |
+| **PostgreSQL**           | Tables in a schema of a PostgreSQL database                        | `KASSANDRA_STORAGE=postgres`, `KASSANDRA_DB_URL`, `KASSANDRA_DB_SCHEMA` |
+| **MySQL / MariaDB**      | Tables in a MySQL or MariaDB database                              | `KASSANDRA_STORAGE=mysql`, `KASSANDRA_DB_URL`                           |
+| **Firebase (Firestore)** | Documents in a Firestore collection                                | `KASSANDRA_STORAGE=firestore`, `KASSANDRA_FIRESTORE_*`                  |
 
 Choose the backend under **Storage** on the Configuration page. When you switch, Kassandra copies the current
 configuration into the new storage if it is empty (clear the **Copy the current configuration** checkbox to start
 empty); a storage that already holds a configuration is used as is. The previous storage is always left in place, so you
 can switch back. PostgreSQL, MySQL, and Firestore can be shared by several Kassandra instances, for example by a team.
+
+Every backend also keeps the query history of each connection profile, and copies it along when you switch. Each
+profile keeps its latest 200 queries; set `KASSANDRA_HISTORY_LIMIT` to keep more or fewer (the oldest are dropped first).
+Deleting a profile deletes its history.
 
 Environment variables fix a setting and disable it on the page; this is the way to configure a deployment. If
 `KASSANDRA_STORAGE` names an unknown backend, the server stops with an error listing the available ones. The choice made
@@ -573,14 +577,14 @@ never sent back to the browser: the password field shows that one is saved, and 
 
 The default. Profiles, favorites, and saved queries are in `config.json`; column metadata is one file per connection and
 table in `tables/` (`<connection>-<keyspace>.<table>.json`; characters other than letters, digits and `_` are
-percent-encoded). The directory is `KASSANDRA_HOME` if set, else the **Location** chosen on the Configuration page, else
+percent-encoded), and each profile's query history is one file in `history/` (`<connection>.json`, encoded the same way). The directory is `KASSANDRA_HOME` if set, else the **Location** chosen on the Configuration page, else
 `~/.kassandra`. Choosing an empty location copies the current configuration there (the old files are left in place); a
 location that already holds a configuration is used as is.
 
 #### SQLite
 
 A single database file with a relational schema (connections and their hosts, favorite keyspaces, saved queries and
-their parameters, and per-table column metadata). Set the **Database file**; the default is `kassandra.db` in the
+their parameters, per-table column metadata, and query history). Set the **Database file**; the default is `kassandra.db` in the
 configuration directory. The schema is created and upgraded automatically at startup.
 
 #### PostgreSQL and MySQL / MariaDB

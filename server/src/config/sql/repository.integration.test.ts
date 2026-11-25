@@ -23,12 +23,24 @@ const TABLES = [
   'lock',
   'map_entry_enum_values',
   'meta',
+  'query_history',
+  'query_history_params',
   'saved_queries',
   'saved_query_params',
   'table_metadata',
 ];
 
 const profile = (name: string) => ({ ...DEFAULT_PROFILE, name });
+const historyEntry = (name: string, query = 'SELECT * FROM t WHERE id = :id') => ({
+  profile: name,
+  query,
+  params: [{ name: 'id', type: 'int', value: '1' }],
+  started_at: new Date().toISOString(),
+  duration_ms: 1,
+  statements: 1,
+  outcome: 'success' as const,
+  error: null,
+});
 
 for (const { dialect, url } of testTargets()) {
   describeRepositoryContract(`SqlRepository (${dialect})`, async () => {
@@ -71,7 +83,7 @@ for (const { dialect, url } of testTargets()) {
       try {
         const repo = new SqlRepository(ns.connection);
         try {
-          expect(await repo.migrate()).toEqual(['0000_init', '0001_read_only']);
+          expect(await repo.migrate()).toEqual(['0000_init', '0001_read_only', '0002_query_history']);
           expect(await repo.migrate()).toEqual([]);
         } finally {
           await repo.destroy();
@@ -102,6 +114,26 @@ for (const { dialect, url } of testTargets()) {
         expect(await foreignKeys('favorite_keyspaces')).toEqual([{ ref: 'connections', rule: 'CASCADE' }]);
         expect(await foreignKeys('app_state')).toEqual([{ ref: 'connections', rule: 'SET NULL' }]);
         expect(await foreignKeys('column_metadata')).toEqual([{ ref: 'table_metadata', rule: 'CASCADE' }]);
+        expect(await foreignKeys('query_history')).toEqual([{ ref: 'connections', rule: 'CASCADE' }]);
+        expect(await foreignKeys('query_history_params')).toEqual([{ ref: 'query_history', rule: 'CASCADE' }]);
+
+        const indexColumns =
+          dialect === 'postgres'
+            ? await ns.query(
+                `SELECT a.attname AS name FROM pg_index i
+                 JOIN pg_class ix ON ix.oid = i.indexrelid JOIN pg_namespace n ON n.oid = ix.relnamespace
+                 CROSS JOIN LATERAL unnest(i.indkey) WITH ORDINALITY AS k(attnum, ord)
+                 JOIN pg_attribute a ON a.attrelid = i.indrelid AND a.attnum = k.attnum
+                 WHERE n.nspname = ? AND ix.relname = 'query_history_connection_started_at' ORDER BY k.ord`,
+                [ns.connection.schema],
+              )
+            : await ns.query(
+                `SELECT column_name AS name FROM information_schema.statistics
+                 WHERE table_schema = ? AND table_name = 'query_history' AND index_name = 'query_history_connection_started_at'
+                 ORDER BY seq_in_index`,
+                [ns.connection.database],
+              );
+        expect(indexColumns.map((c) => c.name)).toEqual(['connection_name', 'started_at']);
       } finally {
         await ns.drop();
       }
@@ -115,7 +147,8 @@ for (const { dialect, url } of testTargets()) {
           { connection: 'p', keyspace: 'ks', table: 't' },
           { c: { enum_values: ['a'], map_schema: [{ key: 'k', label: 'K', enum_values: ['1'] }] } },
         );
-        const dependents = ['connection_hosts', 'favorite_keyspaces', 'table_metadata', 'column_metadata', 'column_enum_values', 'column_map_entries', 'map_entry_enum_values'];
+        await repo.addHistoryEntry(historyEntry('p'));
+        const dependents = ['connection_hosts', 'favorite_keyspaces', 'table_metadata', 'column_metadata', 'column_enum_values', 'column_map_entries', 'map_entry_enum_values', 'query_history', 'query_history_params'];
         const count = async (t: string) => Number((await ns.query(`SELECT count(*) AS n FROM ${ns.ref(t)}`))[0]!.n);
         for (const t of dependents) expect(await count(t), `${t} before`).toBeGreaterThan(0);
         await repo.deleteProfile('p');
@@ -157,6 +190,13 @@ for (const { dialect, url } of testTargets()) {
         const query = `SELECT ${'x'.repeat(200_000)}`;
         const saved = await repo.createSavedQuery({ name: 'long', description: 'd'.repeat(5000), query, paramTypes: {} });
         expect((await repo.listSavedQueries())[0]).toEqual(saved);
+        await repo.upsertProfile(profile('p'));
+        const entry = await repo.addHistoryEntry({
+          ...historyEntry('p', query),
+          params: [{ name: 'id', type: 'text', value: 'v'.repeat(100_000) }],
+          error: 'e'.repeat(100_000),
+        });
+        expect((await repo.listHistory('p')).entries).toEqual([entry]);
       }));
 
     it('persists across instances and shares the lock between them', () =>
@@ -206,17 +246,24 @@ for (const { dialect, url } of testTargets()) {
         // MySQL commits DDL as it goes, so a crash can leave some tables; recreate that state.
         await ns.query(`DELETE FROM ${ns.ref('kysely_migration')}`);
         await ns.query(`DROP TABLE ${ns.ref('lock')}`);
-        // Both rerun: 0000_init recreates the missing table, 0001_read_only finds its column already there.
-        expect(await repo.migrate()).toEqual(['0000_init', '0001_read_only']);
+        await ns.query(`DROP TABLE ${ns.ref('query_history_params')}`);
+        // All rerun: 0000_init recreates the missing table, 0001_read_only finds its column already there,
+        // 0002_query_history keeps its table and index and recreates the missing table.
+        expect(await repo.migrate()).toEqual(['0000_init', '0001_read_only', '0002_query_history']);
         await (await repo.lock())();
         await repo.upsertProfile({ ...profile('p'), read_only: true });
         expect((await repo.getProfile('p'))!.read_only).toBe(true);
+        await repo.addHistoryEntry(historyEntry('p'));
+        expect((await repo.listHistory('p')).entries).toHaveLength(1);
       }));
 
-    it('upgrades a database from before read-only profiles, keeping its profiles writable', () =>
+    it('upgrades a database from 1.6.0: profiles stay writable and get an empty history', () =>
       withRepository(async (repo, ns) => {
-        // Put the database back where 1.6.0 left it: no read_only column, 0001 not recorded, one profile.
-        await ns.query(`DELETE FROM ${ns.ref('kysely_migration')} WHERE name = '0001_read_only'`);
+        // Put the database back where 1.6.0 left it: no read_only column, no history tables, 0001 and 0002 not
+        // recorded, one profile.
+        await ns.query(`DELETE FROM ${ns.ref('kysely_migration')} WHERE name IN ('0001_read_only', '0002_query_history')`);
+        await ns.query(`DROP TABLE ${ns.ref('query_history_params')}`);
+        await ns.query(`DROP TABLE ${ns.ref('query_history')}`);
         await ns.query(`ALTER TABLE ${ns.ref('connections')} DROP COLUMN read_only`);
         await ns.query(
           `INSERT INTO ${ns.ref('connections')} (name, port, username, password, ssl_enabled, ssl_protocol, ssl_cert_path,
@@ -225,10 +272,13 @@ for (const { dialect, url } of testTargets()) {
         );
         await ns.query(`INSERT INTO ${ns.ref('connection_hosts')} (connection_name, position, host) VALUES ('prod', 0, 'h1')`);
 
-        expect(await repo.migrate()).toEqual(['0001_read_only']);
+        expect(await repo.migrate()).toEqual(['0001_read_only', '0002_query_history']);
         expect(await repo.getProfile('prod')).toMatchObject({ name: 'prod', hosts: ['h1'], read_only: false });
         await repo.upsertProfile({ ...(await repo.getProfile('prod'))!, read_only: true });
         expect((await repo.getProfile('prod'))!.read_only).toBe(true);
+        expect((await repo.listHistory('prod')).entries).toEqual([]);
+        await repo.addHistoryEntry(historyEntry('prod'));
+        expect((await repo.listHistory('prod')).entries).toHaveLength(1);
       }));
 
     it('rolls a failed operation back completely', () =>
@@ -249,6 +299,7 @@ for (const { dialect, url } of testTargets()) {
             saved_queries: [query, { ...query, name: 'b' }], // same id twice: the second insert fails
           },
           tables: [],
+          history: [],
         };
         await expect(repo.importSnapshot(snapshot)).rejects.toThrow();
         expect(await repo.isEmpty()).toBe(true);
